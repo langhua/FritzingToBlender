@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"name": "FritzingToBlender",
+			"path": "."
+		},
+		{
+			"path": "../FritzingToBlender"
+		}
+	],
+	"settings": {}
+}

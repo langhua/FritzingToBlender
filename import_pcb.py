@@ -1,8 +1,8 @@
 bl_info = {
-    "name": "Generate PCB Model",
-    "author": "Christopher S. Francis",
+    "name": "Generate Fritzing PCB Model",
+    "author": "Christopher S. Francis, Shi Jinghai",
     "version": (1, 0),
-    "blender": (2, 80, 3),
+    "blender": (4, 21, 3),
     "location": "",
     "description": "Imports layers from a Gerber file package in SVG form and generates a model of the given PCB to allow for 3D inspection before ordering",
     "warning": "",
@@ -37,14 +37,17 @@ import math
 from mathutils import Vector
 from bpy_extras.io_utils import ImportHelper
 from bpy.types import Operator
-from bpy.props import StringProperty, BoolProperty
-
+from bpy.props import StringProperty
+from mathutils import Matrix
+from .io_curve_svg.svg_util import (units,
+                       read_float)
+import xml.etree.ElementTree as ET
 
 ##
 # The ImportPCB class is actually just the file dialog box which has to be an object in the current API when this was written (bpy 2.8.3)\n
 class ImportPCB(Operator, ImportHelper):
     bl_idname = "pcb.import_svg"
-    bl_label = "Import PCB Folder"
+    bl_label = "Import Friting PCB svg Folder"
     
     filename_ext = "."
     use_filter_folder = True
@@ -58,53 +61,68 @@ class ImportPCB(Operator, ImportHelper):
             with open(directory + "\\filenames.txt", mode="r") as file:
                 for line in file:
                    filenames.append(line[0:-1])
-                          
-            for file in filenames:
-                import_svg(directory, file)
             
+            # import svg files as pcb layers
+            pcbLayers = []
+            for file in filenames:
+                layer = import_svg(directory, file)
+                if layer:
+                    pcbLayers.append(layer)
+            
+            # remove extra verts
             bpy.ops.object.select_all(action="SELECT")
-            for layer in bpy.context.selected_objects:
-                if layer.name != "board_outline":
-                    removeExtraVerts(layer)
-                    removeOutline(layer)
-                else:
+            for layer in pcbLayers:
+                if layer.name != 'drill_holes' and not layer.name.endswith('_drill.txt'):
                     removeExtraVerts(layer)
 
-            extrudeLayers()
+            extrudeLayers(pcbLayers, None, None, None, None)
             
-            for layer in bpy.data.objects:
-                if layer.name == "board_outline":
-                    create_material(layer, "board", (0.062, 0.296, 0.020, 0.99), 0.234, 0.235, 0.202) 
-                elif layer.name == "bottom_solder":
-                    create_material(layer, "metal", (0.391, 0.521, 0.627, 1.0), 0.849, 0.279, 0.245)
-                elif layer.name == "bottom_layer":
-                    create_material(layer, "metal", (0.391, 0.521, 0.627, 1.0), 0.849, 0.279, 0.245)
-                elif layer.name == "top_layer":
-                    create_material(layer, "metal", (0.391, 0.521, 0.627, 1.0), 0.849, 0.279, 0.245)
-                elif layer.name == "top_solder":
-                    create_material(layer, "metal", (0.391, 0.521, 0.627, 1.0), 0.849, 0.279, 0.245)
-                elif layer.name == "silk_screen":
-                    create_material(layer, "silk_screen", (0.513, 0.627, 0.552, 1.0), 0.234, 0.500, 0.202)
+            drill_layer = None
+            for layer in pcbLayers:
+                if layer.name == "board_outline" or layer.name.endswith('_contour.gm1') or layer.name.endswith('_etch_silk_bottom'):
+                    create_material(layer, "board", (0.062, 0.296, 0.020, 0.99), 0.234, 0.235, 0.202)
+                elif layer.name == "bottom_solder" or layer.name.endswith('_maskBottom.gbs') or layer.name.endswith('_etch_mask_bottom'):
+                    create_material(layer, "metal", (255, 180, 0, 1.0), 1, 0.5, 0.2)
+                elif layer.name == "bottom_layer" or layer.name.endswith('_copperBottom.gbl') or layer.name.endswith('_etch_copper_bottom'):
+                    create_material(layer, "metal", (255, 180, 0, 1.0), 1, 0.5, 0.2)
+                elif layer.name == "top_layer" or layer.name.endswith('_copperTop.gts') or layer.name.endswith('_etch_copper_top'):
+                    create_material(layer, "metal", (255, 180, 0, 1.0), 1, 0.5, 0.2)
+                elif layer.name == "top_solder" or layer.name.endswith('_etch_mask_top') or layer.name.endswith('_maskTop.gts'):
+                    create_material(layer, "metal", (255, 180, 0, 1.0), 1, 0.5, 0.2)
+                elif layer.name == "silk_screen" or layer.name.endswith('_etch_silk_top') or layer.name.endswith('_silkTop.gto'):
+                    create_material(layer, "silk_screen", (100, 100, 100, 1.0), 1, 0.5, 0.2)
+                elif layer.name == 'drill_holes' or layer.name.endswith('_drill.txt'):
+                    drill_layer = layer
+
+            # drill holes
+            if drill_layer and pcbLayers:
+                for layer in pcbLayers:
+                    if layer != drill_layer and layer.name != 'silk_screen' \
+                            and not layer.name.endswith('_etch_silk_top') \
+                            and not layer.name.endswith('_etch_silk_bottom'):
+                        drillHoles(layer, drill_layer)
+
+            # remove drill holes collection
+            pcbLayers.remove(drill_layer)
+            for obj in drill_layer.objects:
+                bpy.data.objects.remove(obj, do_unlink=True)
+            bpy.data.collections.remove(drill_layer)
             
-            solidify("bottom_layer", 0.254)
-            solidify("top_layer", 0.254)
+            # join the layers except holes_layer
+            joinedLayer = None
+            if pcbLayers:
+                bpy.ops.object.select_all(action="DESELECT")
+                for layer in pcbLayers:
+                    layer.select_set(True)
+                bpy.context.view_layer.objects.active = pcbLayers[0]
+                bpy.ops.object.join()
+                joinedLayer = bpy.context.view_layer.objects.active
+                joinedLayer.name = 'JoinedLayer'
             
-            drill_layer("board_outline")
-            drill_layer("bottom_solder")
-            drill_layer("bottom_layer")
-            drill_layer("top_layer")
-            drill_layer("top_solder")
-            drill_layer("silk_screen")
-            
-            harden()
         except:
             bpy.ops.pcb.import_error("INVOKE_DEFAULT")
 
         return {"FINISHED"}
-
-
-
-
 
 
 ##
@@ -121,11 +139,6 @@ class ErrorDialog(Operator):
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
 
-
-
-
-
-
     
 ##
 # Adds this class to the list the bpy module knows about, necessary to run it\n
@@ -135,11 +148,6 @@ def register():
     bpy.utils.register_class(ErrorDialog)
 
 
-
-
-
-
-
 ##
 # Removes this class from the list the bpy module knows about 
 def unregister():
@@ -147,19 +155,12 @@ def unregister():
     bpy.utils.unregister_class(ErrorDialog)
     
 
-
-
-
-
 ##
 # Turns visibility off for all objects           
 def hideAll():
     for layer in bpy.data.objects:
         layer.select_set(False)
         layer.hide_set(True) 
-
-
-
 
 
 ##
@@ -173,44 +174,140 @@ def revealAll():
             layer.hide_set(False)
 
 
-
-
-
 ##
-# Brings in the SVG file, applies the x and y orientation, converts the curves to meshes, scales it to 1 meter in blender equals 1 millimeter in the real world, and places the objects into a collection ... \(still to come: extrusions, height placement, cut the holes, and join a copy into a completed version\)\n
-# Uses Blender 2.8.2 or higher API
+# Brings in the SVG file, applies the x and y orientation, converts the curves to meshes, scales it to 1 millimeter in blender equals 1 millimeter in the real world, and places the objects into a collection ... \(still to come: extrusions, height placement, cut the holes, and join a copy into a completed version\)\n
+# Uses Blender 4.2 or higher API
 # @param dir -the directory where the files are located
 # @param file -the list of SVG files representing the Gerber Files / PCB
 def import_svg(dir, file):
+    # 1. deselect all
+    bpy.ops.object.select_all(action='DESELECT')
+
+    # 2. import the svg file and get the new curves
+    start_objs = bpy.data.objects[:]
     bpy.ops.import_curve.svg(filepath=(dir + "/" + file))
+    new_curves = [o for o in bpy.data.objects if o not in start_objs]
+    if not new_curves:
+        return None
+    fritzingPcbCollectionName = 'frizting-pcb'
+    etch = file.find('_etch_')
+    if etch > 0:
+        fritzingPcbCollectionName = file[0:etch]
 
-    col = bpy.data.collections.get(file)
-    if col:
-        for obj in col.objects:    
-            obj.select_set(True)
+    # 3. transform new curves to mesh
+    boardoutline = None
+    for newCurve in new_curves:
+        if bpy.data.curves[newCurve.name]:
+            bpy.data.curves[newCurve.name].dimensions = '3D'
+        if newCurve.name == 'boardoutline' and file != 'drill_holes.svg' and not file.endswith('_drill.txt.svg'):
+            boardoutline = newCurve
+        else:
+            newCurve.select_set(True)
+
+        if file == 'drill_holes.svg' or file.endswith('_drill.txt.svg'):
+            bpy.context.view_layer.objects.active = newCurve
+            bpy.ops.object.convert(target="MESH")
+
+    # 4. join the new curves into one by 2 steps
+    if file != 'drill_holes.svg' and not file.endswith('_drill.txt.svg'):
+        bpy.ops.object.select_all(action='DESELECT')
+        objects = bpy.data.collections[file].objects
+        curves = []
+        for obj in objects:
             bpy.context.view_layer.objects.active = obj
-            obj.to_mesh(preserve_all_data_layers=True)
-               
-    bpy.ops.object.join()
-    layer = bpy.context.selected_objects[0]
-    layer.name = file[0:-4]
-    layer.scale = (2814.5, 2814.5, 2814.5)
-    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
-    bpy.ops.object.convert(target="MESH") 
+            active_object = bpy.context.active_object
+            if obj != boardoutline and active_object.type == 'CURVE':
+                obj.select_set(True)
+                curves.append(obj)
 
-    if "layers" not in bpy.data.collections:
-        bpy.ops.object.move_to_collection(collection_index = 0, is_new = True, new_collection_name="layers")
+        bpy.context.view_layer.objects.active = curves[0]
+        bpy.ops.object.join()
+        if boardoutline:
+            if file == "board_outline.svg" or file.endswith('_contour.gm1.svg') or file.endswith('_etch_silk_bottom.svg'):
+                boardoutline.select_set(True)
+                bpy.context.view_layer.objects.active = boardoutline
+                bpy.ops.object.join()
+            else:
+                bpy.ops.object.select_all(action='DESELECT')
+                boardoutline.select_set(True)
+                bpy.context.view_layer.objects.active = boardoutline
+                bpy.ops.object.delete(use_global=True)
+                
+
+    # 5. parse the svg file again to get right unit scale number
+    tree = ET.parse(dir + "/" + file)
+    root = tree.getroot()
+    unitscale = 1.0
+    unit = ''
+    if root.attrib['height']:
+        raw_height = root.attrib['height']
+        token, last_char = read_float(raw_height)
+        unit = raw_height[last_char:].strip()
+
+    if unit in ('cm', 'mm', 'in', 'pt', 'pc'):
+        # convert units to BU:
+        unitscale = units[unit] / 90 * 1000 / 39.3701
+        # apply blender unit scale:
+        unitscale = bpy.context.scene.unit_settings.scale_length / unitscale
+
+    # 6. scale the new layer
+    if unitscale != 1.0:
+        mat_scale = Matrix.LocRotScale(None, None, (unitscale, unitscale, unitscale))
+        if file == 'drill_holes.svg' or file.endswith('_drill.txt.svg'):
+            fileLayerObjects = bpy.data.collections[file].objects
+            for obj in  fileLayerObjects:
+                obj.data.transform(mat_scale)
+                obj.scale = 1, 1, 1
+        else:
+            bpy.context.view_layer.objects.active = bpy.data.collections[file].objects[0]
+            bpy.context.object.data.transform(mat_scale)
+            bpy.context.object.scale = 1, 1, 1
+    
+    # 7. convert curves to MESH
+    if file != 'drill_holes.svg' and not file.endswith('_drill.txt.svg'):
+        objects = bpy.data.collections[file].objects
+        bpy.context.view_layer.objects.active = objects[0]
+        for obj in objects:
+            obj.select_set(True)
+        bpy.ops.object.convert(target="MESH")
+        bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
+
+    # 8. add the imported pcb board layer to fritzing pcb layer
+    layer = None
+    if file == 'drill_holes.svg' or file.endswith('_drill.txt.svg'):
+        layer = bpy.data.collections[file]
     else:
-        bpy.data.collections["layers"].objects.link(layer)
+        layer = bpy.context.selected_objects[0]
+        layer.name = file[0:-4]
+    if file == 'board_outline.svg' or file.endswith('_contour.gm1.svg'):
+        layer.location = Vector((layer.dimensions.x/2, layer.dimensions.y/2, 0))
+    if fritzingPcbCollectionName not in bpy.data.collections:
+        if file == 'drill_holes.svg' or file.endswith('_drill.txt.svg'):
+            fritzingPcbCollection = bpy.data.collections.new(fritzingPcbCollectionName)
+            fritzingPcbCollection.objects.link(layer)
+        else:
+            bpy.ops.object.move_to_collection(collection_index = 0, is_new = True, new_collection_name=fritzingPcbCollectionName)
+    else:
+        if file == 'drill_holes.svg' or file.endswith('_drill.txt.svg'):
+            newLayer = bpy.data.collections.new(file[0:-4])
+            for obj in layer.all_objects:
+                newLayer.objects.link(obj)
+            bpy.data.collections[fritzingPcbCollectionName].children.link(newLayer)
+            layer = newLayer
+        else:
+            bpy.data.collections[fritzingPcbCollectionName].objects.link(layer)
 
-    col = bpy.data.collections.get(file)
+    # 9. remove the orignal collection named by file
+    col = bpy.data.collections[file]
     if col:
         bpy.data.collections.remove(col)
-    col = bpy.data.collections.get("layers")
+    col = bpy.data.collections[fritzingPcbCollectionName]
     if col:
         for obj in col.objects:
             obj.select_set(False)
-			
+    
+    # 10. return the layer
+    return layer
 
 
 ##
@@ -225,102 +322,94 @@ def removeExtraVerts(layer):
     bpy.ops.object.editmode_toggle()
 
 
-
-
-
-
 ##
 # Finds the vertex closest to the origin \(that has to be in the board outline\) and removes all the vertices connected to it.
-def removeOutline(layer):
-    bpy.context.view_layer.objects.active = layer
-    min = layer.data.vertices[0]
-    minDistance = math.sqrt(min.co[0] **2 + min.co[1]**2)
-    for vert in layer.data.vertices:
-        vertDistance = math.sqrt(vert.co[0] **2 + vert.co[1]**2)
-        if(vertDistance < minDistance):
+def removeOutline(file):
+    objects = bpy.data.collections[file].objects
+    bpy.context.view_layer.objects.active = objects[0]
+    verts = [vert for vert in objects[0].data.vertices]
+    min = verts[0]
+    minDistance = math.sqrt(min.co.x ** 2 + min.co.y ** 2)
+    for vert in verts:
+        vertDistance = math.sqrt(vert.co.x ** 2 + vert.co.y ** 2)
+        if vertDistance < minDistance:
             min = vert
-            minDistance = vertDistance       
+            minDistance = vertDistance
     min.select = True
     bpy.ops.object.editmode_toggle()
     bpy.ops.mesh.select_linked()
     bpy.ops.mesh.delete(type="VERT")
     bpy.ops.object.editmode_toggle()
-    
-
-
-
 
 
 ##
 # extrudes all components and sets the vertical position of each layer
-def extrudeLayers():
+def extrudeLayers(pcbLayers, boardThickness, copperThickness, solderMaskThickness, silkscreenThickness):
+    if not boardThickness or boardThickness < 4e-4:
+        boardThickness = 1e-3
+    if not copperThickness or copperThickness < 2.54e-5:
+        # 1oz
+        copperThickness = 2.54e-5
+    if not solderMaskThickness or solderMaskThickness < 2e-5:
+        # 0.8mils
+        solderMaskThickness = 2e-5
+    if not silkscreenThickness or silkscreenThickness < 2.54e-5:
+        silkscreenThickness = 2.54e-5
+    silkscreenLineWidth = 5 * silkscreenThickness
     bpy.ops.object.select_all(action="DESELECT")
-    for layer in bpy.data.objects:
-        if layer.name == "board_outline":
+    for layer in pcbLayers:
+        if layer.name == "board_outline" or layer.name.endswith('_contour.gm1') or layer.name.endswith('_etch_silk_bottom'):
             bpy.context.view_layer.objects.active = layer
             bpy.ops.object.editmode_toggle()
             bpy.ops.mesh.select_all(action="SELECT")
             bpy.ops.mesh.edge_face_add()
             bpy.ops.mesh.select_all(action="SELECT")
-            bpy.ops.mesh.extrude_region_move(MESH_OT_extrude_region={"use_normal_flip":False, "mirror":False}, TRANSFORM_OT_translate={"value":Vector((0, 0, 2.4))})
+            bpy.ops.mesh.extrude_region_move(MESH_OT_extrude_region={"use_normal_flip":False, "mirror":False}, TRANSFORM_OT_translate={"value":Vector((0, 0, boardThickness))})
             bpy.ops.object.editmode_toggle()
-        elif layer.name == "bottom_solder":
+            layer.location.z = 0
+        elif layer.name == "bottom_solder" or layer.name.endswith('_maskBottom.gbs') or layer.name.endswith('_etch_mask_bottom'):
             bpy.context.view_layer.objects.active = layer
             bpy.ops.object.editmode_toggle()
             bpy.ops.mesh.select_all(action="SELECT")
-            bpy.ops.mesh.edge_face_add()
+            bpy.ops.mesh.extrude_region_move(MESH_OT_extrude_region={"use_normal_flip":False, "mirror":False}, TRANSFORM_OT_translate={"value":Vector((solderMaskThickness, solderMaskThickness, solderMaskThickness/5))})
             bpy.ops.object.editmode_toggle()
-            layer.location.z = -0.01
-        elif layer.name == "bottom_layer":
+            layer.location.z = silkscreenThickness + solderMaskThickness/2
+        elif layer.name == "bottom_layer" or layer.name.endswith('_copperBottom.gbl') or layer.name.endswith('_etch_copper_bottom'):
             bpy.context.view_layer.objects.active = layer
             bpy.ops.object.editmode_toggle()
             bpy.ops.mesh.select_all(action="SELECT")
-            bpy.ops.mesh.extrude_region_move(MESH_OT_extrude_region={"use_normal_flip":False, "mirror":False}, TRANSFORM_OT_translate={"value":Vector((0, 0, 0.8))})
-            bpy.ops.mesh.select_all(action="SELECT")
-            bpy.ops.mesh.edge_face_add()
+            bpy.ops.mesh.extrude_region_move(MESH_OT_extrude_region={"use_normal_flip":False, "mirror":False}, TRANSFORM_OT_translate={"value":Vector((copperThickness, copperThickness, copperThickness/5))})
             bpy.ops.object.editmode_toggle()
-            layer.location.z = 0.2
-        elif layer.name == "top_layer":
+            layer.location.z = copperThickness/2
+        elif layer.name == "top_layer" or layer.name.endswith('_copperTop.gts') or layer.name.endswith('_etch_copper_top'):
             bpy.context.view_layer.objects.active = layer
             bpy.ops.object.editmode_toggle()
             bpy.ops.mesh.select_all(action="SELECT")
-            bpy.ops.mesh.extrude_region_move(MESH_OT_extrude_region={"use_normal_flip":False, "mirror":False}, TRANSFORM_OT_translate={"value":Vector((0, 0, 0.8))})
-            bpy.ops.mesh.select_all(action="SELECT")
-            bpy.ops.mesh.edge_face_add()
+            bpy.ops.mesh.extrude_region_move(MESH_OT_extrude_region={"use_normal_flip":False, "mirror":False}, TRANSFORM_OT_translate={"value":Vector((copperThickness, copperThickness, copperThickness/5))})
             bpy.ops.object.editmode_toggle()
-            layer.location.z = 1.4
-        elif layer.name == "top_solder":
+            layer.location.z = boardThickness - copperThickness/2
+        elif layer.name == "top_solder" or layer.name.endswith('_etch_mask_top') or layer.name.endswith('_maskTop.gts'):
             bpy.context.view_layer.objects.active = layer
             bpy.ops.object.editmode_toggle()
             bpy.ops.mesh.select_all(action="SELECT")
-            bpy.ops.mesh.edge_face_add()
-            bpy.ops.mesh.flip_normals()
+            bpy.ops.mesh.extrude_region_move(MESH_OT_extrude_region={"use_normal_flip":False, "mirror":False}, TRANSFORM_OT_translate={"value":Vector((solderMaskThickness, solderMaskThickness, solderMaskThickness/5))})
             bpy.ops.object.editmode_toggle()
-            layer.location.z = 2.41
-        elif layer.name == "silk_screen":
+            layer.location.z = boardThickness - silkscreenThickness - solderMaskThickness/2
+        elif layer.name == "silk_screen" or layer.name.endswith('_etch_silk_top') or layer.name.endswith('_silkTop.gto'):
             bpy.context.view_layer.objects.active = layer
             bpy.ops.object.editmode_toggle()
             bpy.ops.mesh.select_all(action="SELECT")
-            bpy.ops.mesh.extrude_region_move(MESH_OT_extrude_region={"use_normal_flip":False, "mirror":False}, TRANSFORM_OT_translate={"value":Vector((0.2, 0.2, 0))})
+            bpy.ops.mesh.extrude_region_move(MESH_OT_extrude_region={"use_normal_flip":False, "mirror":False}, TRANSFORM_OT_translate={"value":Vector((silkscreenLineWidth, silkscreenLineWidth, silkscreenThickness))})
             bpy.ops.object.editmode_toggle()
-            layer.location.z = 2.41
-        elif layer.name == "drill_holes":
-            bpy.context.view_layer.objects.active = layer
-            bpy.ops.object.editmode_toggle()
-            bpy.ops.mesh.select_all(action="SELECT")
-            bpy.ops.mesh.edge_face_add()
-            bpy.ops.mesh.select_all(action="SELECT")
-            bpy.ops.mesh.extrude_region_move(MESH_OT_extrude_region={"use_normal_flip":False, "mirror":False}, TRANSFORM_OT_translate={"value":Vector((0, 0, 2.8))})
-            bpy.ops.object.editmode_toggle()
-            layer.location.z = -0.2
-
-
-
-
-
-
-
-
+            layer.location.z = boardThickness - silkscreenThickness/2
+        elif layer.name == "drill_holes" or layer.name.endswith('_drill.txt'):
+            for obj in layer.objects:
+                bpy.context.view_layer.objects.active = obj
+                bpy.ops.object.editmode_toggle()
+                bpy.ops.mesh.select_all(action="SELECT")
+                bpy.ops.mesh.extrude_region_move(MESH_OT_extrude_region={"use_normal_flip":False, "mirror":False}, TRANSFORM_OT_translate={"value":Vector((0, 0, boardThickness + 2e-3))})
+                bpy.ops.object.editmode_toggle()
+                obj.location.z = -1e-3
 
 
 ##
@@ -332,7 +421,7 @@ def extrudeLayers():
 # @param specular -a float for the percentage of specular-intensity \(reflected light\)
 # @param roughness -a float for the percentage of roughness in the texture \(surface divisions for specular intensity\)
 def create_material(layer, name="material_name", rgba=(0.0, 0.0, 0.0, 1.0), metallic=0.5, specular=0.5, roughness=0.5):
-       # make sure computer thinks the mouse is in the right location, avoid ...poll() errors.
+    # make sure computer thinks the mouse is in the right location, avoid ...poll() errors.
     for area in bpy.context.screen.areas: 
         if area.type == "VIEW_3D":
             for space in area.spaces: 
@@ -354,61 +443,39 @@ def create_material(layer, name="material_name", rgba=(0.0, 0.0, 0.0, 1.0), meta
                     space.shading.type = "SOLID"
 
 
-
-
-
-
-
-
-
-
 ##
 # Applies a thickness to the 2d \(extruded along z by this point\) curves representing the traces for the top and bottom layer in the PCB
 # @param layer -string name of the layer of the board to apply modifier to
 # @param thickness -the width of the trace in the design
-def solidify(layer_name, thickness):
+def solidify(layer, thickness):
     for area in bpy.context.screen.areas: 
         if area.type == "VIEW_3D":
             for space in area.spaces: 
                 if space.type == "VIEW_3D":
                     space.shading.type = "SOLID"
 
-    layer = bpy.data.objects[layer_name]
     modifier = layer.modifiers.new(name="Solidify", type="SOLIDIFY")
     modifier.thickness = thickness
     bpy.context.view_layer.objects.active = layer
-    bpy.ops.object.modifier_apply(apply_as="DATA", modifier="Solidify")
-
-
-
-
-
-
-
+    bpy.ops.object.modifier_apply(modifier="Solidify")
 
 
 ##
 # creates a drill hole through an individual layer of the pcb
 # @param layer_name -the layer to drill the holes in
-def drill_layer(layer_name):
+def drillHoles(layer, drill_layer):
     for area in bpy.context.screen.areas: 
         if area.type == "VIEW_3D":
             for space in area.spaces: 
                 if space.type == "VIEW_3D":
                     space.shading.type = "SOLID"
-    
-    layer = bpy.data.objects[layer_name]
-    modifier = layer.modifiers.new(name="Boolean", type="BOOLEAN")
-    modifier.object = bpy.data.objects["drill_holes"]
-    bpy.context.view_layer.objects.active = layer
-    bpy.ops.object.modifier_apply(apply_as="DATA", modifier="Boolean")
 
-
-
-
-
-
-
+    if layer and drill_layer:
+        for obj in drill_layer.objects:
+            modifier = layer.modifiers.new(name="Boolean", type="BOOLEAN")
+            modifier.object = obj
+            bpy.context.view_layer.objects.active = layer
+            bpy.ops.object.modifier_apply(modifier="Boolean")
 
 
 ##
@@ -436,12 +503,7 @@ def harden():
             layer.location.x += 100
 
 
-
-
-
-
 # run the script
 if __name__ == "__main__":
     register()
-    bpy.ops.pcb.import_svg("INVOKE_DEFAULT")
     
