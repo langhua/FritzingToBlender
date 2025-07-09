@@ -32,16 +32,31 @@ bl_info = {
 # Developed By: Christopher S. Francis 25 June 2020 to ...
 
 
-import bpy
-import math
+import bpy 
 from mathutils import Vector
 from bpy_extras.io_utils import ImportHelper
 from bpy.types import Operator
 from bpy.props import StringProperty
 from mathutils import Matrix
-from .io_curve_svg.svg_util import (units,
+
+from io_curve_svg.svg_util import (units,
                        read_float)
-import xml.etree.ElementTree as ET
+# import xml.etree.ElementTree as ET
+from lxml import etree
+import winsound
+import os
+import glob
+
+# from decimal import Decimal
+# from pcb_tools.rs274x import GerberFile
+# from pcb_tools.excellon import ExcellonFile
+# from pcb_tools import read as read_file
+# from pcb_tools.layers import load_layer
+# from pcb_tools.render.cairo_backend import GerberCairoContext
+
+skipLayers = ['internal', 'topmask', 'bottommask', 'toppaste', 'bottompaste', 'unkown']
+
+fritzingPcbCollectionName = 'frizting_pcb'
 
 ##
 # The ImportPCB class is actually just the file dialog box which has to be an object in the current API when this was written (bpy 2.8.3)\n
@@ -53,74 +68,108 @@ class ImportPCB(Operator, ImportHelper):
     use_filter_folder = True
     
     def execute(self, context):
+        directory = self.properties['filepath']
+        cut = directory.rindex(os.path.sep[0])
+        directory = directory[0:cut]
+        tmp_filenames = glob.glob(os.path.join(directory, '*.svg'))
+        # get filenames dictionary contains outline, bottom, top, bottomsilk, topsilk, drill
+        filenames = dict()
+        for filename in tmp_filenames:
+            if filename.endswith('.gm1.svg'):
+                filenames['outline'] = filename
+            elif filename.endswith('.gbl.svg'):
+                filenames['bottom'] = filename
+            elif filename.endswith('.gtl.svg'):
+                filenames['top'] = filename
+            elif filename.endswith('_drill.txt.svg'):
+                filenames['drill'] = filename
+            elif filename.endswith('.gbo.svg'):
+                filenames['bottomsilk'] = filename
+            elif filename.endswith('.gto.svg'):
+                filenames['topsilk'] = filename
+        print('--1--' + str(filenames))
+
         try:
-            filenames = []
-            directory = self.properties.filepath
-            cut = directory.rindex("\\")
-            directory = directory[0:cut]        
-            with open(directory + "\\filenames.txt", mode="r") as file:
-                for line in file:
-                   filenames.append(line[0:-1])
-            
             # import svg files as pcb layers
-            pcbLayers = []
-            for file in filenames:
-                layer = import_svg(directory, file)
-                if layer:
-                    pcbLayers.append(layer)
-            
+            svgLayers = dict()
+            # for file in filenames:
+            #     if not file.endswith('.xy'):
+            #         # gerber file
+            #         layerClass, layer = load_gerber(directory, file)
+            #         if layer:
+            #             svgLayers[layerClass] = layer
+
+            # import outline svg first to get width and height of pcb board
+            layer = import_svg(layerClass='outline', file=filenames['outline'])
+            if layer is None:
+                raise FileNotFoundError('No outline svg(.gm1.svg) found.')
+            else:
+                svgLayers['outline'] = layer
+            for layerClass, filename in filenames.items():
+                print('--1.1--' + layerClass + '--' + filename)
+                if layerClass != 'outline':
+                    layer = import_svg(layerClass=layerClass, file=filename)
+                    if layer is not None:
+                        svgLayers[layerClass] = layer
+
             # remove extra verts
             bpy.ops.object.select_all(action="SELECT")
-            for layer in pcbLayers:
-                if layer.name != 'drill_holes' and not layer.name.endswith('_drill.txt'):
+            for layerClass, layer in svgLayers.items():
+                print('--10--')
+                if layerClass != 'drill':
                     removeExtraVerts(layer)
 
-            extrudeLayers(pcbLayers, None, None, None, None)
+            extrudeLayers(svgLayers, None, None, None, None)
             
             drill_layer = None
-            for layer in pcbLayers:
-                if layer.name == "board_outline" or layer.name.endswith('_contour.gm1') or layer.name.endswith('_etch_silk_bottom'):
-                    create_material(layer, "board", (0.062, 0.296, 0.020, 0.99), 0.234, 0.235, 0.202)
-                elif layer.name == "bottom_solder" or layer.name.endswith('_maskBottom.gbs') or layer.name.endswith('_etch_mask_bottom'):
-                    create_material(layer, "metal", (255, 180, 0, 1.0), 1, 0.5, 0.2)
-                elif layer.name == "bottom_layer" or layer.name.endswith('_copperBottom.gbl') or layer.name.endswith('_etch_copper_bottom'):
-                    create_material(layer, "metal", (255, 180, 0, 1.0), 1, 0.5, 0.2)
-                elif layer.name == "top_layer" or layer.name.endswith('_copperTop.gts') or layer.name.endswith('_etch_copper_top'):
-                    create_material(layer, "metal", (255, 180, 0, 1.0), 1, 0.5, 0.2)
-                elif layer.name == "top_solder" or layer.name.endswith('_etch_mask_top') or layer.name.endswith('_maskTop.gts'):
-                    create_material(layer, "metal", (255, 180, 0, 1.0), 1, 0.5, 0.2)
-                elif layer.name == "silk_screen" or layer.name.endswith('_etch_silk_top') or layer.name.endswith('_silkTop.gto'):
-                    create_material(layer, "silk_screen", (100, 100, 100, 1.0), 1, 0.5, 0.2)
-                elif layer.name == 'drill_holes' or layer.name.endswith('_drill.txt'):
+            for layerClass, layer in svgLayers.items():
+                print('--11--')
+                if layerClass == "outline":
+                    create_material(layer, layerClass, (0.062, 0.296, 0.020, 0.99), 0.234, 0.235, 0.202)
+                elif layerClass == 'bottomsilk':
+                    create_material(layer, layerClass, (100, 100, 100, 1.0), 1, 0.5, 0.2)
+                    # create_material(layer, layerClass, (0.062, 0.296, 0.020, 0.99), 0.234, 0.235, 0.202)
+                elif layerClass == "bottom":
+                    create_material(layer, layerClass, (255, 180, 0, 1.0), 1, 0.5, 0.2)
+                elif layerClass == "top":
+                    create_material(layer, layerClass, (255, 180, 0, 1.0), 1, 0.5, 0.2)
+                elif layerClass == "topsilk":
+                    create_material(layer, layerClass, (100, 100, 100, 1.0), 1, 0.5, 0.2)
+                elif layerClass == 'drill':
                     drill_layer = layer
 
             # drill holes
-            if drill_layer and pcbLayers:
-                for layer in pcbLayers:
-                    if layer != drill_layer and layer.name != 'silk_screen' \
-                            and not layer.name.endswith('_etch_silk_top') \
-                            and not layer.name.endswith('_etch_silk_bottom'):
+            if drill_layer and svgLayers:
+                print('--12--')
+                for layerClass, layer in svgLayers.items():
+                    if layerClass != 'drill':
                         drillHoles(layer, drill_layer)
 
             # remove drill holes collection
-            pcbLayers.remove(drill_layer)
+            svgLayers.pop('drill')
             for obj in drill_layer.objects:
                 bpy.data.objects.remove(obj, do_unlink=True)
             bpy.data.collections.remove(drill_layer)
             
             # join the layers except holes_layer
             joinedLayer = None
-            if pcbLayers:
+            if svgLayers:
+                print('--13--')
                 bpy.ops.object.select_all(action="DESELECT")
-                for layer in pcbLayers:
+                for layerClass, layer in svgLayers.items():
                     layer.select_set(True)
-                bpy.context.view_layer.objects.active = pcbLayers[0]
+                bpy.context.view_layer.objects.active = list(svgLayers.values())[0]
                 bpy.ops.object.join()
                 joinedLayer = bpy.context.view_layer.objects.active
                 joinedLayer.name = 'JoinedLayer'
             
-        except:
+        except Exception as e:
+            print('--exception: ' + str(e))
             bpy.ops.pcb.import_error("INVOKE_DEFAULT")
+
+        # play a sound to notice user this long proceedure finished
+        if os.name == 'nt':
+            winsound.PlaySound(os.path.join('sound', 'completed.wav'), winsound.SND_FILENAME)
 
         return {"FINISHED"}
 
@@ -164,11 +213,11 @@ def hideAll():
 
 
 ##
-# Turns on all objects which are part of the PCB, this excludes the drill_holes tool object
+# Turns on all objects which are part of the PCB, this excludes the drill tool object
 def revealAll():
     for layer in bpy.data.objects:
         layer.select_set(False)
-        if layer.name == "drill_holes":
+        if layer.name == "drill":
             layer.hide_set(True)
         else:
             layer.hide_set(False)
@@ -177,41 +226,51 @@ def revealAll():
 ##
 # Brings in the SVG file, applies the x and y orientation, converts the curves to meshes, scales it to 1 millimeter in blender equals 1 millimeter in the real world, and places the objects into a collection ... \(still to come: extrusions, height placement, cut the holes, and join a copy into a completed version\)\n
 # Uses Blender 4.2 or higher API
-# @param dir -the directory where the files are located
-# @param file -the list of SVG files representing the Gerber Files / PCB
-def import_svg(dir, file):
+#
+# @param layerClass - the layer class from pcb-tools
+# @param dir - the directory where the files are located
+# @param file - the list of SVG files representing the Gerber Files / PCB
+#
+# @return layer - the layer objct imported
+#
+def import_svg(layerClass: str, file: str):
     # 1. deselect all
     bpy.ops.object.select_all(action='DESELECT')
 
     # 2. import the svg file and get the new curves
     start_objs = bpy.data.objects[:]
-    bpy.ops.import_curve.svg(filepath=(dir + "/" + file))
+    bpy.ops.import_curve.svg(filepath=file)
+    print('--2.0--' + file)
+    collectionName = file[file.rindex(os.path.sep[0]) + 1 :]
+    print('--2.1--' + collectionName)
+    bpy.data.collections[collectionName].name = fritzingPcbCollectionName + '_' + layerClass
+    collectionName = fritzingPcbCollectionName + '_' + layerClass
     new_curves = [o for o in bpy.data.objects if o not in start_objs]
+    print('--2.2--' + str(len(new_curves)))
     if not new_curves:
         return None
-    fritzingPcbCollectionName = 'frizting-pcb'
-    etch = file.find('_etch_')
-    if etch > 0:
-        fritzingPcbCollectionName = file[0:etch]
 
     # 3. transform new curves to mesh
+    print('--3--')
+    print(file)
     boardoutline = None
     for newCurve in new_curves:
         if bpy.data.curves[newCurve.name]:
             bpy.data.curves[newCurve.name].dimensions = '3D'
-        if newCurve.name == 'boardoutline' and file != 'drill_holes.svg' and not file.endswith('_drill.txt.svg'):
+        if layerClass == 'outline':
             boardoutline = newCurve
         else:
             newCurve.select_set(True)
 
-        if file == 'drill_holes.svg' or file.endswith('_drill.txt.svg'):
+        if layerClass == 'drill':
             bpy.context.view_layer.objects.active = newCurve
             bpy.ops.object.convert(target="MESH")
 
     # 4. join the new curves into one by 2 steps
-    if file != 'drill_holes.svg' and not file.endswith('_drill.txt.svg'):
+    print('--4--')
+    if layerClass != 'drill':
         bpy.ops.object.select_all(action='DESELECT')
-        objects = bpy.data.collections[file].objects
+        objects = bpy.data.collections[collectionName].objects
         curves = []
         for obj in objects:
             bpy.context.view_layer.objects.active = obj
@@ -220,10 +279,11 @@ def import_svg(dir, file):
                 obj.select_set(True)
                 curves.append(obj)
 
-        bpy.context.view_layer.objects.active = curves[0]
-        bpy.ops.object.join()
+        if len(curves) > 0:
+            bpy.context.view_layer.objects.active = curves[0]
+            bpy.ops.object.join()
         if boardoutline:
-            if file == "board_outline.svg" or file.endswith('_contour.gm1.svg') or file.endswith('_etch_silk_bottom.svg'):
+            if layerClass == 'outline':
                 boardoutline.select_set(True)
                 bpy.context.view_layer.objects.active = boardoutline
                 bpy.ops.object.join()
@@ -235,11 +295,16 @@ def import_svg(dir, file):
                 
 
     # 5. parse the svg file again to get right unit scale number
-    tree = ET.parse(dir + "/" + file)
-    root = tree.getroot()
+    print('--5--')
+    # tree = ET.parse(file)
+    # root = tree.getroot()
+    root = None
+    with open(file) as f:
+        tree = etree.parse(f)
+        root = tree.getroot()
     unitscale = 1.0
     unit = ''
-    if root.attrib['height']:
+    if root is not None and root.attrib['height'] is not None:
         raw_height = root.attrib['height']
         token, last_char = read_float(raw_height)
         unit = raw_height[last_char:].strip()
@@ -251,45 +316,49 @@ def import_svg(dir, file):
         unitscale = bpy.context.scene.unit_settings.scale_length / unitscale
 
     # 6. scale the new layer
+    print('--6--')
     if unitscale != 1.0:
         mat_scale = Matrix.LocRotScale(None, None, (unitscale, unitscale, unitscale))
-        if file == 'drill_holes.svg' or file.endswith('_drill.txt.svg'):
-            fileLayerObjects = bpy.data.collections[file].objects
+        if layerClass == 'drill':
+            fileLayerObjects = bpy.data.collections[collectionName].objects
             for obj in  fileLayerObjects:
                 obj.data.transform(mat_scale)
                 obj.scale = 1, 1, 1
         else:
-            bpy.context.view_layer.objects.active = bpy.data.collections[file].objects[0]
+            bpy.context.view_layer.objects.active = bpy.data.collections[collectionName].objects[0]
             bpy.context.object.data.transform(mat_scale)
             bpy.context.object.scale = 1, 1, 1
     
     # 7. convert curves to MESH
-    if file != 'drill_holes.svg' and not file.endswith('_drill.txt.svg'):
-        objects = bpy.data.collections[file].objects
+    print('--7--')
+    if layerClass != 'drill':
+        objects = bpy.data.collections[collectionName].objects
         bpy.context.view_layer.objects.active = objects[0]
         for obj in objects:
             obj.select_set(True)
         bpy.ops.object.convert(target="MESH")
-        bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
+        # bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
 
     # 8. add the imported pcb board layer to fritzing pcb layer
+    print('--8--')
     layer = None
-    if file == 'drill_holes.svg' or file.endswith('_drill.txt.svg'):
-        layer = bpy.data.collections[file]
+    if layerClass == 'drill':
+        layer = bpy.data.collections[collectionName]
     else:
         layer = bpy.context.selected_objects[0]
-        layer.name = file[0:-4]
-    if file == 'board_outline.svg' or file.endswith('_contour.gm1.svg'):
-        layer.location = Vector((layer.dimensions.x/2, layer.dimensions.y/2, 0))
+        layer.name = collectionName
+
+    print('--8.1--')
+    # 8.2 add layer to the top pcb collection
     if fritzingPcbCollectionName not in bpy.data.collections:
-        if file == 'drill_holes.svg' or file.endswith('_drill.txt.svg'):
+        if layerClass == 'drill':
             fritzingPcbCollection = bpy.data.collections.new(fritzingPcbCollectionName)
             fritzingPcbCollection.objects.link(layer)
         else:
             bpy.ops.object.move_to_collection(collection_index = 0, is_new = True, new_collection_name=fritzingPcbCollectionName)
     else:
-        if file == 'drill_holes.svg' or file.endswith('_drill.txt.svg'):
-            newLayer = bpy.data.collections.new(file[0:-4])
+        if layerClass == 'drill':
+            newLayer = bpy.data.collections.new('drill')
             for obj in layer.all_objects:
                 newLayer.objects.link(obj)
             bpy.data.collections[fritzingPcbCollectionName].children.link(newLayer)
@@ -298,7 +367,8 @@ def import_svg(dir, file):
             bpy.data.collections[fritzingPcbCollectionName].objects.link(layer)
 
     # 9. remove the orignal collection named by file
-    col = bpy.data.collections[file]
+    print('--9--')
+    col = bpy.data.collections[collectionName]
     if col:
         bpy.data.collections.remove(col)
     col = bpy.data.collections[fritzingPcbCollectionName]
@@ -308,6 +378,27 @@ def import_svg(dir, file):
     
     # 10. return the layer
     return layer
+
+
+# def load_gerber(dir, file):
+#     try:
+#         # get gerber file and layer class
+#         layer = load_layer(os.path.join(dir, file))
+#         gerberFile = read_file(os.path.join(dir, file))
+#         if layer.layer_class not in skipLayers:
+#             tmpdir = os.path.join(dir, 'svg')
+#             if not os.path.exists(tmpdir):
+#                 # make tmpdir
+#                 os.makedirs(tmpdir, 0o755)
+#             svgFilename = os.path.join(tmpdir, file + '.svg')
+#             ctx = GerberCairoContext()
+#             gerberFile.render(ctx=ctx, filename=svgFilename)
+#             # print('--1--' + str(layer.layer_class))
+#             return layer.layer_class, import_svg(layer.layer_class, tmpdir, os.path.basename(svgFilename), gerberFile.bounding_box[0][0], gerberFile.bounding_box[0][1])
+#     except Exception as e:
+#         print('-- exception: ' + str(e))
+
+#     return None, None
 
 
 ##
@@ -323,30 +414,10 @@ def removeExtraVerts(layer):
 
 
 ##
-# Finds the vertex closest to the origin \(that has to be in the board outline\) and removes all the vertices connected to it.
-def removeOutline(file):
-    objects = bpy.data.collections[file].objects
-    bpy.context.view_layer.objects.active = objects[0]
-    verts = [vert for vert in objects[0].data.vertices]
-    min = verts[0]
-    minDistance = math.sqrt(min.co.x ** 2 + min.co.y ** 2)
-    for vert in verts:
-        vertDistance = math.sqrt(vert.co.x ** 2 + vert.co.y ** 2)
-        if vertDistance < minDistance:
-            min = vert
-            minDistance = vertDistance
-    min.select = True
-    bpy.ops.object.editmode_toggle()
-    bpy.ops.mesh.select_linked()
-    bpy.ops.mesh.delete(type="VERT")
-    bpy.ops.object.editmode_toggle()
-
-
-##
 # extrudes all components and sets the vertical position of each layer
-def extrudeLayers(pcbLayers, boardThickness, copperThickness, solderMaskThickness, silkscreenThickness):
+def extrudeLayers(svgLayers, boardThickness, copperThickness, solderMaskThickness, silkscreenThickness):
     if not boardThickness or boardThickness < 4e-4:
-        boardThickness = 1e-3
+        boardThickness = 0.0016         # 1.6mm
     if not copperThickness or copperThickness < 2.54e-5:
         # 1oz
         copperThickness = 2.54e-5
@@ -357,8 +428,8 @@ def extrudeLayers(pcbLayers, boardThickness, copperThickness, solderMaskThicknes
         silkscreenThickness = 2.54e-5
     silkscreenLineWidth = 5 * silkscreenThickness
     bpy.ops.object.select_all(action="DESELECT")
-    for layer in pcbLayers:
-        if layer.name == "board_outline" or layer.name.endswith('_contour.gm1') or layer.name.endswith('_etch_silk_bottom'):
+    for layerClass, layer in svgLayers.items():
+        if layerClass == "outline":
             bpy.context.view_layer.objects.active = layer
             bpy.ops.object.editmode_toggle()
             bpy.ops.mesh.select_all(action="SELECT")
@@ -367,42 +438,35 @@ def extrudeLayers(pcbLayers, boardThickness, copperThickness, solderMaskThicknes
             bpy.ops.mesh.extrude_region_move(MESH_OT_extrude_region={"use_normal_flip":False, "mirror":False}, TRANSFORM_OT_translate={"value":Vector((0, 0, boardThickness))})
             bpy.ops.object.editmode_toggle()
             layer.location.z = 0
-        elif layer.name == "bottom_solder" or layer.name.endswith('_maskBottom.gbs') or layer.name.endswith('_etch_mask_bottom'):
+        elif layerClass == 'bottomsilk':
             bpy.context.view_layer.objects.active = layer
             bpy.ops.object.editmode_toggle()
             bpy.ops.mesh.select_all(action="SELECT")
-            bpy.ops.mesh.extrude_region_move(MESH_OT_extrude_region={"use_normal_flip":False, "mirror":False}, TRANSFORM_OT_translate={"value":Vector((solderMaskThickness, solderMaskThickness, solderMaskThickness/5))})
+            bpy.ops.mesh.extrude_region_move(MESH_OT_extrude_region={"use_normal_flip":False, "mirror":False}, TRANSFORM_OT_translate={"value":Vector((silkscreenLineWidth, silkscreenLineWidth, silkscreenThickness))})
             bpy.ops.object.editmode_toggle()
-            layer.location.z = silkscreenThickness + solderMaskThickness/2
-        elif layer.name == "bottom_layer" or layer.name.endswith('_copperBottom.gbl') or layer.name.endswith('_etch_copper_bottom'):
-            bpy.context.view_layer.objects.active = layer
-            bpy.ops.object.editmode_toggle()
-            bpy.ops.mesh.select_all(action="SELECT")
-            bpy.ops.mesh.extrude_region_move(MESH_OT_extrude_region={"use_normal_flip":False, "mirror":False}, TRANSFORM_OT_translate={"value":Vector((copperThickness, copperThickness, copperThickness/5))})
-            bpy.ops.object.editmode_toggle()
-            layer.location.z = copperThickness/2
-        elif layer.name == "top_layer" or layer.name.endswith('_copperTop.gts') or layer.name.endswith('_etch_copper_top'):
+            layer.location.z = -silkscreenThickness/2
+        elif layerClass == "bottom":
             bpy.context.view_layer.objects.active = layer
             bpy.ops.object.editmode_toggle()
             bpy.ops.mesh.select_all(action="SELECT")
             bpy.ops.mesh.extrude_region_move(MESH_OT_extrude_region={"use_normal_flip":False, "mirror":False}, TRANSFORM_OT_translate={"value":Vector((copperThickness, copperThickness, copperThickness/5))})
             bpy.ops.object.editmode_toggle()
-            layer.location.z = boardThickness - copperThickness/2
-        elif layer.name == "top_solder" or layer.name.endswith('_etch_mask_top') or layer.name.endswith('_maskTop.gts'):
+            layer.location.z = - copperThickness/3
+        elif layerClass == "top":
             bpy.context.view_layer.objects.active = layer
             bpy.ops.object.editmode_toggle()
             bpy.ops.mesh.select_all(action="SELECT")
-            bpy.ops.mesh.extrude_region_move(MESH_OT_extrude_region={"use_normal_flip":False, "mirror":False}, TRANSFORM_OT_translate={"value":Vector((solderMaskThickness, solderMaskThickness, solderMaskThickness/5))})
+            bpy.ops.mesh.extrude_region_move(MESH_OT_extrude_region={"use_normal_flip":False, "mirror":False}, TRANSFORM_OT_translate={"value":Vector((copperThickness, copperThickness, copperThickness/5))})
             bpy.ops.object.editmode_toggle()
-            layer.location.z = boardThickness - silkscreenThickness - solderMaskThickness/2
-        elif layer.name == "silk_screen" or layer.name.endswith('_etch_silk_top') or layer.name.endswith('_silkTop.gto'):
+            layer.location.z = boardThickness - 2 * copperThickness / 3
+        elif layerClass == "topsilk":
             bpy.context.view_layer.objects.active = layer
             bpy.ops.object.editmode_toggle()
             bpy.ops.mesh.select_all(action="SELECT")
             bpy.ops.mesh.extrude_region_move(MESH_OT_extrude_region={"use_normal_flip":False, "mirror":False}, TRANSFORM_OT_translate={"value":Vector((silkscreenLineWidth, silkscreenLineWidth, silkscreenThickness))})
             bpy.ops.object.editmode_toggle()
             layer.location.z = boardThickness - silkscreenThickness/2
-        elif layer.name == "drill_holes" or layer.name.endswith('_drill.txt'):
+        elif layerClass == "drill":
             for obj in layer.objects:
                 bpy.context.view_layer.objects.active = obj
                 bpy.ops.object.editmode_toggle()
