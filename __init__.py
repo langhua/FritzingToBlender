@@ -12,33 +12,55 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import bpy
-from .import_pcb import ImportPCB, ErrorDialog
+from .io_fritzing.import_single_svg import ImportSingleSVG
+from .io_fritzing.get_files import GetFiles
+from .io_fritzing.report import register as FritzingIORegister, unregister as FritzingIOUnregister
+from .io_fritzing.report import ProgressReport
+from .io_fritzing.error_dialog import ErrorDialog
+from .io_fritzing.clean_drill_holes import CleanDrillHoles
+from .io_fritzing.create_materials import CreateMaterials
+from .io_fritzing.drill_holes import DrillHoles
+from .io_fritzing.extrude import Extrude
+from .io_fritzing.merge_layers import MergeLayers
+from .io_fritzing.remove_extra_verts import RemoveExtraVerts
+
 
 def menu_import(self, _):
     """
     Calls the Fritzing PCB import operator from the menu item.
     """
-    self.layout.operator(ImportPCB.bl_idname, text="Fritzing PCB SVG Folder (.svg)")
+    self.layout.operator(GetFiles.bl_idname, text="Fritzing PCB SVG Folder (.svg)")
+    # self.layout.operator(ProgressReport.bl_idname)
+    # self.layout.operator(ErrorDialog.bl_idname)
 
 
 classes = (
-    ImportPCB,
-    ErrorDialog
+    GetFiles,
+    ImportSingleSVG,
+    ErrorDialog,
+    ProgressReport,
+    CleanDrillHoles,
+    CreateMaterials,
+    DrillHoles,
+    Extrude,
+    MergeLayers,
+    RemoveExtraVerts,
 )
-
 
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
     bpy.types.TOPBAR_MT_file_import.append(menu_import)
-
+    FritzingIORegister()
 
 def unregister():
     for cls in classes:
         bpy.utils.unregister_class(cls)
     bpy.types.TOPBAR_MT_file_import.remove(menu_import)
+    FritzingIOUnregister()
 
 
 # Allow the add-on to be ran directly without installation.
 if __name__ == "__main__":
     register()
+

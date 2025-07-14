@@ -3,7 +3,7 @@ schema_version = "1.0.0"
 # Example of manifest file for a Blender extension
 # Change the values according to your extension
 id = "FritzingToBlender"
-version = "0.0.1"
+version = "0.0.2"
 name = "Import Fritzing PCB SVGs"
 tagline = "Import Fritzing PCB svg files into Blender as a 3D PCB board."
 maintainer = "Shi Jinghai"
@@ -29,7 +29,7 @@ license = [
 ]
 # Optional: required by some licenses.
 copyright = [
-  "2024 Langhua Ltd. in GPL 3.0"
+  "2025 Langhua Ltd. in GPL 3.0"
 ]
 
 # Optional list of supported platforms. If omitted, the extension will be available in all operating systems.

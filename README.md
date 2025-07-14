@@ -35,3 +35,7 @@ Blender 4.2.1
 
 1. 直接
 
+
+## 参考资料
+1. [How to add a progress indicator to the Info header in Blender](https://blog.michelanders.nl/2017/04/how-to-add-progress-indicator-to-the-info-header-in-blender.html)
+
