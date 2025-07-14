@@ -21,7 +21,7 @@ class CreateMaterials(Operator):
                 elif layerClass == "topsilk":
                     create_material(layer, layerClass, (100, 100, 100, 1.0), 1, 0.5, 0.2)
         except Exception as e:
-            print('--exception: ' + str(e))
+            print('--CreateMaterials exception: ' + str(e))
             importdata.error_msg = str(e)
             bpy.ops.fritzing.import_error("INVOKE_DEFAULT")
 

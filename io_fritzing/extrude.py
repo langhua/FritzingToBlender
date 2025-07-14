@@ -12,7 +12,7 @@ class Extrude(Operator):
             svgLayers = importdata.svgLayers
             extrudeLayers(svgLayers, None, None, None, None)
         except Exception as e:
-            print('--exception: ' + str(e))
+            print('--Extrude exception: ' + str(e))
             importdata.error_msg = str(e)
             bpy.ops.fritzing.import_error("INVOKE_DEFAULT")
 

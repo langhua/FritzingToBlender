@@ -99,7 +99,7 @@ def register():
 
     # the label in front of the slider can be configured
     Scene.progress_indicator_text = StringProperty(
-                                    default="Progress",
+                                    default="Starting SVG import ...",
                                     update=update)
 
     # save the original draw method of the Info header

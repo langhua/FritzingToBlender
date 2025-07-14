@@ -23,7 +23,6 @@ class ErrorDialog(Operator):
     
     def execute(self, context):
         context.scene.progress_indicator = 101
-        update_report(self, context)
         importdata.step_name = 'FINISHED'
         if os.name == 'nt':
             frequency = 1500

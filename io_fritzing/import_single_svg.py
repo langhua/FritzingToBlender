@@ -18,10 +18,11 @@ class ImportSingleSVG(Operator):
             filename = importdata.filenames[layerClass]
             importdata.current_file = filename
             importdata.current_layer = layerClass
-            context.scene.progress_indicator_text = 'Importing ' + filename[filename.rindex(os.path.sep[0]) + 1 :]
+            context.scene.progress_indicator_text = bpy.app.translations.pgettext('Importing ') + filename[filename.rindex(os.path.sep[0]) + 1 :]
             layer = import_svg(layerClass=layerClass, file=filename)
             if layer is not None:
                 importdata.svgLayers[layerClass] = layer
+            
             # remove outline in drill
             if layerClass == 'drill':
                 i = 0
@@ -33,12 +34,27 @@ class ImportSingleSVG(Operator):
                         obj.select_set(True)
                     i += 1
                 bpy.ops.object.delete()
-                
+
+                # zoom in by drill layer seems more suitable than other layer
+                for obj in layer.all_objects:
+                    obj.select_set(True)
+                for area in bpy.context.screen.areas:
+                    if area.type == 'VIEW_3D':
+                        with bpy.context.temp_override(area=area, region=area.regions[-1]):
+                            bpy.ops.view3d.view_selected()
+                bpy.ops.object.select_all(action='DESELECT')
+
             importdata.filenames.pop(layerClass)
             importdata.current = importdata.current + 1
-        except:
+        except Exception as e:
+            if str(e) != '':
+                print('--ImportSingleSVG exception: ' + str(e))
+                importdata.error_msg = str(e)
+                bpy.ops.fritzing.import_error("INVOKE_DEFAULT")
+
             # all svg imported
-            importdata.step_name = 'POST_REMOVE_EXTRA_VERTS'
+            if len(importdata.filenames) == 0:
+                importdata.step_name = 'POST_REMOVE_EXTRA_VERTS'
         return {"FINISHED"}
 
 
@@ -67,7 +83,6 @@ def import_svg(layerClass: str, file: str):
         return None
 
     # 3. transform new curves to mesh
-    print(file)
     boardoutline = None
     for newCurve in new_curves:
         if bpy.data.curves[newCurve.name]:

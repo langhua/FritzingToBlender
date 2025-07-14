@@ -9,14 +9,19 @@ class CleanDrillHoles(Operator):
     def execute(self, context):
         try:
             svgLayers = importdata.svgLayers
-            if svgLayers and svgLayers['drill']:
+            drill_layer = None
+            try:
                 drill_layer = svgLayers['drill']
+            except:
+                pass
+
+            if svgLayers and drill_layer:
                 for obj in drill_layer.objects:
                     bpy.data.objects.remove(obj, do_unlink=True)
                 bpy.data.collections.remove(drill_layer)
                 svgLayers.pop('drill')
         except Exception as e:
-            print('--exception: ' + str(e))
+            print('--CleanDrillHoles exception: ' + str(e))
             importdata.error_msg = str(e)
             bpy.ops.fritzing.import_error("INVOKE_DEFAULT")
 

@@ -9,13 +9,17 @@ class DrillHoles(Operator):
     def execute(self, context):
         try:
             svgLayers = importdata.svgLayers
-            drill_layer = svgLayers['drill']
+            drill_layer = None
+            try:
+                drill_layer = svgLayers['drill']
+            except:
+                pass
             if drill_layer and svgLayers:
                 for layerClass, layer in svgLayers.items():
                     if layerClass != 'drill':
                         drillHoles(layer, drill_layer)
         except Exception as e:
-            print('--exception: ' + str(e))
+            print('--DrillHoles exception: ' + str(e))
             importdata.error_msg = str(e)
             bpy.ops.fritzing.import_error("INVOKE_DEFAULT")
 

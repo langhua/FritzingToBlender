@@ -19,7 +19,7 @@ class MergeLayers(Operator):
                 joinedLayer = bpy.context.view_layer.objects.active
                 joinedLayer.name = 'JoinedLayer'
         except Exception as e:
-            print('--exception: ' + str(e))
+            print('--MergeLayers exception: ' + str(e))
             importdata.error_msg = str(e)
             bpy.ops.fritzing.import_error("INVOKE_DEFAULT")
 

@@ -23,6 +23,7 @@ from .io_fritzing.drill_holes import DrillHoles
 from .io_fritzing.extrude import Extrude
 from .io_fritzing.merge_layers import MergeLayers
 from .io_fritzing.remove_extra_verts import RemoveExtraVerts
+from .io_fritzing.ui_labels import langs
 
 
 def menu_import(self, _):
@@ -48,6 +49,7 @@ classes = (
 )
 
 def register():
+    bpy.app.translations.register(__name__, langs)
     for cls in classes:
         bpy.utils.register_class(cls)
     bpy.types.TOPBAR_MT_file_import.append(menu_import)
@@ -58,6 +60,7 @@ def unregister():
         bpy.utils.unregister_class(cls)
     bpy.types.TOPBAR_MT_file_import.remove(menu_import)
     FritzingIOUnregister()
+    bpy.app.translations.unregister(__name__)
 
 
 # Allow the add-on to be ran directly without installation.

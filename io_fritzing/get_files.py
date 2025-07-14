@@ -8,8 +8,8 @@ from .report import importdata
 ##
 # Get import files
 class GetFiles(Operator, ImportHelper):
-    bl_idname = "fritzing.import_pcb"
-    bl_label = "Import Friting PCB SVG Folder"
+    bl_idname = "fritzing.select_svg_folder"
+    bl_label = "Import SVG Folder"
 
     filename_ext = "."
     use_filter_folder = True
@@ -34,7 +34,7 @@ class GetFiles(Operator, ImportHelper):
                 filenames['bottomsilk'] = filename
             elif filename.endswith('.gto.svg'):
                 filenames['topsilk'] = filename
-        print('--0.0--')
+
         importdata.filenames = filenames
         importdata.total = len(filenames.items()) + 5 # total steps
         importdata.current = 1

@@ -14,7 +14,7 @@ class RemoveExtraVerts(Operator):
                 if layerClass != 'drill':
                     removeExtraVerts(layer)
         except Exception as e:
-            print('--exception: ' + str(e))
+            print('--RemoveExtraVerts exception: ' + str(e))
             importdata.error_msg = str(e)
             bpy.ops.fritzing.import_error("INVOKE_DEFAULT")
 
