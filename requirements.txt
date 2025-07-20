@@ -1,0 +1,5 @@
+# cairo rendering support
+# cairocffi
+# only required if you want to try pcb_tools
+# pycairo
+lxml

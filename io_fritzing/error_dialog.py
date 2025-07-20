@@ -1,3 +1,4 @@
+import bpy
 from bpy.types import Context, Operator
 from .report import importdata
 import winsound
@@ -32,6 +33,18 @@ class ErrorDialog(Operator):
         return {"FINISHED"}
     
     def invoke(self, context, event):
+        area_3d = None
+        for area in bpy.context.screen.areas:
+            if area.type == "VIEW_3D":
+                area_3d = area
+                break
+        if area_3d:
+            screen_width = area_3d.width
+            screen_height = area_3d.height
+            center_x = int(screen_width / 2)
+            center_y = int(screen_height / 2)
+            # Warp the cursor to the center of the 3D Viewport
+            context.window.cursor_warp(center_x, center_y)
         return context.window_manager.invoke_props_dialog(self)
 
 

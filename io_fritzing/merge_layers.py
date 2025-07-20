@@ -13,8 +13,12 @@ class MergeLayers(Operator):
             if svgLayers:
                 bpy.ops.object.select_all(action="DESELECT")
                 for layerClass, layer in svgLayers.items():
-                    layer.select_set(True)
-                bpy.context.view_layer.objects.active = list(svgLayers.values())[0]
+                    if layerClass != 'drill':
+                        layer.select_set(True)
+                for layerClass, layer in svgLayers.items():
+                    if layerClass != 'drill':
+                        bpy.context.view_layer.objects.active = layer
+                        break
                 bpy.ops.object.join()
                 joinedLayer = bpy.context.view_layer.objects.active
                 joinedLayer.name = 'JoinedLayer'
@@ -23,5 +27,6 @@ class MergeLayers(Operator):
             importdata.error_msg = str(e)
             bpy.ops.fritzing.import_error("INVOKE_DEFAULT")
 
-        importdata.step_name = 'FINISHED'
+        # importdata.step_name = 'FINISHED'
+        importdata.step_name = 'POST_DRILL_HOLES'
         return {"FINISHED"}

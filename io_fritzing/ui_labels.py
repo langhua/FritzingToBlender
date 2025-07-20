@@ -2,7 +2,7 @@
 
 ui_labels= {
     ('Operator', 'Fritzing PCB SVG Folder (.svg)'): 'Fritzing线路板文件夹(.svg)',
-    ('*', 'Import SVG Folder'): '导入SVG文件夹',
+    ('Operator', 'Import SVG Folder'): '导入SVG文件夹',
     ('*', 'Starting SVG import ...'): '开始导入SVG文件...',
     ('*', 'Fritzing Import Error'): '导入Fritzing文件出错',
     ('*', 'Extruding ...'): '正在挤压成型...',
@@ -12,6 +12,13 @@ ui_labels= {
     ('*', 'Merging layers ...'): '正在融合各层...',
     ('*', 'Importing '): '正在导入',
     ('*', 'Removing extra verts ...'): '正在删除额外的顶点...',
+    ('Operator', 'Fritzing Board Settings'): 'Fritzing线路板设置',
+    ('*', 'Board Color:'): '线路板颜色：',
+    ('*', 'Copper Color:'): '覆铜颜色：',
+    ('*', 'Silk Color:'): '丝印颜色：',
+    ('*', 'Board Thickness:'): '线路板厚度：',
+    ('*', 'Drill Algorithm:'): '钻孔算法：',
+    ('*', 'Auto Boolean'): '自动布尔',
 }
 
 langs = {

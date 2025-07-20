@@ -19,11 +19,11 @@ class CleanDrillHoles(Operator):
                 for obj in drill_layer.objects:
                     bpy.data.objects.remove(obj, do_unlink=True)
                 bpy.data.collections.remove(drill_layer)
-                svgLayers.pop('drill')
+
         except Exception as e:
             print('--CleanDrillHoles exception: ' + str(e))
             importdata.error_msg = str(e)
             bpy.ops.fritzing.import_error("INVOKE_DEFAULT")
 
-        importdata.step_name = 'POST_MERGE_LAYERS'
+        importdata.step_name = 'FINISHED'
         return {"FINISHED"}

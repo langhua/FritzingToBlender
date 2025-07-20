@@ -24,15 +24,20 @@ from .io_fritzing.extrude import Extrude
 from .io_fritzing.merge_layers import MergeLayers
 from .io_fritzing.remove_extra_verts import RemoveExtraVerts
 from .io_fritzing.ui_labels import langs
+from .io_fritzing.board_settings import BoardSettings, register as BoardSettingsRegister, unregister as BoardSettingsUnregister
+
+# from .test.test_bool_tool import TestBoolTool, register as TestBoolToolRegister, unregister as TestBoolToolUnregister
 
 
 def menu_import(self, _):
     """
     Calls the Fritzing PCB import operator from the menu item.
     """
-    self.layout.operator(GetFiles.bl_idname, text="Fritzing PCB SVG Folder (.svg)")
+    self.layout.operator(GetFiles.bl_idname)
     # self.layout.operator(ProgressReport.bl_idname)
     # self.layout.operator(ErrorDialog.bl_idname)
+    # self.layout.operator(TestBoolTool.bl_idname)
+    # self.layout.operator(BoardSettings.bl_idname)
 
 
 classes = (
@@ -46,6 +51,8 @@ classes = (
     Extrude,
     MergeLayers,
     RemoveExtraVerts,
+    BoardSettings,
+    # TestBoolTool,
 )
 
 def register():
@@ -54,13 +61,17 @@ def register():
         bpy.utils.register_class(cls)
     bpy.types.TOPBAR_MT_file_import.append(menu_import)
     FritzingIORegister()
+    BoardSettingsRegister()
+    # TestBoolToolRegister()
 
 def unregister():
     for cls in classes:
         bpy.utils.unregister_class(cls)
     bpy.types.TOPBAR_MT_file_import.remove(menu_import)
     FritzingIOUnregister()
+    BoardSettingsUnregister()
     bpy.app.translations.unregister(__name__)
+    # TestBoolToolUnregister()
 
 
 # Allow the add-on to be ran directly without installation.

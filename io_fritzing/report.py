@@ -1,19 +1,7 @@
 import bpy
 from bpy.props import FloatProperty, StringProperty
 from bpy.types import Operator, Scene
-# from time import sleep
-from dataclasses import dataclass
-
-@dataclass
-class PCBImportData:
-    filenames: dict
-    svgLayers: dict
-    total: int
-    current: int
-    error_msg: str | None
-    current_file: str
-    current_layer: str
-    step_name: str
+from .commondata import PCBImportData
 
 
 # a variable where we can store the original draw funtion
@@ -32,7 +20,9 @@ importdata = PCBImportData(filenames=dict(),
                             step_name = 'IMPORTING_SVG_FILES',
                             error_msg=None,
                             current_file='',
-                            current_layer='')
+                            board_thinkness=1.0,
+                            board_color='',
+                            silk_color='')
 
 
 class ProgressReport(Operator):

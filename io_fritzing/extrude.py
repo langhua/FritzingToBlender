@@ -2,6 +2,7 @@ import bpy
 from .report import importdata
 from bpy.types import Operator
 from mathutils import Vector
+import time
 
 class Extrude(Operator):
     bl_idname = "fritzing.extrude"
@@ -10,13 +11,20 @@ class Extrude(Operator):
     def execute(self, context):
         try:
             svgLayers = importdata.svgLayers
-            extrudeLayers(svgLayers, None, None, None, None)
+            boardThickness = None
+            if context.scene.board_thickness_setting:
+                try:
+                    boardThickness = float(context.scene.board_thickness_setting)
+                except:
+                    pass
+            extrudeLayers(svgLayers, boardThickness, None, None, None)
         except Exception as e:
             print('--Extrude exception: ' + str(e))
             importdata.error_msg = str(e)
             bpy.ops.fritzing.import_error("INVOKE_DEFAULT")
 
         importdata.step_name = 'POST_CREATE_MATERIAL'
+        time.sleep(2)
         return {"FINISHED"}
 
 ##
@@ -77,7 +85,7 @@ def extrudeLayers(svgLayers, boardThickness, copperThickness, solderMaskThicknes
                 bpy.context.view_layer.objects.active = obj
                 bpy.ops.object.editmode_toggle()
                 bpy.ops.mesh.select_all(action="SELECT")
-                bpy.ops.mesh.extrude_region_move(MESH_OT_extrude_region={"use_normal_flip":False, "mirror":False}, TRANSFORM_OT_translate={"value":Vector((0, 0, boardThickness + 2e-3))})
+                bpy.ops.mesh.extrude_region_move(MESH_OT_extrude_region={"use_normal_flip":False, "mirror":False}, TRANSFORM_OT_translate={"value":Vector((0, 0, boardThickness + 2e-4))})
                 bpy.ops.object.editmode_toggle()
-                obj.location.z = -1e-3   # -1mm to 2.6mm if board thinkness is 1.6mm
+                obj.location.z = -1e-4   # -0.1mm to 1.8mm if board thinkness is 1.6mm
 

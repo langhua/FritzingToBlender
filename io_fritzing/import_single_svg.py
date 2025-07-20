@@ -17,7 +17,6 @@ class ImportSingleSVG(Operator):
             layerClass = next(iter(importdata.filenames))
             filename = importdata.filenames[layerClass]
             importdata.current_file = filename
-            importdata.current_layer = layerClass
             context.scene.progress_indicator_text = bpy.app.translations.pgettext('Importing ') + filename[filename.rindex(os.path.sep[0]) + 1 :]
             layer = import_svg(layerClass=layerClass, file=filename)
             if layer is not None:

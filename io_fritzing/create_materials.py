@@ -1,6 +1,8 @@
 import bpy
 from .report import importdata
 from bpy.types import Operator
+from .commondata import Board_Black, Board_Blue, Board_Green, Board_Purple, Board_Red, Board_White, Board_Yellow
+from .commondata import Copper, Copper2, Silk_Black, Silk_White, Silk_White2
 
 class CreateMaterials(Operator):
     bl_idname = "fritzing.create_materials"
@@ -8,24 +10,44 @@ class CreateMaterials(Operator):
     
     def execute(self, context):
         try:
+            board_color = (0, 0.435, 0.282, 0.99)
+            if context.scene.board_color_setting:
+                board_colors = [Board_Black, Board_Blue, Board_Green, Board_Purple, Board_Red, Board_White, Board_Yellow]
+                board_color_setting = str(context.scene.board_color_setting)
+                for color in board_colors:
+                    if board_color_setting == color['name']:
+                        board_color = color['rgba']
+
+            silk_color = (0.918, 0.965, 0.961, 1.0)
+            if context.scene.silk_color_setting:
+                silk_colors = [Silk_Black, Silk_White, Silk_White2]
+                silk_color_setting = str(context.scene.silk_color_setting)
+                for color in silk_colors:
+                    if silk_color_setting == color['name']:
+                        silk_color = color["rgba"]
+
+            copper_color = (1, 0.706, 0, 1.0)
+            if context.scene.copper_color_setting:
+                copper_colors = [Copper, Copper2]
+                copper_color_setting = str(context.scene.copper_color_setting)
+                for color in copper_colors:
+                    if copper_color_setting == color['name']:
+                        copper_color = color["rgba"]
+            
             svgLayers = importdata.svgLayers
             for layerClass, layer in svgLayers.items():
                 if layerClass == "outline":
-                    create_material(layer, layerClass, (0.062, 0.296, 0.020, 0.99), 0.234, 0.235, 0.202)
-                elif layerClass == 'bottomsilk':
-                    create_material(layer, layerClass, (100, 100, 100, 1.0), 1, 0.5, 0.2)
-                elif layerClass == "bottom":
-                    create_material(layer, layerClass, (255, 180, 0, 1.0), 1, 0.5, 0.2)
-                elif layerClass == "top":
-                    create_material(layer, layerClass, (255, 180, 0, 1.0), 1, 0.5, 0.2)
-                elif layerClass == "topsilk":
-                    create_material(layer, layerClass, (100, 100, 100, 1.0), 1, 0.5, 0.2)
+                    create_material(layer, layerClass, board_color, 0.234, 0.235, 0.202)
+                elif layerClass == "topsilk" or layerClass == 'bottomsilk':
+                    create_material(layer, layerClass, silk_color, 1, 0.5, 0.2)
+                elif layerClass == "top" or layerClass == "bottom":
+                    create_material(layer, layerClass, copper_color, 1, 0.5, 0.2)
         except Exception as e:
             print('--CreateMaterials exception: ' + str(e))
             importdata.error_msg = str(e)
             bpy.ops.fritzing.import_error("INVOKE_DEFAULT")
 
-        importdata.step_name = 'POST_DRILL_HOLES'
+        importdata.step_name = 'POST_MERGE_LAYERS'
         return {"FINISHED"}
 
 
