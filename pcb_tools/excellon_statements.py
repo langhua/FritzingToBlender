@@ -292,7 +292,7 @@ class ToolSelectionStmt(ExcellonStatement):
         line = line[1:]
         compensation_index = None
 
-        # up to 3 characters for tool number (Frizting uses that)
+        # up to 3 characters for tool number (Fritzing uses that)
         if len(line) <= 3:
             tool = int(line)
         else:

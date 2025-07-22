@@ -6,7 +6,7 @@ import os
 from ..io_curve_svg.svg_util import units, read_float
 from mathutils import Matrix
 
-fritzingPcbCollectionName = 'frizting_pcb'
+fritzingPcbCollectionName = 'fritzing_pcb'
 
 class ImportSingleSVG(Operator):
     bl_idname = "fritzing.import_single_svg"
