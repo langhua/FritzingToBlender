@@ -4,13 +4,16 @@
 限于零件3D模型的欠缺，目前没能进一步生成完整的安装好零件的PCB 3D模型，以后条件成熟了再逐步扩展这一功能。
 
 ## 适用
-Blender 4.2.1
+Blender 4.2.1及以上版本
 
-## 安装
+## 为Blender安装python模块
 
-### 为Blender python安装模块
+1. 在Windows中，以系统管理员身份打开终端，进入Blender自己的python目录，比如：cd '..\..\Program Files\Blender Foundation\Blender 4.2\4.2\python\bin\'
 
-1. cd '..\..\Program Files\Blender Foundation\Blender 4.2\4.2\python\bin\'
+2. 安装所需python包：
+```
+.\python.exe -m pip install -r requirements.txt
+```
 
 ## 使用
 
