@@ -79,7 +79,7 @@ def get_horizontal_exposed_length(horizontal_exposed_type):
     else:
         return 0.4  # 默认值
 
-def create_electrolytic_capacitor_with_horizontal_exposed(size_name='6.3x5.3mm'):
+def create_electrolytic_capacitor_with_horizontal_exposed(size_name='8x10mm'):
     """创建水平露出长度修正的贴片电解电容3D模型"""
     if size_name not in ELECTROLYTIC_SIZES:
         size_name = '6.3x5.3mm'
@@ -385,11 +385,11 @@ def create_electrolytic_capacitor_with_horizontal_exposed(size_name='6.3x5.3mm')
     
     return collection, dimensions
 
-# 创建6.3x5.3mm贴片电解电容
-collection, dimensions = create_electrolytic_capacitor_with_horizontal_exposed('6.3x5.3mm')
+# 创建8x10mm贴片电解电容
+collection, dimensions = create_electrolytic_capacitor_with_horizontal_exposed('8x10mm')
 
 print("贴片电解电容3D模型生成完毕！")
-print(f"6.3x5.3mm规格参数：")
+print(f"8x10mm规格参数：")
 print(f"- 直径ΦD: {dimensions['diameter']}mm")
 print(f"- 高度L: {dimensions['height']}mm") 
 print(f"- 引脚间距P: {dimensions['lead_spacing']}mm")
