@@ -11,20 +11,24 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '.')))
+
 import bpy
-from .io_fritzing.import_single_svg import ImportSingleSVG
-from .io_fritzing.get_files import GetFiles
-from .io_fritzing.report import register as FritzingIORegister, unregister as FritzingIOUnregister
-from .io_fritzing.report import ProgressReport
-from .io_fritzing.error_dialog import ErrorDialog
-from .io_fritzing.clean_drill_holes import CleanDrillHoles
-from .io_fritzing.create_materials import CreateMaterials
-from .io_fritzing.drill_holes import DrillHoles
-from .io_fritzing.extrude import Extrude
-from .io_fritzing.merge_layers import MergeLayers
-from .io_fritzing.remove_extra_verts import RemoveExtraVerts
-from .io_fritzing.ui_labels import langs
-from .io_fritzing.board_settings import BoardSettings, register as BoardSettingsRegister, unregister as BoardSettingsUnregister
+from io_fritzing.import_single_svg import ImportSingleSVG
+from io_fritzing.get_files import GetFiles
+from io_fritzing.report import register as FritzingIORegister, unregister as FritzingIOUnregister
+from io_fritzing.report import ProgressReport
+from io_fritzing.error_dialog import ErrorDialog
+from io_fritzing.clean_drill_holes import CleanDrillHoles
+from io_fritzing.create_materials import CreateMaterials
+from io_fritzing.drill_holes import DrillHoles
+from io_fritzing.extrude import Extrude
+from io_fritzing.merge_layers import MergeLayers
+from io_fritzing.remove_extra_verts import RemoveExtraVerts
+from io_fritzing.ui_labels import langs
+from io_fritzing.board_settings import BoardSettings, register as BoardSettingsRegister, unregister as BoardSettingsUnregister
 
 # from .test.test_bool_tool import TestBoolTool, register as TestBoolToolRegister, unregister as TestBoolToolUnregister
 

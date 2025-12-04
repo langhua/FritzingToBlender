@@ -1,9 +1,13 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+
 import bpy 
 from bpy.types import Operator
-from .report import importdata, update as update_report
+from io_fritzing.report import importdata, update as update_report
 from lxml import etree
 import os
-from ..io_curve_svg.svg_util import units, read_float
+from io_curve_svg.svg_util import units, read_float
 from mathutils import Matrix
 
 fritzingPcbCollectionName = 'fritzing_pcb'
@@ -68,8 +72,12 @@ class ImportSingleSVG(Operator):
 # @return layer - the layer objct imported
 #
 def import_svg(layerClass: str, file: str):
+    print(f'Importing svg file: layer[{layerClass}], file[{file}]')
     # 1. deselect all
     bpy.ops.object.select_all(action='DESELECT')
+    scene = bpy.context.scene
+    scene.unit_settings.system = 'METRIC'
+    scene.unit_settings.length_unit = 'MILLIMETERS'
 
     # 2. import the svg file and get the new curves
     start_objs = bpy.data.objects[:]
@@ -197,4 +205,5 @@ def import_svg(layerClass: str, file: str):
             obj.select_set(False)
     
     # 10. return the layer
+    print('  imported')
     return layer

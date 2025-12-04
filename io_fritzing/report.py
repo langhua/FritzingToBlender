@@ -1,7 +1,7 @@
 import bpy
 from bpy.props import FloatProperty, StringProperty
 from bpy.types import Operator, Scene
-from .commondata import PCBImportData
+from commondata import PCBImportData
 
 
 # a variable where we can store the original draw funtion
