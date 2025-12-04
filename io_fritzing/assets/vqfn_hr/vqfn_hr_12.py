@@ -19,6 +19,11 @@ def clear_scene():
         scene.unit_settings.system = 'METRIC'
         scene.unit_settings.length_unit = 'MILLIMETERS'
 
+pin_width = 0.3
+pin_length = 0.5
+pin_height = 0.2
+pin_spacing = 0.5
+
 def create_vqfn_hr_12():
     """创建VQFN-HR-12封装模型"""
     # 创建专用集合来组织对象
@@ -40,9 +45,12 @@ def create_vqfn_hr_12():
     
     # 创建表面文字标记
     text_obj = create_surface_text(body_length, body_width, body_height)
+
+    # 创建引脚1标记
+    pin1_marker_obj = create_surface_marker(Vector((-body_length/2 + pin_length/2, pin_spacing * 1.5, body_height + 0.01)))
     
     # 将所有对象添加到专用集合
-    for obj in [chip_body, text_obj] + pins:
+    for obj in [chip_body, text_obj, pin1_marker_obj] + pins:
         if obj is not None and hasattr(obj, 'name'):
             scene = getattr(bpy.context, 'scene', None)
             if scene and hasattr(scene, 'collection') and hasattr(scene.collection, 'objects'):
@@ -87,11 +95,6 @@ def create_chip_body(length, width, height):
 
 def create_pins(length, width, height):
     """创建引脚（修正布局，避免重复）"""
-    pin_width = 0.3
-    pin_length = 0.5
-    pin_height = 0.2
-    pin_spacing = 0.5
-    
     pins = []
     
     # 左侧引脚 (4个) - 引脚1, 2, 3, 4
@@ -136,6 +139,7 @@ def create_pin(position, width, length, height, pin_number, rounded_corners):
         if pin is None:
             raise RuntimeError(f"无法获取引脚{pin_number}对象")
         pin.scale = (length/2, width/2, height/2)
+        pin.location = (x, y, z - 0.05)
     else:
         # 引脚1为长方体，其他为圆角矩形
         pin = create_rounded_rectangle(pin_number, length, width, height, length * 0.45, 16, rounded_corners)
@@ -169,6 +173,7 @@ def create_surface_text(length, width, height):
         if hasattr(text_obj.data, 'size'):
             text_obj.data.size = 0.5
     text_obj.scale = (0.8, 0.8, 0.1)
+    text_obj.rotation_euler = (0, 0, -math.pi / 2)
     # 将文字转换为网格
     bpy.ops.object.select_all(action='DESELECT')
     if hasattr(text_obj, 'select_set'):
@@ -185,6 +190,40 @@ def create_surface_text(length, width, height):
         else:
             text_obj.data.materials.append(material)
     return text_obj
+
+def create_surface_marker(location):
+    """创建表面文字标记"""
+    bpy.ops.object.text_add(location=location)
+    pin1_marker_obj = getattr(bpy.context, 'active_object', None)
+    if pin1_marker_obj is None:
+        raise RuntimeError("无法获取文字对象")
+    pin1_marker_obj.name = "Pin1_Marker"
+    if hasattr(pin1_marker_obj, 'data'):
+        if hasattr(pin1_marker_obj.data, 'body'):
+            pin1_marker_obj.data.body = "●"
+        if hasattr(pin1_marker_obj.data, 'align_x'):
+            pin1_marker_obj.data.align_x = 'CENTER'
+        if hasattr(pin1_marker_obj.data, 'align_y'):
+            pin1_marker_obj.data.align_y = 'CENTER'
+        if hasattr(pin1_marker_obj.data, 'size'):
+            pin1_marker_obj.data.size = 0.3
+    pin1_marker_obj.scale = (0.8, 0.8, 0.1)
+    # 将文字转换为网格
+    bpy.ops.object.select_all(action='DESELECT')
+    if hasattr(pin1_marker_obj, 'select_set'):
+        pin1_marker_obj.select_set(True)
+    view_layer = getattr(bpy.context, 'view_layer', None)
+    if view_layer and hasattr(view_layer, 'objects'):
+        view_layer.objects.active = pin1_marker_obj
+    bpy.ops.object.convert(target='MESH')
+    # 设置文字材质
+    material = create_white_material()
+    if hasattr(pin1_marker_obj, 'data') and hasattr(pin1_marker_obj.data, 'materials'):
+        if pin1_marker_obj.data.materials:
+            pin1_marker_obj.data.materials[0] = material
+        else:
+            pin1_marker_obj.data.materials.append(material)
+    return pin1_marker_obj
 
 def create_black_plastic_material():
     """创建黑色塑料材质"""
