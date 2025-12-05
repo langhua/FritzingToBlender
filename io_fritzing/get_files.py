@@ -39,5 +39,6 @@ class GetFiles(Operator, ImportHelper):
         importdata.total = len(filenames.items()) + 5 # total steps
         importdata.current = 1
         importdata.step_name = 'IMPORTING_SVG_FILES'
-        bpy.ops.fritzing.board_settings("INVOKE_DEFAULT")
+        getattr(getattr(bpy.ops, 'fritzing'), 'board_settings')("INVOKE_DEFAULT")
+        # bpy.ops.fritzing.board_settings("INVOKE_DEFAULT")
         return {"FINISHED"}

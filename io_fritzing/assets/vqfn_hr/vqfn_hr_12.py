@@ -10,7 +10,7 @@ import math
 
 def clear_scene():
     context = bpy.context
-    if hasattr(context, 'mode') and context.mode != 'OBJECT':
+    if context is not None and hasattr(context, 'mode') and context.mode != 'OBJECT':
         bpy.ops.object.mode_set(mode='OBJECT')
     bpy.ops.object.select_all(action='SELECT')
     bpy.ops.object.delete(use_global=False, confirm=False)
@@ -102,30 +102,38 @@ def create_pins(length, width, height):
     for i in range(4):
         y_pos = (1.5 - i) * pin_spacing
         pin = create_pin((left_x - 0.01, y_pos, pin_height/2), pin_length, pin_width, pin_height, i+1, 'bottom')
-        pin.rotation_euler = (0, 0, math.pi/2)
-        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
-        pins.append(pin)
+        if pin is not None:  # 添加空值检查
+            pin.rotation_euler = (0, 0, math.pi/2)
+            bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+            pins.append(pin)
 
     # 底边引脚 (2个) - 引脚5, 6
     bottom_y = - width/2 + pin_length/2
     pin5 = create_pin((-pin_spacing/2, bottom_y - 0.01, pin_height/2), pin_length, pin_width, pin_height, 5, 'top')
     pin6 = create_pin((pin_spacing/2, bottom_y - 0.01, pin_height/2), pin_length, pin_width, pin_height, 6, 'top')
-    pins.extend([pin5, pin6])
+    if pin5 is not None:  # 添加空值检查
+        pins.append(pin5)
+    if pin6 is not None:  # 添加空值检查
+        pins.append(pin6)
     
     # 右侧引脚 (4个) - 引脚7, 8, 9, 10
     right_x = length/2 - pin_length/2
     for i in range(4):
         y_pos = (-1.5 + i) * pin_spacing
         pin = create_pin((right_x + 0.01, y_pos, pin_height/2), pin_length, pin_width, pin_height, i+7, 'top')
-        pin.rotation_euler = (0, 0, math.pi/2)
-        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
-        pins.append(pin)
+        if pin is not None:  # 添加空值检查
+            pin.rotation_euler = (0, 0, math.pi/2)
+            bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+            pins.append(pin)
 
     # 顶边引脚 (2个) - 引脚11, 12（修复：确保有引脚12）
     top_y = width/2 - pin_length/2
     pin11 = create_pin((pin_spacing/2, top_y + 0.01, pin_height/2), pin_length, pin_width, pin_height, 11, 'bottom')
     pin12 = create_pin((-pin_spacing/2, top_y + 0.01, pin_height/2), pin_length, pin_width, pin_height, 12, 'bottom')
-    pins.extend([pin11, pin12])
+    if pin11 is not None:  # 添加空值检查
+        pins.append(pin11)
+    if pin12 is not None:  # 添加空值检查
+        pins.append(pin12)
     
     return pins
 
@@ -148,12 +156,14 @@ def create_pin(position, width, length, height, pin_number, rounded_corners):
     if pin is not None:
         pin.name = f"Pin_{pin_number}"
         # 设置材质
-        material = create_metal_material()
-        if hasattr(pin, 'data') and hasattr(pin.data, 'materials'):
-            if pin.data.materials:
-                pin.data.materials[0] = material
-            else:
-                pin.data.materials.append(material)
+        if pin.type == 'MESH':  # 添加类型检查
+            material = create_metal_material()
+            if hasattr(pin, 'data') and hasattr(pin.data, 'materials'):
+                if pin.data.__getattribute__('materials'):
+                    pin.data.__setattr__('materials', [material])
+                else:
+                    pin.data.__getattribute__('materials').append(material)
+
     return pin
 
 def create_surface_text(length, width, height):
@@ -230,15 +240,15 @@ def create_black_plastic_material():
     material = bpy.data.materials.new(name="Black_Plastic")
     material.diffuse_color = (0.05, 0.05, 0.05, 1.0)
     material.use_nodes = True
-    if hasattr(material, 'node_tree') and hasattr(material.node_tree, 'nodes') and hasattr(material.node_tree, 'links'):
+    if material.node_tree is not None and hasattr(material, 'node_tree') and hasattr(material.node_tree, 'nodes') and hasattr(material.node_tree, 'links'):
         material.node_tree.nodes.clear()
         # 添加原理化BSDF节点
         bsdf = material.node_tree.nodes.new(type='ShaderNodeBsdfPrincipled')
         bsdf.location = (0, 0)
         # 设置塑料材质参数
-        bsdf.inputs['Base Color'].default_value = (0.05, 0.05, 0.05, 1.0)  # 深黑色
-        bsdf.inputs['Metallic'].default_value = 0.0  # 非金属
-        bsdf.inputs['Roughness'].default_value = 0.8  # 高粗糙度，模拟塑料
+        bsdf.inputs['Base Color'].__setattr__('default_value', (0.05, 0.05, 0.05, 1.0))  # 深黑色
+        bsdf.inputs['Metallic'].__setattr__('default_value', 0.0)  # 非金属
+        bsdf.inputs['Roughness'].__setattr__('default_value', 0.8)  # 高粗糙度，模拟塑料
         # 添加材质输出节点
         output = material.node_tree.nodes.new(type='ShaderNodeOutputMaterial')
         output.location = (400, 0)
@@ -255,23 +265,25 @@ def create_metal_material():
     material.diffuse_color = (0.8, 0.8, 0.85, 1.0)  # 银白色
 
     # 清除默认节点
-    material.node_tree.nodes.clear()
+    if material.node_tree is not None and hasattr(material, 'node_tree') and hasattr(material.node_tree, 'nodes'):
+        material.node_tree.nodes.clear()
     
     # 添加原理化BSDF节点
-    bsdf = material.node_tree.nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.location = (0, 0)
+    if material.node_tree is not None and hasattr(material, 'node_tree') and hasattr(material.node_tree, 'nodes'):
+        bsdf = material.node_tree.nodes.new(type='ShaderNodeBsdfPrincipled')
+        bsdf.location = (0, 0)
     
-    # 设置金属材质参数
-    bsdf.inputs['Base Color'].default_value = (0.8, 0.8, 0.85, 1.0)  # 银白色
-    bsdf.inputs['Metallic'].default_value = 1.0  # 金属材质
-    bsdf.inputs['Roughness'].default_value = 0.2  # 低粗糙度，光滑金属
+        # 设置金属材质参数
+        bsdf.inputs['Base Color'].__setattr__('default_value', (0.8, 0.8, 0.85, 1.0))  # 银白色
+        bsdf.inputs['Metallic'].__setattr__('default_value', 1.0)  # 金属材质
+        bsdf.inputs['Roughness'].__setattr__('default_value', 0.2)  # 低粗糙度，光滑金属
     
-    # 添加材质输出节点
-    output = material.node_tree.nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = (400, 0)
+        # 添加材质输出节点
+        output = material.node_tree.nodes.new(type='ShaderNodeOutputMaterial')
+        output.location = (400, 0)
     
-    # 连接节点
-    material.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
+        # 连接节点
+        material.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
 
     return material
 
@@ -284,26 +296,30 @@ def create_white_material():
     material.diffuse_color = (0.9, 0.9, 0.9, 1.0)  # 白色
     
     # 添加原理化BSDF节点
-    bsdf = material.node_tree.nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.location = (0, 0)
+    if material.node_tree is not None and hasattr(material.node_tree, 'nodes'):  # 添加检查
+        bsdf = material.node_tree.nodes.new(type='ShaderNodeBsdfPrincipled')
+        bsdf.location = (0, 0)
     
-    # 设置金属材质参数
-    bsdf.inputs['Base Color'].default_value = (0.9, 0.9, 0.9, 1.0)  # 银白色
-    bsdf.inputs['Roughness'].default_value = 0.2  # 低粗糙度，光滑金属
-    
-    # 添加材质输出节点
-    output = material.node_tree.nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = (400, 0)
-    
-    # 连接节点
-    material.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
+        # 设置金属材质参数
+        bsdf.inputs['Base Color'].__setattr__('default_value', (0.9, 0.9, 0.9, 1.0))  # 银白色
+        bsdf.inputs['Roughness'].__setattr__('default_value', 0.2)  # 低粗糙度，光滑金属
+        
+        # 添加材质输出节点
+        output = material.node_tree.nodes.new(type='ShaderNodeOutputMaterial')
+        output.location = (400, 0)
+        
+        # 连接节点
+        material.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
 
     return material
 
 # 执行创建函数
 if __name__ == "__main__":
-    if bpy.context.active_object and bpy.context.active_object.mode != 'OBJECT':
-        bpy.ops.object.mode_set(mode='OBJECT')
+    context = bpy.context
+    if context is not None:  # 添加上下文检查
+        active_object = getattr(context, 'active_object', None)
+        if active_object is not None and hasattr(active_object, 'mode') and active_object.mode != 'OBJECT':
+            bpy.ops.object.mode_set(mode='OBJECT')
     
     create_vqfn_hr_12()
 

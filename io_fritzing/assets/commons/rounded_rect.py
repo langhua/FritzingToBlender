@@ -6,9 +6,22 @@ def create_rounded_rectangle(pin_number, width=4, height=2, depth=0.5, radius=0.
     pinname = f"Pin_{pin_number}"
     mesh = bpy.data.meshes.new(pinname)
     obj = bpy.data.objects.new(pinname, mesh)
-    bpy.context.collection.objects.link(obj)
-    bpy.context.view_layer.objects.active = obj
-    obj.select_set(True)
+
+    context = bpy.context
+    if context is None:
+        return None
+    
+    scene = getattr(context, 'scene', None)
+    if scene is None:
+        return None
+    
+    scene.collection.objects.link(obj)
+    
+    # 设置活动对象和选择状态
+    view_layer = getattr(context, 'view_layer', None)
+    if view_layer is not None:
+        view_layer.objects.active = obj
+        obj.select_set(True)
 
     bm = bmesh.new()
     half_w = width / 2
@@ -82,7 +95,7 @@ def create_rounded_rectangle(pin_number, width=4, height=2, depth=0.5, radius=0.
     top_verts = [bm.verts.new((x, y, depth)) for (x, y) in verts_2d]
 
     bm.faces.new(bottom_verts)
-    bm.faces.new(reversed(top_verts))
+    bm.faces.new(list(reversed(top_verts)))  # 将迭代器转换为列表
     n = len(bottom_verts)
     for i in range(n):
         bm.faces.new([bottom_verts[i], bottom_verts[(i+1)%n], top_verts[(i+1)%n], top_verts[i]])

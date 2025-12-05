@@ -16,7 +16,7 @@ class RemoveExtraVerts(Operator):
         except Exception as e:
             print('--RemoveExtraVerts exception: ' + str(e))
             importdata.error_msg = str(e)
-            bpy.ops.fritzing.import_error("INVOKE_DEFAULT")
+            getattr(getattr(bpy.ops, 'fritzing'), 'import_error')("INVOKE_DEFAULT")
 
         importdata.step_name = 'POST_EXTRUDE'
         return {"FINISHED"}
@@ -25,10 +25,11 @@ class RemoveExtraVerts(Operator):
 ##
 # Removes the overlapping vertices on all layers
 def removeExtraVerts(layer):
-    bpy.context.view_layer.objects.active = layer
-    bpy.ops.object.editmode_toggle()
-    bpy.ops.mesh.select_mode(type="VERT")
-    bpy.ops.mesh.select_all(action="SELECT")
-    bpy.ops.mesh.remove_doubles()
-    bpy.ops.mesh.select_all(action="DESELECT")
-    bpy.ops.object.editmode_toggle()
+    if bpy.context:
+        bpy.context.view_layer.objects.active = layer
+        bpy.ops.object.editmode_toggle()
+        bpy.ops.mesh.select_mode(type="VERT")
+        bpy.ops.mesh.select_all(action="SELECT")
+        bpy.ops.mesh.remove_doubles()
+        bpy.ops.mesh.select_all(action="DESELECT")
+        bpy.ops.object.editmode_toggle()

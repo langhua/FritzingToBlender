@@ -16,16 +16,18 @@ class MergeLayers(Operator):
                     if layerClass != 'drill':
                         layer.select_set(True)
                 for layerClass, layer in svgLayers.items():
-                    if layerClass != 'drill':
+                    if layerClass != 'drill' and bpy.context:
                         bpy.context.view_layer.objects.active = layer
                         break
                 bpy.ops.object.join()
-                joinedLayer = bpy.context.view_layer.objects.active
-                joinedLayer.name = 'JoinedLayer'
+                if bpy.context:
+                    joinedLayer = bpy.context.view_layer.objects.active
+                    if joinedLayer:
+                        joinedLayer.name = 'JoinedLayer'
         except Exception as e:
             print('--MergeLayers exception: ' + str(e))
             importdata.error_msg = str(e)
-            bpy.ops.fritzing.import_error("INVOKE_DEFAULT")
+            getattr(getattr(bpy.ops, 'fritzing'), 'import_error')("INVOKE_DEFAULT")
 
         # importdata.step_name = 'FINISHED'
         importdata.step_name = 'POST_DRILL_HOLES'

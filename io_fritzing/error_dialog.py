@@ -23,7 +23,8 @@ class ErrorDialog(Operator):
         box.row()
     
     def execute(self, context):
-        context.scene.progress_indicator = 101
+        if context and hasattr(context.scene, 'progress_indicator'):
+            setattr(context.scene, 'progress_indicator', 101)
         importdata.step_name = 'FINISHED'
         if os.name == 'nt':
             frequency = 1500
@@ -34,6 +35,8 @@ class ErrorDialog(Operator):
     
     def invoke(self, context, event):
         area_3d = None
+        if bpy.context is None or context is None:
+            return
         for area in bpy.context.screen.areas:
             if area.type == "VIEW_3D":
                 area_3d = area

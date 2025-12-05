@@ -21,7 +21,8 @@ class ImportSingleSVG(Operator):
             layerClass = next(iter(importdata.filenames))
             filename = importdata.filenames[layerClass]
             importdata.current_file = filename
-            context.scene.progress_indicator_text = bpy.app.translations.pgettext('Importing ') + filename[filename.rindex(os.path.sep[0]) + 1 :]
+            if context and hasattr(context.scene, 'progress_indicator_text'):
+                setattr(context.scene, 'progress_indicator_text', bpy.app.translations.pgettext('Importing ') + filename[filename.rindex(os.path.sep[0]) + 1 :])
             layer = import_svg(layerClass=layerClass, file=filename)
             if layer is not None:
                 importdata.svgLayers[layerClass] = layer
@@ -30,22 +31,24 @@ class ImportSingleSVG(Operator):
             if layerClass == 'drill':
                 i = 0
                 # generally, a rect outline has 4 curves(lines), so the last 4 curves are removed
-                total_obj = len(layer.all_objects) - 4
-                bpy.ops.object.select_all(action='DESELECT')
-                for obj in layer.all_objects:
-                    if i >= total_obj:
-                        obj.select_set(True)
-                    i += 1
-                bpy.ops.object.delete()
+                if layer:
+                    total_obj = len(getattr(layer, 'all_objects')) - 4
+                    bpy.ops.object.select_all(action='DESELECT')
+                    for obj in getattr(layer, 'all_objects'):
+                        if i >= total_obj:
+                            obj.select_set(True)
+                        i += 1
+                    bpy.ops.object.delete()
 
-                # zoom in by drill layer seems more suitable than other layer
-                for obj in layer.all_objects:
-                    obj.select_set(True)
-                for area in bpy.context.screen.areas:
-                    if area.type == 'VIEW_3D':
-                        with bpy.context.temp_override(area=area, region=area.regions[-1]):
-                            bpy.ops.view3d.view_selected()
-                bpy.ops.object.select_all(action='DESELECT')
+                    # zoom in by drill layer seems more suitable than other layer
+                    for obj in getattr(layer, 'all_objects'):
+                        obj.select_set(True)
+                    if bpy.context:
+                        for area in bpy.context.screen.areas:
+                            if area.type == 'VIEW_3D':
+                                with bpy.context.temp_override(area=area, region=area.regions[-1]):
+                                    bpy.ops.view3d.view_selected()
+                        bpy.ops.object.select_all(action='DESELECT')
 
             importdata.filenames.pop(layerClass)
             importdata.current = importdata.current + 1
@@ -53,7 +56,7 @@ class ImportSingleSVG(Operator):
             if str(e) != '':
                 print('--ImportSingleSVG exception: ' + str(e))
                 importdata.error_msg = str(e)
-                bpy.ops.fritzing.import_error("INVOKE_DEFAULT")
+                getattr(getattr(bpy.ops, 'fritzing'), 'import_error')("INVOKE_DEFAULT")
 
             # all svg imported
             if len(importdata.filenames) == 0:
@@ -75,6 +78,8 @@ def import_svg(layerClass: str, file: str):
     print(f'Importing svg file: layer[{layerClass}], file[{file}]')
     # 1. deselect all
     bpy.ops.object.select_all(action='DESELECT')
+    if bpy.context is None:
+        return None
     scene = bpy.context.scene
     scene.unit_settings.system = 'METRIC'
     scene.unit_settings.length_unit = 'MILLIMETERS'
@@ -111,7 +116,7 @@ def import_svg(layerClass: str, file: str):
         for obj in objects:
             bpy.context.view_layer.objects.active = obj
             active_object = bpy.context.active_object
-            if obj != boardoutline and active_object.type == 'CURVE':
+            if obj != boardoutline and getattr(active_object, 'type') == 'CURVE':
                 obj.select_set(True)
                 curves.append(obj)
 
@@ -188,7 +193,7 @@ def import_svg(layerClass: str, file: str):
     else:
         if layerClass == 'drill':
             newLayer = bpy.data.collections.new('drill')
-            for obj in layer.all_objects:
+            for obj in getattr(layer, 'all_objects'):
                 newLayer.objects.link(obj)
             bpy.data.collections[fritzingPcbCollectionName].children.link(newLayer)
             layer = newLayer

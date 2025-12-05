@@ -9,21 +9,22 @@ class DrillHoles(Operator):
     
     def execute(self, context):
         try:
-            joined_layer = bpy.context.view_layer.objects['JoinedLayer']
-            drill_layer = None
-            try:
-                drill_layer = importdata.svgLayers['drill']
-            except:
-                pass
-            algorithm = 'BooleanModifier'
-            if context.scene.drill_algorithm_setting:
-                algorithm = str(context.scene.drill_algorithm_setting)
-            if drill_layer and joined_layer:
-                drillHoles(joined_layer, drill_layer=drill_layer, algorithm=algorithm)
+            if bpy.context is not None:
+                joined_layer = bpy.context.view_layer.objects['JoinedLayer']
+                drill_layer = None
+                try:
+                    drill_layer = importdata.svgLayers['drill']
+                except:
+                    pass
+                algorithm = 'BooleanModifier'
+                if context and hasattr(context.scene, 'drill_algorithm_setting'):
+                    algorithm = str(getattr(context.scene, 'drill_algorithm_setting'))
+                if drill_layer and joined_layer:
+                    drillHoles(joined_layer, drill_layer=drill_layer, algorithm=algorithm)
         except Exception as e:
             print('--DrillHoles exception: ' + str(e))
             importdata.error_msg = str(e)
-            bpy.ops.fritzing.import_error("INVOKE_DEFAULT")
+            getattr(getattr(bpy.ops, 'fritzing'), 'import_error')("INVOKE_DEFAULT")
 
         importdata.step_name = 'POST_CLEAN_DRILL'
         return {"FINISHED"}
@@ -33,6 +34,8 @@ class DrillHoles(Operator):
 # creates a drill hole through an individual layer of the pcb
 # @param layer_name -the layer to drill the holes in
 def drillHoles(layer, drill_layer, algorithm):
+    if bpy.context is None:
+        return
     for area in bpy.context.screen.areas: 
         if area.type == "VIEW_3D":
             for space in area.spaces: 
@@ -47,7 +50,8 @@ def drillHoles(layer, drill_layer, algorithm):
             for obj in drill_layer.objects:
                 obj.select_set(True)
             bpy.context.view_layer.objects.active = layer
-            bpy.ops.object.boolean_auto_difference()
+            getattr(getattr(bpy.ops, 'object'), 'boolean_auto_difference')()
+            # bpy.ops.object.boolean_auto_difference()
         else:
             for obj in drill_layer.objects:
                 modifier = layer.modifiers.new(name="Boolean", type="BOOLEAN")

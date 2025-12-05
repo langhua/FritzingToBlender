@@ -33,51 +33,61 @@ class ProgressReport(Operator):
     def modal(self, context, event):
         if event.type == 'TIMER' and importdata.step_name == 'IMPORTING_SVG_FILES':
             self.ticks += 1
-            bpy.ops.fritzing.import_single_svg("INVOKE_DEFAULT")
-        elif event.type == 'TIMER' and importdata.step_name.startswith('POST_'):
+            getattr(getattr(bpy.ops, 'fritzing'), 'import_single_svg')("INVOKE_DEFAULT")
+        elif event.type == 'TIMER' and importdata.step_name and importdata.step_name.startswith('POST_'):
             self.ticks += 1
             if importdata.step_name == 'POST_REMOVE_EXTRA_VERTS':
-                context.scene.progress_indicator_text = 'Removing extra verts ...'
-                bpy.ops.fritzing.remove_extra_verts('INVOKE_DEFAULT')
+                if context and hasattr(context.scene, 'progress_indicator_text'):
+                    setattr(context.scene, 'progress_indicator_text', 'Removing extra verts ...')
+                getattr(getattr(bpy.ops, 'fritzing'), 'remove_extra_verts')("INVOKE_DEFAULT")
             elif importdata.step_name == 'POST_EXTRUDE':
-                context.scene.progress_indicator_text = 'Extruding ...'
-                bpy.ops.fritzing.extrude('INVOKE_DEFAULT')
+                if context and hasattr(context.scene, 'progress_indicator_text'):
+                    setattr(context.scene, 'progress_indicator_text', 'Extruding ...')
+                getattr(getattr(bpy.ops, 'fritzing'), 'extrude')("INVOKE_DEFAULT")
             elif importdata.step_name == 'POST_CREATE_MATERIAL':
-                context.scene.progress_indicator_text = 'Creating materials ...'
-                bpy.ops.fritzing.create_materials('INVOKE_DEFAULT')
+                if context and hasattr(context.scene, 'progress_indicator_text'):
+                    setattr(context.scene, 'progress_indicator_text', 'Creating materials ...')
+                getattr(getattr(bpy.ops, 'fritzing'), 'create_materials')("INVOKE_DEFAULT")
             elif importdata.step_name == 'POST_DRILL_HOLES':
-                context.scene.progress_indicator_text = 'Drilling holes ...'
-                bpy.ops.fritzing.drill_holes('INVOKE_DEFAULT')
+                if context and hasattr(context.scene, 'progress_indicator_text'):
+                    setattr(context.scene, 'progress_indicator_text', 'Drilling holes ...')
+                getattr(getattr(bpy.ops, 'fritzing'), 'drill_holes')("INVOKE_DEFAULT")
             elif importdata.step_name == 'POST_CLEAN_DRILL':
-                context.scene.progress_indicator_text = 'Cleaning drilled holes ...'
-                bpy.ops.fritzing.clean_drill_holes('INVOKE_DEFAULT')
+                if context and hasattr(context.scene, 'progress_indicator_text'):
+                    setattr(context.scene, 'progress_indicator_text', 'Cleaning drilled holes ...')
+                getattr(getattr(bpy.ops, 'fritzing'), 'clean_drill_holes')("INVOKE_DEFAULT")
             elif importdata.step_name == 'POST_MERGE_LAYERS':
-                context.scene.progress_indicator_text = 'Merging layers ...'
-                bpy.ops.fritzing.merge_layers('INVOKE_DEFAULT')
+                if context and hasattr(context.scene, 'progress_indicator_text'):
+                    setattr(context.scene, 'progress_indicator_text', 'Merging layers ...')
+                getattr(getattr(bpy.ops, 'fritzing'), 'merge_layers')("INVOKE_DEFAULT")
         elif event.type == 'TIMER' and importdata.step_name == 'FINISHED':
             self.ticks += 1
 
         if self.ticks > 12:
-            context.scene.progress_indicator = 101 # done
-            context.window_manager.event_timer_remove(self.timer)
+            if context and hasattr(context.scene, 'progress_indicator'):
+                setattr(context.scene, 'progress_indicator', 101)  # done
+            if context:
+                context.window_manager.event_timer_remove(self.timer)
             return {'CANCELLED'}
 
         # total steps = 12
-        context.scene.progress_indicator = self.ticks*100/12
+        if context and hasattr(context.scene, 'progress_indicator'):
+            setattr(context.scene, 'progress_indicator', self.ticks*100/12)
 
         return {'RUNNING_MODAL'}
     
     def invoke(self, context, event):
         self.ticks = 0
-        wm = context.window_manager
-        self.timer = wm.event_timer_add(1.0, window=context.window)
-        wm.modal_handler_add(self)
+        if context:
+            wm = context.window_manager
+            self.timer = wm.event_timer_add(1.0, window=context.window)
+            wm.modal_handler_add(self)
         return {'RUNNING_MODAL'}
 
 
 def register():
     # a value between [0,100] will show the slider
-    Scene.progress_indicator = FloatProperty(
+    setattr(Scene, 'progress_indicator', FloatProperty(
                                     default=-1,
                                     subtype='PERCENTAGE',
                                     precision=1,
@@ -85,12 +95,12 @@ def register():
                                     soft_min=0,
                                     soft_max=100,
                                     max=101,
-                                    update=update)
+                                    update=update))
 
     # the label in front of the slider can be configured
-    Scene.progress_indicator_text = StringProperty(
+    setattr(Scene, 'progress_indicator_text', StringProperty(
                                     default="Starting SVG import ...",
-                                    update=update)
+                                    update=update))
 
     # save the original draw method of the Info header
     global info_header_draw
