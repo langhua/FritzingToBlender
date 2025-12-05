@@ -40,7 +40,7 @@ def drillHoles(layer, drill_layer, algorithm):
         if area.type == "VIEW_3D":
             for space in area.spaces: 
                 if space.type == "VIEW_3D":
-                    space.shading.type = "SOLID"
+                    setattr(getattr(space, 'shading'), 'type', "SOLID")
 
     if layer and drill_layer:
         if algorithm == 'AutoBoolean':
@@ -51,7 +51,6 @@ def drillHoles(layer, drill_layer, algorithm):
                 obj.select_set(True)
             bpy.context.view_layer.objects.active = layer
             getattr(getattr(bpy.ops, 'object'), 'boolean_auto_difference')()
-            # bpy.ops.object.boolean_auto_difference()
         else:
             for obj in drill_layer.objects:
                 modifier = layer.modifiers.new(name="Boolean", type="BOOLEAN")

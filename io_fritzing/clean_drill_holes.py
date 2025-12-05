@@ -23,7 +23,7 @@ class CleanDrillHoles(Operator):
         except Exception as e:
             print('--CleanDrillHoles exception: ' + str(e))
             importdata.error_msg = str(e)
-            bpy.ops.fritzing.import_error("INVOKE_DEFAULT")
+            getattr(getattr(bpy.ops, 'fritzing'), 'import_error')("INVOKE_DEFAULT")
 
         importdata.step_name = 'FINISHED'
         return {"FINISHED"}

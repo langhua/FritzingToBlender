@@ -11,25 +11,25 @@ class CreateMaterials(Operator):
     def execute(self, context):
         try:
             board_color = (0, 0.435, 0.282, 0.99)
-            if context.scene.board_color_setting:
+            if context and hasattr(context.scene, 'board_color_setting'):
                 board_colors = [Board_Black, Board_Blue, Board_Green, Board_Purple, Board_Red, Board_White, Board_Yellow]
-                board_color_setting = str(context.scene.board_color_setting)
+                board_color_setting = str(getattr(context.scene, 'board_color_setting'))
                 for color in board_colors:
                     if board_color_setting == color['name']:
                         board_color = color['rgba']
 
             silk_color = (0.918, 0.965, 0.961, 1.0)
-            if context.scene.silk_color_setting:
+            if context and hasattr(context.scene, 'silk_color_setting'):
                 silk_colors = [Silk_Black, Silk_White, Silk_White2]
-                silk_color_setting = str(context.scene.silk_color_setting)
+                silk_color_setting = str(getattr(context.scene, 'silk_color_setting'))
                 for color in silk_colors:
                     if silk_color_setting == color['name']:
                         silk_color = color["rgba"]
 
             copper_color = (1, 0.706, 0, 1.0)
-            if context.scene.copper_color_setting:
+            if context and hasattr(context.scene, 'copper_color_setting'):
                 copper_colors = [Copper, Copper2]
-                copper_color_setting = str(context.scene.copper_color_setting)
+                copper_color_setting = str(getattr(context.scene, 'copper_color_setting'))
                 for color in copper_colors:
                     if copper_color_setting == color['name']:
                         copper_color = color["rgba"]
@@ -45,7 +45,7 @@ class CreateMaterials(Operator):
         except Exception as e:
             print('--CreateMaterials exception: ' + str(e))
             importdata.error_msg = str(e)
-            bpy.ops.fritzing.import_error("INVOKE_DEFAULT")
+            getattr(getattr(bpy.ops, 'fritzing'), 'import_error')("INVOKE_DEFAULT")
 
         importdata.step_name = 'POST_MERGE_LAYERS'
         return {"FINISHED"}
@@ -61,11 +61,13 @@ class CreateMaterials(Operator):
 # @param roughness -a float for the percentage of roughness in the texture \(surface divisions for specular intensity\)
 def create_material(layer, name="material_name", rgba=(0.0, 0.0, 0.0, 1.0), metallic=0.5, specular=0.5, roughness=0.5):
     # make sure computer thinks the mouse is in the right location, avoid ...poll() errors.
+    if bpy.context is None:
+        return
     for area in bpy.context.screen.areas: 
         if area.type == "VIEW_3D":
             for space in area.spaces: 
-                if space.type == "VIEW_3D":
-                    space.shading.type = "MATERIAL"
+                if space.type == "VIEW_3D" and hasattr(space, 'shading.type'):
+                    setattr(getattr(space, 'shading'), 'type', "MATERIAL")
 
     bpy.context.view_layer.objects.active = layer
     material = bpy.data.materials.new(name)
@@ -79,4 +81,4 @@ def create_material(layer, name="material_name", rgba=(0.0, 0.0, 0.0, 1.0), meta
         if area.type == "VIEW_3D":
             for space in area.spaces: 
                 if space.type == "VIEW_3D":
-                    space.shading.type = "SOLID"
+                    setattr(getattr(space, 'shading'), 'type', "SOLID")
