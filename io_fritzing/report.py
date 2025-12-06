@@ -5,7 +5,7 @@ from commondata import PCBImportData
 
 
 # a variable where we can store the original draw funtion
-info_header_draw = lambda s,c: None
+info_header_draw = lambda s, c: None
 
 def update(self, context):
     areas = context.window.screen.areas
@@ -109,8 +109,8 @@ def register():
     # create a new draw function
     def newdraw(self, context):
         # first call the original stuff
-        global info_header_draw
-        info_header_draw(self, context)
+        # global info_header_draw
+        # info_header_draw(self, context)
         # then add the prop that acts as a progress indicator
         if context.scene.progress_indicator >= 0 and context.scene.progress_indicator <= 100:
             layout = self.layout
@@ -124,7 +124,6 @@ def register():
                              slider=True)
 
     # replace it
-    bpy.types.VIEW3D_HT_tool_header.draw = newdraw
     bpy.types.VIEW3D_HT_tool_header.draw = newdraw
 
 

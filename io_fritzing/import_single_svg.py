@@ -4,8 +4,8 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 import bpy 
 from bpy.types import Operator
-from io_fritzing.report import importdata, update as update_report
-from lxml import etree
+from io_fritzing.report import importdata
+from lxml import etree # type: ignore
 import os
 from io_curve_svg.svg_util import units, read_float
 from mathutils import Matrix
@@ -159,12 +159,14 @@ def import_svg(layerClass: str, file: str):
         if layerClass == 'drill':
             fileLayerObjects = bpy.data.collections[collectionName].objects
             for obj in  fileLayerObjects:
-                obj.data.transform(mat_scale)
-                obj.scale = 1, 1, 1
+                if isinstance(obj.data, bpy.types.Mesh):
+                    obj.data.transform(mat_scale)
+                    obj.scale = 1, 1, 1
         else:
             bpy.context.view_layer.objects.active = bpy.data.collections[collectionName].objects[0]
-            bpy.context.object.data.transform(mat_scale)
-            bpy.context.object.scale = 1, 1, 1
+            if bpy.context.object and isinstance(bpy.context.object.data, bpy.types.Curve):
+                bpy.context.object.data.transform(mat_scale)
+                bpy.context.object.scale = 1, 1, 1
     
     # 7. convert curves to MESH
     if layerClass != 'drill':
@@ -187,7 +189,10 @@ def import_svg(layerClass: str, file: str):
     if fritzingPcbCollectionName not in bpy.data.collections:
         if layerClass == 'drill':
             fritzingPcbCollection = bpy.data.collections.new(fritzingPcbCollectionName)
-            fritzingPcbCollection.objects.link(layer)
+            if isinstance(layer, bpy.types.Collection):
+                bpy.data.collections[fritzingPcbCollectionName].children.link(layer)
+            elif isinstance(layer, bpy.types.Object):
+                fritzingPcbCollection.objects.link(layer)
         else:
             bpy.ops.object.move_to_collection(collection_index = 0, is_new = True, new_collection_name=fritzingPcbCollectionName)
     else:
@@ -198,7 +203,10 @@ def import_svg(layerClass: str, file: str):
             bpy.data.collections[fritzingPcbCollectionName].children.link(newLayer)
             layer = newLayer
         else:
-            bpy.data.collections[fritzingPcbCollectionName].objects.link(layer)
+            if isinstance(layer, bpy.types.Object):
+                bpy.data.collections[fritzingPcbCollectionName].objects.link(layer)
+            elif isinstance(layer, bpy.types.Collection):
+                bpy.data.collections[fritzingPcbCollectionName].children.link(layer)
 
     # 9. remove the orignal collection named by file
     col = bpy.data.collections[collectionName]
