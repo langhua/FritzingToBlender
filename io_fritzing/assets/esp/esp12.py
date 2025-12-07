@@ -3,6 +3,7 @@ import math
 import bmesh
 from mathutils import Vector
 from io_fritzing.assets.commons.antenna import create_esp12f_antenna
+from io_fritzing.assets.led.led0603 import create_led_with_color
 
 def clear_scene():
     # 清除默认场景
@@ -162,6 +163,14 @@ def create_esp12f_model():
         segment.location.x += pcb_length/2 - antenna_width/2
         segment.location.z += pcb_thickness/2 + trace_thickness/2
         segment.rotation_euler.z = math.radians(-90)
+
+    led_collection, led_body, led_lens = create_led_with_color("blue")
+    esp12f_collection.children.link(led_collection)
+    for obj in led_collection.objects:
+        obj.location.x += pcb_length/2 - antenna_width - led_body.dimensions.y
+        obj.location.y += -pcb_width/2 + pin_length
+        obj.location.z += pcb_thickness/2 + trace_thickness/2
+        obj.rotation_euler.z = math.radians(-90)
     
     # ============================================
     # 4. 创建文字
