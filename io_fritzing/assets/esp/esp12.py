@@ -2,16 +2,17 @@ import bpy
 import math
 import bmesh
 from mathutils import Vector
+from io_fritzing.assets.commons.antenna import create_esp12f_antenna
 
-# 清除默认场景
-bpy.ops.object.select_all(action='SELECT')
-bpy.ops.object.delete(use_global=False)
+def clear_scene():
+    # 清除默认场景
+    bpy.ops.object.select_all(action='SELECT')
+    bpy.ops.object.delete(use_global=False)
 
-# 设置单位为毫米
-scene = bpy.context.scene
-scene.unit_settings.system = 'METRIC'
-scene.unit_settings.length_unit = 'MILLIMETERS'
-scene.unit_settings.scale_length = 0.001  # 1 Blender单位 = 1毫米
+    # 设置单位为毫米
+    scene = bpy.context.scene
+    scene.unit_settings.system = 'METRIC'
+    scene.unit_settings.length_unit = 'MILLIMETERS'
 
 def create_esp12f_model():
     """创建ESP-12F模型的完整函数"""
@@ -60,6 +61,7 @@ def create_esp12f_model():
     add_to_collection(pcb)
     
     pcb_mat = create_material("PCB_Mat", (0.1, 0.3, 0.1))
+    pcb_mat.diffuse_color=(0.1, 0.3, 0.1, 1)
     pcb.data.materials.append(pcb_mat)
     
     # ============================================
@@ -83,6 +85,7 @@ def create_esp12f_model():
     add_to_collection(shield)
     
     shield_mat = create_material("Shield_Mat", (0.8, 0.8, 0.85), metallic=0.9, roughness=0.3)
+    shield_mat.diffuse_color = (0.8, 0.8, 0.85, 1)
     shield.data.materials.append(shield_mat)
     
     # ============================================
@@ -91,6 +94,7 @@ def create_esp12f_model():
     # 根据图片重新排序引脚名称
     # ============================================
     pin_mat = create_material("Pin_Mat", (1.0, 0.84, 0.0), metallic=0.9, roughness=0.2)
+    pin_mat.diffuse_color = (1.0, 0.84, 0.0, 1)
     
     # 引脚尺寸
     pin_width = 1
@@ -147,6 +151,17 @@ def create_esp12f_model():
         create_pin(x_pos, y_pos, pin_z, 90, f"Left_{left_pin_names[i]}")
     
     # 根据图片，没有右侧引脚
+
+    # ④ 创建右侧天线
+    antenna_collection = bpy.data.collections.new("ESP12F_Antenna")
+    esp12f_collection.children.link(antenna_collection)
+    trace_thickness = 0.035  # 1oz = 0.035mm
+    antenna_width = 6
+    antenna_segments = create_esp12f_antenna(pcb_width, antenna_width, 0.5, 0.3, 0.5, trace_thickness, pin_mat, antenna_collection)
+    for segment in antenna_segments:
+        segment.location.x += pcb_length/2 - antenna_width/2
+        segment.location.z += pcb_thickness/2 + trace_thickness/2
+        segment.rotation_euler.z = math.radians(-90)
     
     # ============================================
     # 4. 创建文字
@@ -174,6 +189,7 @@ def create_esp12f_model():
     
     # 设置文字材质
     text_mat = create_material("Text_Mat", (1, 1, 1))
+    text_mat.diffuse_color = (1, 1, 1, 1)
     for text_obj in [esp12_text, esp_text]:
         text_obj.data.materials.append(text_mat)
     
@@ -187,6 +203,8 @@ def create_esp12f_model():
     return esp12f_collection, pcb, shield
 
 def main():
+    clear_scene()
+
     """主函数入口"""
     print("开始创建ESP-12F WiFi模块3D模型...")
     print("=" * 50)
@@ -215,7 +233,7 @@ def main():
         print(f"底部引脚: {[pin.name.split('_')[1] for pin in bottom_pins]}")
         print(f"左侧引脚: {[pin.name.split('_')[1] for pin in left_pins]}")
         
-        print(f"PCB尺寸: {pcb.scale.x*2:.3f}×{pcb.scale.y*2:.3f}×{pcb.scale.z*2:.3f}mm")
+        print(f"PCB尺寸: {pcb.scale.x:.3f}×{pcb.scale.y:.3f}×{pcb.scale.z:.3f}mm")
         print(f"引脚厚度: 0.7mm (在PCB上下各露出0.05mm)")
         print("模型创建成功！")
         print("在Outliner中查看'ESP12F_Model'集合")
