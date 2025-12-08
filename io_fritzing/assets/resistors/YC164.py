@@ -1,0 +1,508 @@
+import bpy
+import bmesh
+from mathutils import Vector, Matrix
+import math
+
+# 清理场景
+def clear_scene():
+    if bpy.context.mode != 'OBJECT':
+        bpy.ops.object.mode_set(mode='OBJECT')
+    
+    bpy.ops.object.select_all(action='SELECT')
+    bpy.ops.object.delete(use_global=False, confirm=False)
+    
+    scene = bpy.context.scene
+    scene.unit_settings.system = 'METRIC'
+    scene.unit_settings.length_unit = 'MILLIMETERS'
+
+# 根据设计图定义YC164的尺寸
+dimensions = {
+    # 从设计图表格中取值
+    'B': 0.30,    # 引脚宽度: 0.30±0.15mm
+    'L': 3.20,    # 总长度: 3.20±0.15mm
+    'W2': 1.60,   # 总宽度: 1.60±0.15mm
+    'H': 0.65,    # 两侧引脚长度: 0.65±0.05mm
+    'H2': 0.50,   # 中间引脚长度: 0.50±0.15mm
+    'T': 0.60,    # 引脚厚度: 0.60±0.10mm
+    'W1': 0.30,   # 底面引脚宽度: 0.30±0.15mm
+    'P': 0.80,    # 引脚间距: 0.80±0.05mm
+    
+    # 其他计算尺寸
+    'num_pins': 8,             # 引脚数量: 4个电阻，每个电阻2个引脚
+    'resistor_count': 4,       # 电阻数量
+    
+    # 计算引脚位置
+    'pin_spacing': 0.80,                   # 引脚中心距
+    'total_pin_length': 1.60,              # 引脚总长度
+    
+    # 倒角参数
+    'chamfer_size': 0.05,
+    'chamfer_segments': 6,
+    
+    # 材质参数
+    'body_color': (0.3, 0.3, 0.3, 1.0),     # 深灰色主体
+    'cover_color': (0.1, 0.1, 0.1, 1.0),    # 表层黑色树脂
+    'pin_color': (0.9, 0.9, 0.95, 1.0),     # 银白色引脚
+    'marking_color': (1.0, 1.0, 1.0, 1.0),  # 白色标记
+}
+
+def apply_all_modifiers(obj=None):
+    """应用所有修改器"""
+    if bpy.context.mode != 'OBJECT':
+        bpy.ops.object.mode_set(mode='OBJECT')
+    
+    if obj:
+        objects = [obj]
+    else:
+        objects = bpy.context.scene.objects
+    
+    for obj in objects:
+        bpy.ops.object.select_all(action='DESELECT')
+        obj.select_set(True)
+        bpy.context.view_layer.objects.active = obj
+        
+        for modifier in list(obj.modifiers):
+            try:
+                bpy.ops.object.modifier_apply(modifier=modifier.name)
+            except:
+                obj.modifiers.remove(modifier)
+
+def create_yc164_resistor_array(value="103"):
+    """创建YC164 4位0603排阻完整模型"""
+    # 创建排阻主体
+    body = create_resistor_body()
+    
+    # 创建8个引脚
+    pins = create_pins()
+    
+    # 创建白色数字标记
+    marking = create_marking(value=value)
+    
+    # 确保所有修改器都被应用
+    apply_all_modifiers()
+    
+    # 将所有对象组织到一个组合中
+    collection = create_collection_and_organize(body, pins, marking)
+    
+    return body, pins, collection
+
+def create_resistor_body():
+    """创建排阻主体"""
+    length = dimensions['L']   # 3.20mm
+    width = dimensions['W2'] - dimensions['B']   # 1.60mm
+    height = dimensions['T']
+    base_height = height * 0.9
+    cover_height = height * 0.1 + 0.01
+    
+    # 创建base立方体
+    bpy.ops.mesh.primitive_cube_add(
+        size=1,
+        location=(0, 0, height/2)  # 放置在z=0平面以上
+    )
+    base = bpy.context.active_object
+    base.name = "YC164_Body_Base"
+    
+    # 设置尺寸
+    base.scale = (length, width, base_height)
+    bpy.ops.object.transform_apply(scale=True)
+    
+    # 设置base材质
+    base.data.materials.clear()
+    mat_base = create_ceramic_material("Ceramic_Body")
+    base.data.materials.append(mat_base)
+    
+    # 创建cover立方体
+    bpy.ops.mesh.primitive_cube_add(
+        size=1,
+        location=(0, 0, base_height + cover_height/2)  # 放置在base上方
+    )
+    cover = bpy.context.active_object
+    cover.name = "YC164_Body_Cover"
+    
+    # 设置尺寸
+    cover.scale = (length, width, cover_height)
+    bpy.ops.object.transform_apply(scale=True)
+
+    # 设置cover材质
+    cover.data.materials.clear()
+    mat_cover = create_resin_material("Resin_Cover")
+    cover.data.materials.append(mat_cover)
+    
+    # 合并base和cover两部分
+    bpy.ops.object.select_all(action='DESELECT')
+    base.select_set(True)
+    cover.select_set(True)
+    bpy.context.view_layer.objects.active = base
+    bpy.ops.object.join()
+    
+    # 重命名合并后的对象
+    base.name = "YC164_Body"
+    
+    # 添加倒角修改器
+    bevel_mod = base.modifiers.new(name="Bevel", type='BEVEL')
+    bevel_mod.width = dimensions['chamfer_size']
+    bevel_mod.segments = dimensions['chamfer_segments']
+    bevel_mod.limit_method = 'ANGLE'
+    bevel_mod.angle_limit = math.radians(30)
+    
+    # 应用修改器
+    apply_all_modifiers(base)
+    
+    return base
+
+def create_ceramic_material(name):
+    """创建陶瓷材质"""
+    mat = bpy.data.materials.new(name=name)
+    mat.use_nodes = True
+    
+    # 设置陶瓷颜色
+    mat.diffuse_color = dimensions['body_color']
+    
+    nodes = mat.node_tree.nodes
+    nodes.clear()
+    
+    # 添加原理化BSDF节点
+    bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
+    bsdf.location = (0, 0)
+    bsdf.inputs['Base Color'].default_value = dimensions['body_color']
+    bsdf.inputs['Metallic'].default_value = 0.2
+    bsdf.inputs['Roughness'].default_value = 0.7
+    bsdf.inputs['Transmission Weight'].default_value = 0.1
+    bsdf.inputs['IOR'].default_value = 1.5
+    
+    # 添加材质输出节点
+    output = nodes.new(type='ShaderNodeOutputMaterial')
+    output.location = (400, 0)
+    
+    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
+    
+    return mat
+
+def create_resin_material(name):
+    """创建树脂材质"""
+    mat = bpy.data.materials.new(name=name)
+    mat.use_nodes = True
+    
+    # 设置陶瓷颜色
+    mat.diffuse_color = dimensions['cover_color']
+    
+    nodes = mat.node_tree.nodes
+    nodes.clear()
+    
+    # 添加原理化BSDF节点
+    bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
+    bsdf.location = (0, 0)
+    bsdf.inputs['Base Color'].default_value = dimensions['cover_color']
+    bsdf.inputs['Metallic'].default_value = 0.2
+    bsdf.inputs['Roughness'].default_value = 0.7
+    bsdf.inputs['Transmission Weight'].default_value = 0.1
+    bsdf.inputs['IOR'].default_value = 1.5
+    
+    # 添加材质输出节点
+    output = nodes.new(type='ShaderNodeOutputMaterial')
+    output.location = (400, 0)
+    
+    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
+    
+    return mat
+
+def create_metal_material(name):
+    """创建金属材质（引脚）"""
+    mat = bpy.data.materials.new(name=name)
+    mat.use_nodes = True
+    
+    # 设置金属色
+    mat.diffuse_color = dimensions['pin_color']
+    
+    nodes = mat.node_tree.nodes
+    nodes.clear()
+    
+    # 添加原理化BSDF节点
+    bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
+    bsdf.location = (0, 0)
+    bsdf.inputs['Base Color'].default_value = dimensions['pin_color']
+    bsdf.inputs['Metallic'].default_value = 0.9
+    bsdf.inputs['Roughness'].default_value = 0.3
+    
+    # 添加材质输出节点
+    output = nodes.new(type='ShaderNodeOutputMaterial')
+    output.location = (400, 0)
+    
+    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
+    
+    return mat
+
+def create_white_material(name):
+    """创建白色材质（标记）"""
+    mat = bpy.data.materials.new(name=name)
+    mat.use_nodes = True
+    
+    mat.diffuse_color = dimensions['marking_color']
+    
+    nodes = mat.node_tree.nodes
+    nodes.clear()
+    
+    # 添加原理化BSDF节点
+    bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
+    bsdf.location = (0, 0)
+    bsdf.inputs['Base Color'].default_value = dimensions['marking_color']
+    bsdf.inputs['Metallic'].default_value = 0.0
+    bsdf.inputs['Roughness'].default_value = 0.8
+    
+    # 添加材质输出节点
+    output = nodes.new(type='ShaderNodeOutputMaterial')
+    output.location = (400, 0)
+    
+    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
+    
+    return mat
+
+def create_pins():
+    """创建8个引脚，4个电阻，每个电阻2个"""
+    pins = []
+    
+    # 引脚尺寸
+    side_pin_length = dimensions['H']
+    center_pin_length = dimensions['H2']
+    pin_width = dimensions['B']
+    pin_height = dimensions['T']
+    
+    # 引脚间距
+    pin_spacing = dimensions['pin_spacing']  # 0.80mm
+    
+    # 总长度
+    total_length = dimensions['L']  # 3.20mm
+    
+    # 计算引脚位置
+    # 8个引脚，平均分布在两侧
+    # 左侧4个引脚，右侧4个引脚
+    
+    # 一排4个引脚x坐标
+    left_x = -total_length / 2 + side_pin_length / 2
+    left_center_x = -pin_spacing/2
+    right_x = total_length / 2 - side_pin_length / 2
+    right_center_x = pin_spacing/2
+    
+    # 一排引脚y坐标
+    top_y = dimensions['W2'] / 2 - pin_width / 2
+    bottom_y = -top_y
+    
+    # 创建上排引脚
+    pin_name = f"Pin_Top_Left"
+    pin = create_single_pin(
+        x_pos=left_x,
+        y_pos=top_y,
+        pin_name=pin_name,
+        pin_width=pin_width,
+        pin_length=side_pin_length,
+        pin_height=pin_height,
+    )
+    pins.append(pin)
+    
+    pin_name = f"Pin_Top_Left_Center"
+    pin = create_single_pin(
+        x_pos=left_center_x,
+        y_pos=top_y,
+        pin_name=pin_name,
+        pin_width=pin_width,
+        pin_length=center_pin_length,
+        pin_height=pin_height,
+    )
+    pins.append(pin)
+    
+    pin_name = f"Pin_Top_Right_Center"
+    pin = create_single_pin(
+        x_pos=right_center_x,
+        y_pos=top_y,
+        pin_name=pin_name,
+        pin_width=pin_width,
+        pin_length=center_pin_length,
+        pin_height=pin_height,
+    )
+    pins.append(pin)
+    
+    pin_name = f"Pin_Top_Right"
+    pin = create_single_pin(
+        x_pos=right_x,
+        y_pos=top_y,
+        pin_name=pin_name,
+        pin_width=pin_width,
+        pin_length=side_pin_length,
+        pin_height=pin_height,
+    )
+    pins.append(pin)
+    
+    # 创建下排引脚
+    pin_name = f"Pin_Bottom_Left"
+    pin = create_single_pin(
+        x_pos=left_x,
+        y_pos=bottom_y,
+        pin_name=pin_name,
+        pin_width=pin_width,
+        pin_length=side_pin_length,
+        pin_height=pin_height,
+    )
+    pins.append(pin)
+    
+    pin_name = f"Pin_Bottom_Left_Center"
+    pin = create_single_pin(
+        x_pos=left_center_x,
+        y_pos=bottom_y,
+        pin_name=pin_name,
+        pin_width=pin_width,
+        pin_length=center_pin_length,
+        pin_height=pin_height,
+    )
+    pins.append(pin)
+    
+    pin_name = f"Pin_Bottom_Right_Center"
+    pin = create_single_pin(
+        x_pos=right_center_x,
+        y_pos=bottom_y,
+        pin_name=pin_name,
+        pin_width=pin_width,
+        pin_length=center_pin_length,
+        pin_height=pin_height,
+    )
+    pins.append(pin)
+    
+    pin_name = f"Pin_Bottom_Right"
+    pin = create_single_pin(
+        x_pos=right_x,
+        y_pos=bottom_y,
+        pin_name=pin_name,
+        pin_width=pin_width,
+        pin_length=side_pin_length,
+        pin_height=pin_height,
+    )
+    pins.append(pin)
+
+    return pins
+
+def create_single_pin(pin_name, x_pos, y_pos, pin_width, pin_length, pin_height):
+    """创建单个引脚"""
+    bm = bmesh.new()
+    
+    # 引脚中心位置
+    z_pos = pin_height / 2  # 引脚底部在z=0平面
+    
+    # 创建引脚立方体
+    bpy.ops.mesh.primitive_cube_add(size=1.0)
+    pin = bpy.context.active_object
+    pin.name = pin_name
+
+    # 设置尺寸
+    pin.dimensions = (pin_length, pin_width, pin_height)
+    pin.location = (x_pos, y_pos, z_pos)
+    bpy.ops.object.transform_apply(scale=True)
+    
+    # 设置材质
+    pin.data.materials.clear()
+    mat_pin = create_metal_material("Metal_Silver")
+    pin.data.materials.append(mat_pin)
+    
+    return pin
+
+def create_marking(value):
+    """在主体上创建单个标记"""
+    # 创建文本对象
+    text_size = dimensions['W2'] * 0.6
+    bpy.ops.object.text_add(location=(0, 0, dimensions['T'] + 0.01))
+    text_obj = bpy.context.active_object
+    text_obj.name = f"Text_{value}"
+    text_obj.data.body = value
+    text_obj.data.size = text_size
+    text_obj.data.extrude = 0.001
+    text_obj.data.align_x = 'CENTER'
+    text_obj.data.align_y = 'CENTER'
+
+    # 设置材质
+    text_obj.data.materials.clear()
+    mat_text = create_white_material("Text_White")
+    text_obj.data.materials.append(mat_text)
+    
+    return text_obj
+
+def create_collection_and_organize(body, pins, marking):
+    """将所有对象组织到一个组合中"""
+    # 创建新的组合
+    collection = bpy.data.collections.new("YC164_Resistor_Array")
+    bpy.context.scene.collection.children.link(collection)
+    
+    # 收集所有对象
+    objects_to_move = [body]
+    objects_to_move.extend(pins)
+    objects_to_move.append(marking)
+    
+    # 从主场景移除并添加到新组合
+    for obj in objects_to_move:
+        if obj.name in bpy.context.scene.collection.objects:
+            bpy.context.scene.collection.objects.unlink(obj)
+        collection.objects.link(obj)
+    
+    # 选择所有对象
+    bpy.ops.object.select_all(action='DESELECT')
+    for obj in objects_to_move:
+        obj.select_set(True)
+    
+    return collection
+
+def main():
+    """主函数"""
+    # 清理场景
+    clear_scene()
+    
+    # 创建YC164排阻模型
+    body, pins, collection = create_yc164_resistor_array()
+    
+    # 打印规格信息
+    print("YC164 4位0603贴片排阻3D模型创建完成！")
+    print("=" * 60)
+    print("产品信息:")
+    print("  型号: YC164 贴片排阻")
+    print("  封装: 0603×4 (4电阻网络)")
+    print("  尺寸: 3.2mm × 1.6mm × 0.65mm")
+    print("  引脚数: 8 (4个独立电阻)")
+    print("  引脚间距: 0.8mm")
+    print("")
+    print("尺寸参数 (单位:mm):")
+    print(f"  B (引脚宽度): {dimensions['B']}mm (±0.15mm)")
+    print(f"  H (总高度): {dimensions['H']}mm (±0.05mm)")
+    print(f"  H2 (主体高度): {dimensions['H2']}mm (±0.15mm)")
+    print(f"  L (总长度): {dimensions['L']}mm (±0.15mm)")
+    print(f"  T (引脚厚度): {dimensions['T']}mm (±0.10mm)")
+    print(f"  W1 (引脚内部宽度): {dimensions['W1']}mm (±0.15mm)")
+    print(f"  W2 (总宽度): {dimensions['W2']}mm (±0.15mm)")
+    print(f"  P (引脚间距): {dimensions['P']}mm (±0.05mm)")
+    print("")
+    print("结构特性:")
+    print("  - 黑色陶瓷主体")
+    print("  - 银白色金属引脚")
+    print("  - 4个独立电阻，共8个引脚")
+    print("  - 引脚间距0.8mm")
+    print("  - 0603封装尺寸")
+    print("  - 标记: 电阻值标记")
+    print("")
+    print("电阻值 (示例):")
+    print("  103 (10kΩ)")
+    print("")
+    print("应用说明:")
+    print("  - 用于PCB电路板的电阻网络")
+    print("  - 节省空间，提高电路密度")
+    print("  - 适合高频电路")
+    print("  - 适用于自动贴片机")
+    print("=" * 60)
+    
+    # 设置视图显示
+    for area in bpy.context.screen.areas:
+        if area.type == 'VIEW_3D':
+            # 使用材质预览模式
+            area.spaces[0].shading.type = 'SOLID'
+            area.spaces[0].shading.color_type = 'MATERIAL'
+            area.spaces[0].shading.show_object_outline = True
+            area.spaces[0].shading.object_outline_color = (0, 0, 0)
+    
+    return collection
+
+if __name__ == "__main__":
+    main()
