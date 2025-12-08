@@ -241,7 +241,7 @@ def create_single_pin(side='left'):
     return pin
 
 def create_marking(body):
-    """在主体上创建白色负极标记"""
+    """在主体上创建白色极性标记"""
     # 标记尺寸
     mark_length = dimensions['body_length'] * 0.2
     mark_width = dimensions['body_width'] - dimensions['chamfer_size'] * 2
