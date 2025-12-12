@@ -49,7 +49,7 @@ dimensions = {
     'thickness': 0.1,   # 管壁厚度（用于空心管）
 }
 
-def create_z_model(type='tubular', dimensions=dimensions):
+def create_z_model(type='tubular', dimensions=dimensions, name='z_model'):
     """严格按照给定步骤创建模型"""
     bm = bmesh.new()
     
@@ -450,15 +450,15 @@ def create_z_model(type='tubular', dimensions=dimensions):
                 pass
 
     # 转换为网格
-    mesh = bpy.data.meshes.new("Precise_Model_Mesh")
+    mesh = bpy.data.meshes.new("Z_Model_Mesh")
     bm.to_mesh(mesh)
     bm.free()
     
     # 创建对象
-    model = bpy.data.objects.new("Precise_Model", mesh)
+    model = bpy.data.objects.new(name, mesh)
     bpy.context.collection.objects.link(model)
     
-    return model, path_points
+    return model
 
 def create_material():
     """创建材质"""
@@ -496,39 +496,25 @@ def main():
     print("=" * 60)
     
     # 创建模型
-    model1, path_points = create_z_model(type='tubular', dimensions=dimensions)
+    model1 = create_z_model(type='tubular', dimensions=dimensions)
     
     # 添加材质
     mat = create_material()
     model1.data.materials.append(mat)
     
     # 创建模型
-    model2, path_points = create_z_model(type='rectangular_solid', dimensions=dimensions)
+    model2 = create_z_model(type='rectangular_solid', dimensions=dimensions)
     model2.location = (0, 12, 0)
     
     # 添加材质
     model2.data.materials.append(mat)
     
     # 创建模型
-    model3, path_points = create_z_model(type='rectangular_hollow', dimensions=dimensions)
+    model3 = create_z_model(type='rectangular_hollow', dimensions=dimensions)
     model3.location = (0, 24, 0)
     
     # 添加材质
     model3.data.materials.append(mat)
-    
-    # 打印路径点信息
-    print(f"\n路径点数量: {len(path_points)}")
-    print("关键点坐标:")
-    print(f"  起点: {path_points[0]}")
-    print(f"  第1段终点: {path_points[dimensions['straight_segments']]}")
-    s2_start = dimensions['straight_segments'] + 1
-    s2_end = s2_start + dimensions['arc_segments'] - 1
-    print(f"  第2段终点: {path_points[s2_end]}")
-    s3_end = s2_end + dimensions['straight_segments']
-    print(f"  第3段终点: {path_points[s3_end]}")
-    s4_end = s3_end + dimensions['arc_segments']
-    print(f"  第4段终点: {path_points[s4_end]}")
-    print(f"  终点: {path_points[-1]}")
     
     # 计算各段长度
     s1_len = dimensions['s1_length']
