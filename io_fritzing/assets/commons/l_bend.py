@@ -15,39 +15,23 @@ def clear_scene():
     scene.unit_settings.system = 'METRIC'
     scene.unit_settings.length_unit = 'MILLIMETERS'
 
-# 引脚参数
-pin_dimensions = {
-    'width': 0.4,            # X方向宽度 - 已调整为0.4mm，符合0.35-0.49mm要求
-    'length': 1.59,          # Y方向总长度
-    'thickness': 0.15,       # Z方向厚度
+# L弯折参数
+dimensions = {
+    'bend_width': 3.5,           # X方向宽度
+    'bend_thickness': 0.4,        # Z方向厚度
     
     # 弯曲参数
-    'bend_radius': 0.3,      # 弯曲半径
-    'bend_angle': 80,        # 弯曲角度
-    'bend_start': 0.25,      # 离起点开始弯曲的距离
-    'middle_length': 0.2,    # 中间直线长度
+    'bend_radius': 0.5,      # 弯曲半径
+    'bend_angle': 90,        # 弯曲角度
+    'bend_start': 0.8,         # 离起点开始弯曲的距离
+    'end_length': 2.7,         # 弯曲结束后直线长度
 }
 
-def create_pin():
-    """创建修正后的引脚模型，特别关注中间直线段的方向和厚度"""
+def create_l_bend(width, thickness, bend_radius, bend_angle, bend_start, end_length):
+    """创建弯曲模型，特别关注弯曲结束后直线段的方向和厚度"""
     bm = bmesh.new()
     
-    # 引脚尺寸
-    width = pin_dimensions['width']
-    total_length = pin_dimensions['length']
-    thickness = pin_dimensions['thickness']
-    
-    # 弯曲参数
-    bend_radius = pin_dimensions['bend_radius']
-    bend_angle = math.radians(pin_dimensions['bend_angle'])
-    bend_start = pin_dimensions['bend_start']
-    middle_length = pin_dimensions['middle_length']
-    
-    # 计算各段长度
-    bend_length = bend_radius * bend_angle
-    remaining_length = total_length - bend_start - bend_length - middle_length - bend_length
-    
-    # 创建引脚的弯曲路径
+    # 创建弯曲的弯曲路径
     path_points = []
     
     # 1. 第一段直线 (从起点开始)
@@ -79,32 +63,8 @@ def create_pin():
     
     for i in range(1, segments + 1):
         t = i / segments
-        y = end_y + middle_length * t * tangent_y
-        z = end_z + middle_length * t * tangent_z
-        path_points.append((0, y, z))
-    
-    # 4. 第二次弯曲 (向上弯曲，回到水平)
-    segments = 16
-    end_y = path_points[-1][1]
-    end_z = path_points[-1][2]
-    
-    for i in range(1, segments + 1):
-        t = i / segments
-        # 从当前角度回到0度
-        angle = bend_angle - t * bend_angle
-        y = end_y + bend_radius * (math.sin(bend_angle) - math.sin(angle))
-        z = end_z - bend_radius * (math.cos(angle) - math.cos(bend_angle))
-        path_points.append((0, y, z))
-    
-    # 5. 最后一段直线
-    segments = 8
-    end_y = path_points[-1][1]
-    end_z = path_points[-1][2]
-    
-    for i in range(1, segments + 1):
-        t = i / segments
-        y = end_y + remaining_length * t
-        z = end_z
+        y = end_y + end_length * t * tangent_y
+        z = end_z + end_length * t * tangent_z
         path_points.append((0, y, z))
     
     # 沿着路径创建截面，确保厚度均匀
@@ -162,52 +122,59 @@ def create_pin():
     bm.faces.new(reversed(sections[-1]))
     
     # 创建网格
-    mesh = bpy.data.meshes.new("Corrected_Pin_Mesh")
+    mesh = bpy.data.meshes.new("L_Bend_Mesh")
     bm.to_mesh(mesh)
     bm.free()
     
     # 创建对象
-    pin = bpy.data.objects.new("Corrected_Pin", mesh)
-    bpy.context.collection.objects.link(pin)
+    l_bend = bpy.data.objects.new("L_Bend", mesh)
+    bpy.context.collection.objects.link(l_bend)
     
     # 添加平滑着色
     mesh.polygons.foreach_set("use_smooth", [True] * len(mesh.polygons))
     mesh.update()
     
-    # 设置材质
-    pin.data.materials.clear()
-    mat_pin = bpy.data.materials.new(name="Pin_Material")
-    mat_pin.use_nodes = True
-    
-    # 清除默认节点
-    mat_pin.node_tree.nodes.clear()
-    
-    # 添加原理化BSDF节点
-    bsdf = mat_pin.node_tree.nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.inputs['Base Color'].default_value = (0.7, 0.7, 0.75, 1.0)
-    bsdf.inputs['Metallic'].default_value = 0.8
-    bsdf.inputs['Roughness'].default_value = 0.3
-    
-    # 添加材质输出节点
-    output = mat_pin.node_tree.nodes.new(type='ShaderNodeOutputMaterial')
-    
-    # 连接节点
-    mat_pin.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
-    pin.data.materials.append(mat_pin)
-    
-    return pin
+    return l_bend
 
 def main():
     # 清理场景
     clear_scene()
     
-    # 创建引脚模型
-    pin = create_pin()
+    # 创建弯曲模型
+    # 弯曲尺寸
+    width = dimensions['bend_width']
+    thickness = dimensions['bend_thickness']
     
-    print("引脚模型创建完成！")
-    print("已修正中间直线段的方向和厚度问题")
-    print(f"引脚尺寸: X={pin_dimensions['width']}mm, Y={pin_dimensions['length']}mm, Z={pin_dimensions['thickness']}mm")
+    # 弯曲参数
+    bend_radius = dimensions['bend_radius']
+    bend_angle = math.radians(dimensions['bend_angle'])
+    bend_start = dimensions['bend_start']
+    end_length = dimensions['end_length']
+    l_bend = create_l_bend(width, thickness, bend_radius, bend_angle, bend_start, end_length)
+    
+    # 设置材质
+    l_bend.data.materials.clear()
+    mat_l_bend = bpy.data.materials.new(name="L_Bend_Material")
+    mat_l_bend.use_nodes = True
+    
+    # 清除默认节点
+    mat_l_bend.node_tree.nodes.clear()
+    
+    # 添加原理化BSDF节点
+    bsdf = mat_l_bend.node_tree.nodes.new(type='ShaderNodeBsdfPrincipled')
+    bsdf.inputs['Base Color'].default_value = (0.7, 0.7, 0.75, 1.0)
+    bsdf.inputs['Metallic'].default_value = 0.8
+    bsdf.inputs['Roughness'].default_value = 0.3
+   
+    # 添加材质输出节点
+    output = mat_l_bend.node_tree.nodes.new(type='ShaderNodeOutputMaterial')
+   
+    # 连接节点
+    mat_l_bend.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
+   
+    l_bend.data.materials.append(mat_l_bend)
+   
+    print("L型弯折模型创建完成！")
 
 if __name__ == "__main__":
     main()
