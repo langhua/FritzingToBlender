@@ -1,5 +1,5 @@
 import bpy
-from .report import importdata
+from io_fritzing.svg.report import importdata
 from bpy.types import Operator
 
 class RemoveExtraVerts(Operator):

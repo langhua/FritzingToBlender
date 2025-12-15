@@ -1,10 +1,6 @@
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.dirname(__file__)))
-
 import bpy 
 from bpy.types import Operator
-from io_fritzing.report import importdata
+from io_fritzing.svg.report import importdata
 from lxml import etree # type: ignore
 import os
 from io_curve_svg.svg_util import units, read_float
