@@ -546,9 +546,9 @@ def create_four_frustums():
             # 使用正交视图
             area.spaces[0].region_3d.view_perspective = 'ORTHO'
             # 设置视图距离
-            area.spaces[0].region_3d.view_distance = 0.15
+            area.spaces[0].region_3d.view_distance = 20
             # 设置合适的视角
-            area.spaces[0].region_3d.view_rotation = (0.5, 0.5, 0.5, 0.5)
+            area.spaces[0].region_3d.view_rotation = (0.8, 0.6, 0.6, 0.8)
             # 设置显示模式
             area.spaces[0].shading.type = 'SOLID'
             area.spaces[0].shading.color_type = 'MATERIAL'

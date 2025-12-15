@@ -511,9 +511,9 @@ def main():
             # 透视视图
             area.spaces[0].region_3d.view_perspective = 'PERSP'
             # 设置视图距离
-            area.spaces[0].region_3d.view_distance = 25
+            area.spaces[0].region_3d.view_distance = 30
             # 设置合适的视角
-            area.spaces[0].region_3d.view_rotation = (0.8, 0.1, 0.4, 0.4)
+            area.spaces[0].region_3d.view_rotation = (0.65, 0.3, 0.3, 0.6)
             # 设置显示模式
             area.spaces[0].shading.type = 'RENDERED'
             area.spaces[0].shading.color_type = 'MATERIAL'
