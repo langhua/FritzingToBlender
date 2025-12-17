@@ -14,24 +14,28 @@ def update(self, context):
             area.tag_redraw()
 
 importdata = PnpImportData(filename='',
+                            step_name='',
                             total_lines=0,
                             current_line=0,
                             error_msg=None,
                             step_part='',
                             successed=0,
                             failed=0,
-                            skipped=0)
+                            skipped=0,
+                            invalid=0,
+                            failed_lines=[],
+                            invalid_lines=[])
 
 
-class ProgressReport(Operator):
-    bl_idname = 'fritzing.progress_report'
-    bl_label = 'Fritzing Import Progress Report'
+class PnpImportProgressReport(Operator):
+    bl_idname = 'fritzing.pnp_import_progress_report'
+    bl_label = 'Fritzing PNP Import Progress Report'
     bl_options = {'REGISTER'}
 
     def modal(self, context, event):
-        if event.type == 'TIMER' and importdata.step_name == 'IMPORTING_SVG_FILES':
+        if event.type == 'TIMER' and importdata.step_name == 'IMPORTING_PNP_FILE':
             self.ticks += 1
-            getattr(getattr(bpy.ops, 'fritzing'), 'import_single_svg')("INVOKE_DEFAULT")
+            getattr(getattr(bpy.ops, 'fritzing'), 'import_single_pnp')("INVOKE_DEFAULT")
         elif event.type == 'TIMER' and importdata.step_name and importdata.step_name.startswith('POST_'):
             self.ticks += 1
             if importdata.step_name == 'POST_REMOVE_EXTRA_VERTS':

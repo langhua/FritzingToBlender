@@ -5,7 +5,7 @@ def create_material(name, base_color, metallic=0.0, roughness=0.8):
         return bpy.data.materials[name]
     
     mat = bpy.data.materials.new(name=name)
-    mat.diffuse_color = base_color
+    mat.diffuse_color = (*base_color, 1.0)
     mat.use_nodes = True
     
     # 清除默认节点

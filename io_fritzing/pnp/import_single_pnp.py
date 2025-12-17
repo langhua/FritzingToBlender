@@ -1,9 +1,9 @@
 import bpy
+import os
 from bpy.types import Operator
 from bpy_extras.io_utils import ImportHelper
-import os
-import glob
 from io_fritzing.pnp.import_pnp_report import importdata
+
 
 ##
 # Get pnp file to import
@@ -15,29 +15,24 @@ class GetPnpFile(Operator, ImportHelper):
     use_filter_folder = True
 
     def execute(self, context):
-        directory = self.properties['filepath']
-        cut = directory.rindex(os.path.sep[0])
-        directory = directory[0:cut]
-        tmp_filenames = glob.glob(os.path.join(directory, '*' + self.filename_ext))
-        filenames = dict()
-        for filename in tmp_filenames:
-            if filename.endswith('.gm1.svg'):
-                filenames['outline'] = filename
-            elif filename.endswith('.gbl.svg'):
-                filenames['bottom'] = filename
-            elif filename.endswith('.gtl.svg'):
-                filenames['top'] = filename
-            elif filename.endswith('_drill.txt.svg'):
-                filenames['drill'] = filename
-            elif filename.endswith('.gbo.svg'):
-                filenames['bottomsilk'] = filename
-            elif filename.endswith('.gto.svg'):
-                filenames['topsilk'] = filename
+        # 打印提示信息，表示正在获取PNP文件
+        print("GetPnpFile file:")
+        # 打印文件路径属性
+        print(self.properties['filepath'])
+        # 获取文件路径
+        filename = self.properties['filepath']
+        if os.path.isdir(filename):
+            self.report({'ERROR'}, "Please select a file, not a folder.")
+            return {"CANCELLED"}
+        if os.path.exists(filename) == False:
+            self.report({'ERROR'}, "File does not exist.")
+            return {"CANCELLED"}
+        if not filename.endswith(self.filename_ext):
+            self.report({'ERROR'}, "File must end with " + self.filename_ext)
+            return {"CANCELLED"}
 
-        importdata.filenames = filenames
-        importdata.total = len(filenames.items()) + 5 # total steps
-        importdata.current = 1
-        importdata.step_name = 'IMPORTING_SVG_FILES'
-        getattr(getattr(bpy.ops, 'fritzing'), 'board_settings')("INVOKE_DEFAULT")
-        # bpy.ops.fritzing.board_settings("INVOKE_DEFAULT")
+        # 将分类后的文件名保存到importdata模块中
+        importdata.filename = filename
+        importdata.step_name = 'PNP_FILE_LINE_COUNT'
+        getattr(getattr(bpy.ops, 'fritzing'), 'count_pnp_lines')("INVOKE_DEFAULT")
         return {"FINISHED"}

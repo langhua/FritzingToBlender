@@ -1,5 +1,9 @@
 import bpy
-from io_fritzing.pnp.import_single_pnp import GetPnpFile
+from .import_single_pnp import GetPnpFile
+from .count_lines import CountLines
+from .error_dialog import ErrorDialog
+from io_fritzing.pnp.parse_line_by_line import PnpParseLineByLine
+from io_fritzing.pnp.import_pnp_report import PnpImportProgressReport
 from io_fritzing.pnp.ui_labels import langs
 
 def menu_import(self, _):
@@ -11,6 +15,10 @@ def menu_import(self, _):
 
 classes = (
     GetPnpFile,
+    CountLines,
+    ErrorDialog,
+    PnpImportProgressReport,
+    PnpParseLineByLine,
 )
 
 
