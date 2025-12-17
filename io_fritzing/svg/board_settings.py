@@ -110,7 +110,8 @@ pcoll = bpy.utils.previews.new()
 
 def register():
     addon_path = os.path.dirname(__file__)
-    icons_dir = os.path.join(addon_path, '..', 'icons')
+    icons_dir = os.path.join(addon_path, '../../icons')
+    print(f'icons_dir: {icons_dir}')
 
     if len(board_thickness_items) == 0:
         board_thickness_items.append(('0.0016', '1.6mm', '', 0))
