@@ -4,7 +4,7 @@ from bpy.props import EnumProperty
 from io_fritzing.svg.commondata import Board_Black, Board_Blue, Board_Green, Board_Purple, Board_Red, Board_White, Board_Yellow
 from io_fritzing.svg.commondata import Copper, Copper2, Silk_Black, Silk_White, Silk_White2
 import os
-import bpy.utils.previews
+import bpy.utils.previews as previews
 
 ##
 # Dialog box to handle error messages
@@ -106,9 +106,11 @@ copper_color_items = []
 silk_color_items = []
 board_thickness_items = []
 drill_algorithm_items = []
-pcoll = bpy.utils.previews.new()
+global pcoll
+pcoll = None
 
 def register():
+    global pcoll
     addon_path = os.path.dirname(__file__)
     icons_dir = os.path.join(addon_path, '../../icons')
 
@@ -118,6 +120,9 @@ def register():
         board_thickness_items.append(('0.0012', '1.2mm', '', 2))
         board_thickness_items.append(('0.001', '1.0mm', '', 3))
         setattr(Scene, 'board_thickness_setting', EnumProperty(items=board_thickness_items))
+
+    if pcoll is None:
+        pcoll = previews.new()
 
     if len(board_color_items) == 0:
         board_green = pcoll.load(Board_Green['name'], os.path.join(icons_dir, Board_Green['icon']), 'IMAGE')
@@ -171,7 +176,10 @@ def register():
 
 
 def unregister():
-    bpy.utils.previews.remove(pcoll)
+    global pcoll
+    if pcoll is not None:
+        previews.remove(pcoll)
+        pcoll = None
     board_color_items.clear()
     copper_color_items.clear()
     silk_color_items.clear()

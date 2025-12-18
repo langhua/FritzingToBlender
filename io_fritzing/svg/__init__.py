@@ -11,9 +11,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-# import sys
-# import os
-# sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '.')))
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
@@ -46,7 +43,6 @@ def menu_import(self, _):
     # self.layout.operator(TestBoolTool.bl_idname)
     # self.layout.operator(BoardSettings.bl_idname)
 
-
 classes = (
     GetFiles,
     ImportSingleSVG,
@@ -63,7 +59,21 @@ classes = (
 )
 
 def register():
-    bpy.app.translations.register(__name__, langs)
+    try:
+        # 先尝试注销
+        bpy.app.translations.unregister(__name__)
+    except (ValueError, KeyError, RuntimeError) as e:
+        # 如果没有注册，忽略错误
+        pass
+
+    # bpy.app.translations.register(__name__, langs)
+    # 注册翻译
+    try:
+        bpy.app.translations.register(__name__, langs)
+    except ValueError as e:
+        # 如果仍然失败，可能是其他问题
+        print(f"Warning: Could not register translations: {e}")
+    
     for cls in classes:
         bpy.utils.register_class(cls)
     bpy.types.TOPBAR_MT_file_import.append(menu_import)
@@ -72,16 +82,20 @@ def register():
     # TestBoolToolRegister()
 
 def unregister():
+    # 注销翻译
+    try:
+        bpy.app.translations.unregister(__name__)
+    except (ValueError, KeyError, RuntimeError) as e:
+        # 如果没有注册，忽略错误
+        pass
+
     for cls in classes:
         bpy.utils.unregister_class(cls)
     bpy.types.TOPBAR_MT_file_import.remove(menu_import)
     FritzingIOUnregister()
     BoardSettingsUnregister()
-    bpy.app.translations.unregister(__name__)
     # TestBoolToolUnregister()
-
 
 # Allow the add-on to be ran directly without installation.
 if __name__ == "__main__":
     register()
-

@@ -6,7 +6,8 @@ import bpy
 from bpy.types import Panel, Scene
 from bpy.utils import register_class, unregister_class
 from io_fritzing.assets.resistors.smd_resistor import SMD_RESISTOR_OT_Generate, ResistorTypes as SMDResisterTypes
-from io_fritzing.assets.resistors.axial_resistor import AXIAL_RESISTOR_OT_Generate, ResisterTypes as AxialResisterTypes
+# from io_fritzing.assets.resistors.axial_resistor import AXIAL_RESISTOR_OT_Generate, ResisterTypes as AxialResisterTypes
+from io_fritzing.assets.resistors.color_bands import register as register_resistor_color_bands, unregister as unregister_resistor_color_bands
 
 # 定义插件信息
 bl_info = {
@@ -52,25 +53,31 @@ class VIEW3D_PT_ResistorGenerator(Panel):
 # 注册函数
 def register():
     # 定义场景属性
-    setattr(Scene, "axial_resistor_type", AxialResisterTypes)
-    
+    # setattr(Scene, "axial_resistor_type", AxialResisterTypes)
+    addon_path = os.path.dirname(__file__)
+    icons_dir = os.path.join(addon_path, 'icons')
+    print(f"Icon directory: {icons_dir}")
+    setattr(Scene, "resistor_icon_path", icons_dir)
     setattr(Scene, "smd_resistor_size", SMDResisterTypes)
     
     # 注册类
-    register_class(AXIAL_RESISTOR_OT_Generate)
+    # register_class(AXIAL_RESISTOR_OT_Generate)
     register_class(SMD_RESISTOR_OT_Generate)
-    register_class(VIEW3D_PT_ResistorGenerator)
+    # register_class(VIEW3D_PT_ResistorGenerator)
+
+    register_resistor_color_bands()
     
     print("电阻模型生成器插件已注册")
 
 def unregister():
     # 注销类
-    unregister_class(VIEW3D_PT_ResistorGenerator)
+    unregister_resistor_color_bands()
+    # unregister_class(VIEW3D_PT_ResistorGenerator)
     unregister_class(SMD_RESISTOR_OT_Generate)
-    unregister_class(AXIAL_RESISTOR_OT_Generate)
+    # unregister_class(AXIAL_RESISTOR_OT_Generate)
     
     # 删除场景属性
-    delattr(Scene, "axial_resistor_type")
+    # delattr(Scene, "axial_resistor_type")
     delattr(Scene, "smd_resistor_size")
     
     print("注销了电阻模型生成器插件")
