@@ -6,6 +6,7 @@ from typing import List, Tuple
 import os
 from bpy.utils import previews
 from bpy.types import Scene, Mesh
+from io_fritzing.assets.utils.material import create_material
 
 
 bl_info = {
@@ -201,35 +202,6 @@ E48_SERIES = [
     3.16, 3.32, 3.48, 3.65, 3.83, 4.02, 4.22, 4.42, 4.64, 4.87, 5.11, 5.36,
     5.62, 5.90, 6.19, 6.49, 6.81, 7.15, 7.50, 7.87, 8.25, 8.66, 9.09, 9.53
 ]
-
-# ==================== 工具函数 ====================
-def create_material(name: str, base_color: Tuple[float, float, float], 
-                   metallic: float = 0.0, roughness: float = 0.8) -> bpy.types.Material:
-    """创建材质"""
-    if name in bpy.data.materials:
-        mat = bpy.data.materials[name]
-    else:
-        mat = bpy.data.materials.new(name=name)
-    
-    # 设置diffuse_color确保颜色正确显示
-    rgba_color = (*base_color, 1.0)
-    mat.diffuse_color = rgba_color
-    
-    # 设置节点材质
-    mat.use_nodes = True
-    nodes = mat.node_tree.nodes
-    nodes.clear()
-    
-    bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.inputs['Base Color'].default_value = rgba_color
-    bsdf.inputs['Metallic'].default_value = metallic
-    bsdf.inputs['Roughness'].default_value = roughness
-    
-    output = nodes.new(type='ShaderNodeOutputMaterial')
-    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
-    return mat
-
 
 def get_nearest_standard_value(value: float, series: List[float] = E24_SERIES) -> Tuple[float, int]:
     """
@@ -621,84 +593,6 @@ class RESISTOR_OT_GenerateFiveBand(bpy.types.Operator):
         collection_name = f"五色环电阻_{display_value}"
         collection, obj_body = create_axial_resistor(collection_name, dims, colors, tolerance_color)
 
-        # collection = bpy.data.collections.new(collection_name)
-        # bpy.context.scene.collection.children.link(collection)
-
-
-
-
-
-        # 创建电阻体
-        # bm_body = bmesh.new()
-        # bmesh.ops.create_cone(
-        #     bm_body,
-        #     radius1=body_diameter/2,
-        #     radius2=body_diameter/2,
-        #     depth=body_length,
-        #     segments=32,
-        #     cap_ends=True
-        # )
-        
-        # bmesh.ops.rotate(
-        #     bm_body,
-        #     verts=list(bm_body.verts),
-        #     cent=(0, 0, 0),
-        #     matrix=Matrix.Rotation(math.radians(90), 3, 'Y')
-        # )
-        
-        # mesh_body = bpy.data.meshes.new("Resistor_Body")
-        # bm_body.to_mesh(mesh_body)
-        # obj_body = bpy.data.objects.new("Resistor_Body", mesh_body)
-        # collection.objects.link(obj_body)
-        # obj_body.data.materials.append(create_material("Resistor_Body", body_color))
-        
-        # bm_body.free()
-        
-        # # 创建色环
-        # band_diameter = body_diameter * 1.05
-        # all_colors = colors + [tolerance_color]
-        
-        # for i, color_name in enumerate(all_colors):
-        #     if i < 5:  # 五色环
-        #         color_info = FIVE_COLOR_CODES.get(color_name, {'rgb': (0.5, 0.5, 0.5)})
-        #         color_rgb = color_info['rgb']
-        #         band_mat = create_material(f"Band_{color_name}", color_rgb, metallic=0.0, roughness=0.95)
-                
-        #         bm_band = bmesh.new()
-        #         bmesh.ops.create_cone(
-        #             bm_band,
-        #             radius1=band_diameter/2,
-        #             radius2=band_diameter/2,
-        #             depth=band_width,
-        #             segments=32,
-        #             cap_ends=True
-        #         )
-                
-        #         bmesh.ops.rotate(
-        #             bm_band,
-        #             verts=list(bm_band.verts),
-        #             cent=(0, 0, 0),
-        #             matrix=Matrix.Rotation(math.radians(90), 3, 'Y')
-        #         )
-                
-        #         band_x = -body_length/2 + start_offset + i * (band_width + band_gap) + band_width/2
-        #         for v in bm_band.verts:
-        #             v.co.x += band_x
-                
-        #         mesh_band = bpy.data.meshes.new(f"Color_Band_{i+1}")
-        #         bm_band.to_mesh(mesh_band)
-        #         obj_band = bpy.data.objects.new(f"Color_Band_{i+1}", mesh_band)
-        #         collection.objects.link(obj_band)
-        #         obj_band.data.materials.append(band_mat)
-        #         bm_band.free()
-        
-        # 选择所有对象
-        # bpy.ops.object.select_all(action='DESELECT')
-        # for obj in collection.objects:
-        #     obj.select_set(True)
-        
-        # bpy.context.view_layer.objects.active = obj_body
-        
         self.report({'INFO'}, f"已生成五色环电阻: {display_value} (±{tolerance}%)")
         return {'FINISHED'}
 
@@ -956,7 +850,8 @@ class VIEW3D_PT_ResistorGenerator(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = "电阻工具"
-    bl_order = 1  # 控制面板顺序
+    bl_options = {'DEFAULT_CLOSED'}
+    bl_order = 3  # 控制面板顺序
     
     def draw(self, context):
         layout = self.layout
@@ -1181,7 +1076,8 @@ class VIEW3D_PT_ResistorCalculator(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = "电阻工具"
-    bl_order = 3  # 在最后显示
+    bl_options = {'DEFAULT_CLOSED'}
+    bl_order = 4  # 在最后显示
     
     def draw(self, context):
         layout = self.layout
