@@ -92,7 +92,7 @@ class ResistorIconManager:
         base_color = color_name.replace('_tol', '').upper()
         
         if base_color in icons:
-            return icons[base_color].icon_id
+            return icons.__getattribute__(base_color).icon_id
         
         # 回退到内置图标
         return cls.get_fallback_icon(color_name)
@@ -487,13 +487,18 @@ class RESISTOR_OT_GenerateFourBand(bpy.types.Operator):
         bpy.ops.object.select_all(action='SELECT')
         bpy.ops.object.delete(use_global=False, confirm=False)
         
-        resistance = context.scene.four_band_resistance
-        if context.scene.four_band_resistor_unit == 'kΩ':
-            resistance *= 1000
-        elif context.scene.four_band_resistor_unit == 'MΩ':
-            resistance *= 1000000
-        tolerance = context.scene.four_band_tolerance
-        rated_power = context.scene.four_band_rated_power
+        if context and context.scene:
+            resistance = getattr(context.scene, 'four_band_resistance')
+            if hasattr(context.scene, 'four_band_resistor_unit'):
+                if getattr(context.scene, 'four_band_resistor_unit') == 'kΩ':
+                    resistance *= 1000
+                elif getattr(context.scene, 'four_band_resistor_unit') == 'MΩ':
+                    resistance *= 1000000
+            if hasattr(context.scene, 'four_band_tolerance'):
+                tolerance = getattr(context.scene, 'four_band_tolerance')
+            if hasattr(context.scene, 'four_band_rated_power'):
+                rated_power = getattr(context.scene, 'four_band_rated_power')
+
         dims = get_dimensions_from_power(rated_power)
         # 碳膜电阻（米色体）
         dims['body_color'] = (0.9, 0.7, 0.4)
@@ -504,7 +509,7 @@ class RESISTOR_OT_GenerateFourBand(bpy.types.Operator):
         
         # 创建集合
         collection_name = f"四色环电阻_{display_value}"
-        collection, obj_body = create_axial_resistor(collection_name, dims, colors, tolerance_color)
+        create_axial_resistor(collection_name, dims, colors, tolerance_color)
         
         self.report({'INFO'}, f"已生成四色环电阻: {display_value} (±{tolerance}%)")
         return {'FINISHED'}
@@ -564,22 +569,25 @@ class RESISTOR_OT_GenerateFiveBand(bpy.types.Operator):
         bpy.ops.object.select_all(action='SELECT')
         bpy.ops.object.delete(use_global=False, confirm=False)
 
-        resistance = context.scene.four_band_resistance
-        if context.scene.five_band_resistor_unit == 'kΩ':
-            resistance *= 1000
-        elif context.scene.five_band_resistor_unit == 'MΩ':
-            resistance *= 1000000
+        if context and context.scene:
+            resistance = getattr(context.scene, 'five_band_resistance')
+            if hasattr(context.scene, 'five_band_resistor_unit'):
+                if getattr(context.scene, 'five_band_resistor_unit') == 'kΩ':
+                    resistance *= 1000
+                elif getattr(context.scene, 'five_band_resistor_unit') == 'MΩ':
+                    resistance *= 1000000
 
-        tolerance = context.scene.five_band_tolerance
-        resistor_type = context.scene.five_band_resistor_type
-        rated_power = context.scene.five_band_rated_power
+            if hasattr(context.scene, 'five_band_tolerance'):
+                tolerance = getattr(context.scene, 'five_band_tolerance')
+            if hasattr(context.scene, 'five_band_resistor_type'):
+                resistor_type = getattr(context.scene, 'five_band_resistor_type')
+            if hasattr(context.scene, 'five_band_rated_power'):
+                rated_power = getattr(context.scene, 'five_band_rated_power')
+
         dims = get_dimensions_from_power(rated_power)
         if resistor_type == 'metal_film':
             # 金属膜电阻（蓝色体）
             dims['body_color'] = (0.1, 0.3, 0.7)
-        # elif resistor_type == 'wire_wound':
-        #     # 线绕电阻（绿色体）
-        #     dims['body_color'] = (0.0, 0.4, 0.2)
         else:  
             # 碳膜电阻（米色体）
             dims['body_color'] = (0.9, 0.7, 0.4)
@@ -798,7 +806,8 @@ def add_color_bands(collection, body_length, body_diameter, band_width, band_gap
     bm_body.to_mesh(mesh_body)
     obj_body = bpy.data.objects.new("Resistor_Body", mesh_body)
     collection.objects.link(obj_body)
-    obj_body.data.materials.append(create_material("Resistor_Body", body_color))
+    if isinstance(obj_body.data, Mesh):
+        obj_body.data.materials.append(create_material("Resistor_Body", body_color))
     
     bm_body.free()
     
@@ -837,7 +846,8 @@ def add_color_bands(collection, body_length, body_diameter, band_width, band_gap
             bm_band.to_mesh(mesh_band)
             obj_band = bpy.data.objects.new(f"Color_Band_{i+1}", mesh_band)
             collection.objects.link(obj_band)
-            obj_band.data.materials.append(band_mat)
+            if isinstance(obj_band.data, Mesh):
+                obj_band.data.materials.append(band_mat)
             bm_band.free()
 
 
@@ -861,20 +871,24 @@ class VIEW3D_PT_ResistorGenerator(bpy.types.Panel):
         
         row = box.row()
         row.label(text="电阻值:")
-        row.prop(context.scene, "four_band_resistance", text="")
+        if context:
+            row.prop(context.scene, "four_band_resistance", text="")
         
         # 单位选择
         row = box.row()
         row.label(text="单位:")
-        row.prop(context.scene, "four_band_resistor_unit", text="")
+        if context:
+            row.prop(context.scene, "four_band_resistor_unit", text="")
         
         row = box.row()
         row.label(text="公差:")
-        row.prop(context.scene, "four_band_tolerance", text="")
+        if context:
+            row.prop(context.scene, "four_band_tolerance", text="")
         
         row = box.row()
         row.label(text="额定功率:")
-        row.prop(context.scene, "four_band_rated_power", text="")
+        if context:
+            row.prop(context.scene, "four_band_rated_power", text="")
         
         # 实时预览四色环
         self.draw_four_band_preview(box, context)
@@ -892,20 +906,23 @@ class VIEW3D_PT_ResistorGenerator(bpy.types.Panel):
         row = box.row()
         row.label(text="电阻值:", icon='DRIVER_DISTANCE')
         row = box.row()
-        row.prop(context.scene, "five_band_resistance", text="")
+        if context:
+            row.prop(context.scene, "five_band_resistance", text="")
         
         # 单位选择
         row = box.row()
         row.label(text="单位:")
-        row.prop(context.scene, "five_band_resistor_unit", text="")
+        if context:
+            row.prop(context.scene, "five_band_resistor_unit", text="")
         
         # 公差选择 - 五色环常用公差
         row = box.row()
         row.label(text="公差:")
-        row.prop(context.scene, "five_band_tolerance_enum", text="")
+        if context:
+            row.prop(context.scene, "five_band_tolerance_enum", text="")
         
         # 如果选择"自定义"，显示自定义输入框
-        if context.scene.five_band_tolerance_enum == 'CUSTOM':
+        if context and getattr(context.scene, "five_band_tolerance_enum", None) == 'CUSTOM':
             row = box.row()
             row.label(text="自定义公差:")
             row.prop(context.scene, "five_band_tolerance_custom", text="%")
@@ -916,11 +933,13 @@ class VIEW3D_PT_ResistorGenerator(bpy.types.Panel):
         # 电阻类型
         row = box.row()
         row.label(text="电阻类型:")
-        row.prop(context.scene, "five_band_resistor_type", text="")
+        if context:
+            row.prop(context.scene, "five_band_resistor_type", text="")
 
         row = box.row()
         row.label(text="额定功率:")
-        row.prop(context.scene, "five_band_rated_power", text="")
+        if context:
+            row.prop(context.scene, "five_band_rated_power", text="")
         
         # 实时预览五色环
         self.draw_five_band_preview(box, context)
@@ -1087,9 +1106,10 @@ class VIEW3D_PT_ResistorCalculator(bpy.types.Panel):
         # 选择色环数量
         row = box.row()
         row.label(text="色环数量:")
-        row.prop(context.scene, "calc_band_count", expand=True)
+        if context:
+            row.prop(context.scene, "calc_band_count", expand=True)
         
-        is_five_band = context.scene.calc_band_count == 'FIVE'
+        is_five_band = context and getattr(context.scene, "calc_band_count") == 'FIVE'
         
         # 色环选择
         if is_five_band:
@@ -1106,20 +1126,24 @@ class VIEW3D_PT_ResistorCalculator(bpy.types.Panel):
                 prop_name = f"calc_color_{i}"
                 if i > 2:
                     prop_name = f"calc_5color_{i}"
-                row.prop(context.scene, prop_name, text="")
+                
+                if context:
+                    row.prop(context.scene, prop_name, text="")
         
             # 计算阻值
-            if context.scene.calc_color_0 != 'NONE' and context.scene.calc_color_1 != 'NONE' and \
-               context.scene.calc_color_2 != 'NONE' and context.scene.calc_5color_3 != 'NONE' and \
-               context.scene.calc_5color_4 != 'NONE':
+            if context and getattr(context.scene, "calc_color_0") != 'NONE' and \
+                           getattr(context.scene, "calc_color_1") != 'NONE' and \
+                           getattr(context.scene, "calc_color_2") != 'NONE' and \
+                           getattr(context.scene, "calc_5color_3") != 'NONE' and \
+                           getattr(context.scene, "calc_5color_4") != 'NONE':
                 
                 # 获取数字
-                digit1 = FIVE_COLOR_CODES[context.scene.calc_color_0]['digit']
-                digit2 = FIVE_COLOR_CODES[context.scene.calc_color_1]['digit']
-                digit3 = FIVE_COLOR_CODES[context.scene.calc_color_2]['digit']
-                multiplier = FIVE_COLOR_CODES[context.scene.calc_5color_3]['multiplier']
-                tolerance = FIVE_COLOR_CODES.get(f"{context.scene.calc_5color_4}_tol", 
-                                           FIVE_COLOR_CODES.get(context.scene.calc_5color_4, 
+                digit1 = FIVE_COLOR_CODES[getattr(context.scene, "calc_color_0")]['digit']
+                digit2 = FIVE_COLOR_CODES[getattr(context.scene, "calc_color_1")]['digit']
+                digit3 = FIVE_COLOR_CODES[getattr(context.scene, "calc_color_2")]['digit']
+                multiplier = FIVE_COLOR_CODES[getattr(context.scene, "calc_5color_3")]['multiplier']
+                tolerance = FIVE_COLOR_CODES.get(f"{getattr(context.scene, 'calc_5color_4')}_tol", 
+                                           FIVE_COLOR_CODES.get(getattr(context.scene, "calc_5color_4"), 
                                                           {'tolerance': 0.05}))['tolerance']
                 
                 # 计算阻值
@@ -1142,18 +1166,21 @@ class VIEW3D_PT_ResistorCalculator(bpy.types.Panel):
                 prop_name = f"calc_color_{i}"
                 if i > 2:
                     prop_name = f"calc_4color_{i}"
-                row.prop(context.scene, prop_name, text="")
+                if context:
+                    row.prop(context.scene, prop_name, text="")
             
             # 计算阻值
-            if context.scene.calc_color_0 != 'NONE' and context.scene.calc_color_1 != 'NONE' and \
-               context.scene.calc_color_2 != 'NONE' and context.scene.calc_4color_3 != 'NONE':
+            if context and getattr(context.scene, "calc_color_0") != 'NONE' and \
+                           getattr(context.scene, "calc_color_1") != 'NONE' and \
+                           getattr(context.scene, "calc_color_2") != 'NONE' and \
+                           getattr(context.scene, "calc_4color_3") != 'NONE':
                 
                 # 获取数字
-                digit1 = FOUR_COLOR_CODES[context.scene.calc_color_0]['digit']
-                digit2 = FOUR_COLOR_CODES[context.scene.calc_color_1]['digit']
-                multiplier = FOUR_COLOR_CODES[context.scene.calc_color_2]['multiplier']
-                tolerance = FOUR_COLOR_CODES.get(f"{context.scene.calc_4color_3}_tol", 
-                                           FOUR_COLOR_CODES.get(context.scene.calc_4color_3, 
+                digit1 = FOUR_COLOR_CODES[getattr(context.scene, "calc_color_0")]['digit']
+                digit2 = FOUR_COLOR_CODES[getattr(context.scene, "calc_color_1")]['digit']
+                multiplier = FOUR_COLOR_CODES[getattr(context.scene, "calc_color_2")]['multiplier']
+                tolerance = FOUR_COLOR_CODES.get(f"{getattr(context.scene, 'calc_4color_3')}_tol", 
+                                           FOUR_COLOR_CODES.get(getattr(context.scene, "calc_4color_3"), 
                                                           {'tolerance': 0.05}))['tolerance']
                 
                 # 计算阻值
@@ -1188,7 +1215,8 @@ class RESISTOR_OT_SetIconDirectory(bpy.types.Operator):
         return {'FINISHED'}
     
     def invoke(self, context, event):
-        context.window_manager.fileselect_add(self)
+        if context:
+            context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
 
 class RESISTOR_OT_ReloadIcons(bpy.types.Operator):
@@ -1207,7 +1235,7 @@ class RESISTOR_OT_ReloadIcons(bpy.types.Operator):
 def register():
     # 注册场景属性
     # 四色环电阻属性
-    bpy.types.Scene.four_band_resistance = bpy.props.FloatProperty(
+    bpy.types.Scene.four_band_resistance: bpy.props.FloatProperty(
         name="电阻值",
         default=1.0,
         min=0.1,
@@ -1215,9 +1243,9 @@ def register():
         step=100,
         precision=2,
         update=lambda self, context: None  # 添加更新回调以触发实时预览
-    )
+    ) # type: ignore
     
-    bpy.types.Scene.four_band_resistor_unit = bpy.props.EnumProperty(
+    bpy.types.Scene.four_band_resistor_unit: bpy.props.EnumProperty(
         name="单位",
         items=[
             ('Ω', "Ω", "欧姆"),
@@ -1225,9 +1253,9 @@ def register():
             ('MΩ', "MΩ", "兆欧姆")
         ],
         default='kΩ'
-    )
+    ) # type: ignore
 
-    bpy.types.Scene.four_band_tolerance = bpy.props.FloatProperty(
+    bpy.types.Scene.four_band_tolerance: bpy.props.FloatProperty(
         name="公差",
         default=5.0,
         min=0.0,
@@ -1235,9 +1263,9 @@ def register():
         step=5,
         precision=1,
         update=lambda self, context: None  # 添加更新回调以触发实时预览
-    )
+    ) # type: ignore
     
-    bpy.types.Scene.four_band_rated_power = bpy.props.EnumProperty(
+    bpy.types.Scene.four_band_rated_power: bpy.props.EnumProperty(
         name="电阻类型",
         items=[
             ('1_8W', "1/8W", "1/8瓦碳膜电阻"),
@@ -1247,10 +1275,10 @@ def register():
         ],
         default='1_4W',
         update=lambda self, context: None  # 添加更新回调以触发实时预览
-    )
+    ) # type: ignore
     
     # 五色环电阻属性
-    bpy.types.Scene.five_band_resistance = bpy.props.FloatProperty(
+    bpy.types.Scene.five_band_resistance_value: bpy.props.FloatProperty(
         name="电阻值",
         default=1.0,
         min=0.001,
@@ -1258,9 +1286,9 @@ def register():
         step=100,
         precision=4,
         update=lambda self, context: None  # 添加更新回调以触发实时预览
-    )
+    ) # type: ignore
     
-    bpy.types.Scene.five_band_resistor_unit = bpy.props.EnumProperty(
+    bpy.types.Scene.five_band_resistor_unit: bpy.props.EnumProperty(
         name="单位",
         items=[
             ('Ω', "Ω", "欧姆"),
@@ -1268,27 +1296,27 @@ def register():
             ('MΩ', "MΩ", "兆欧姆")
         ],
         default='kΩ'
-    )
+    ) # type: ignore
 
-    bpy.types.Scene.five_band_tolerance = bpy.props.FloatProperty(
+    bpy.types.Scene.five_band_tolerance: bpy.props.FloatProperty(
         name="公差",
         default=1.0,
         min=0.01,
         max=10.0,
-        step=0.1,
+        step=1,
         precision=2,
         update=lambda self, context: None  # 添加更新回调以触发实时预览
-    )
+    ) # type: ignore
     
     # 计算器属性
-    bpy.types.Scene.calc_band_count = bpy.props.EnumProperty(
+    bpy.types.Scene.calc_band_count: bpy.props.EnumProperty(
         name="色环数量",
         items=[
             ('FOUR', "四色环", "四色环电阻"),
             ('FIVE', "五色环", "五色环精密电阻")
         ],
         default='FOUR'
-    )
+    ) # type: ignore
     
     digit_color_items = [
         ('NONE', "无", "未选择"),
@@ -1338,7 +1366,7 @@ def register():
     
 
     # 五色环常用公差枚举
-    bpy.types.Scene.five_band_tolerance_enum = bpy.props.EnumProperty(
+    bpy.types.Scene.five_band_tolerance_enum: bpy.props.EnumProperty(
         name="公差",
         items=[
             ('0.05%', "0.05%", "0.05% 公差（灰色）"),
@@ -1350,19 +1378,19 @@ def register():
             ('CUSTOM', "自定义", "自定义公差值")
         ],
         default='1%'
-    )
+    ) # type: ignore
     
     # 自定义公差
-    bpy.types.Scene.five_band_tolerance_custom = bpy.props.FloatProperty(
+    bpy.types.Scene.five_band_tolerance_custom: bpy.props.FloatProperty(
         name="自定义公差",
         default=1.0,
         min=0.01,
         max=10.0,
-        step=0.1,
+        step=1,
         precision=2
-    )
+    ) # type: ignore
     
-    bpy.types.Scene.five_band_resistor_type = bpy.props.EnumProperty(
+    bpy.types.Scene.five_band_resistor_type: bpy.props.EnumProperty(
         name="电阻类型",
         items=[
             ('metal_film', "金属膜电阻", "金属膜精密电阻（蓝色体）"),
@@ -1370,9 +1398,9 @@ def register():
             # ('wire_wound', "线绕电阻", "线绕精密电阻（绿色体）"),
         ],
         default='metal_film'
-    )
+    ) # type: ignore
 
-    bpy.types.Scene.five_band_rated_power = bpy.props.EnumProperty(
+    bpy.types.Scene.five_band_rated_power: bpy.props.EnumProperty(
         name="电阻类型",
         items=[
             ('1_8W', "1/8W", "1/8瓦碳膜电阻"),
@@ -1382,7 +1410,7 @@ def register():
         ],
         default='1_4W',
         update=lambda self, context: None  # 添加更新回调以触发实时预览
-    )
+    ) # type: ignore
     
     # 注册类
     classes = [
@@ -1420,21 +1448,21 @@ def unregister():
     ResistorIconManager.unload_icons()
     
     # 删除场景属性
-    del bpy.types.Scene.four_band_resistance
-    del bpy.types.Scene.four_band_resistor_unit
-    del bpy.types.Scene.four_band_tolerance
-    del bpy.types.Scene.four_band_rated_power
+    delattr(bpy.types.Scene, "four_band_resistance")
+    delattr(bpy.types.Scene, "four_band_resistor_unit")
+    delattr(bpy.types.Scene, "four_band_tolerance")
+    delattr(bpy.types.Scene, "four_band_rated_power")
 
-    del bpy.types.Scene.five_band_resistance
-    del bpy.types.Scene.five_band_resistor_unit
-    del bpy.types.Scene.five_band_tolerance
-    del bpy.types.Scene.five_band_rated_power
+    delattr(bpy.types.Scene, "five_band_resistance")
+    delattr(bpy.types.Scene, "five_band_resistor_unit")
+    delattr(bpy.types.Scene, "five_band_tolerance")
+    delattr(bpy.types.Scene, "five_band_rated_power")
     
-    del bpy.types.Scene.calc_band_count
+    delattr(bpy.types.Scene, "calc_band_count")
 
-    del bpy.types.Scene.five_band_tolerance_enum
-    del bpy.types.Scene.five_band_tolerance_custom
-    del bpy.types.Scene.five_band_resistor_type
+    delattr(bpy.types.Scene, "five_band_tolerance_enum")
+    delattr(bpy.types.Scene, "five_band_tolerance_custom")
+    delattr(bpy.types.Scene, "five_band_resistor_type")
 
     
     for i in range(5):

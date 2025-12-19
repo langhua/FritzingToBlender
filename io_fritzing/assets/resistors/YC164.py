@@ -3,19 +3,9 @@ import bmesh
 from mathutils import Vector, Matrix
 import math
 from io_fritzing.assets.utils.material import create_material
+from io_fritzing.assets.utils.scene import clear_scene
 
 # 清理场景
-def clear_scene():
-    if bpy.context.mode != 'OBJECT':
-        bpy.ops.object.mode_set(mode='OBJECT')
-    
-    bpy.ops.object.select_all(action='SELECT')
-    bpy.ops.object.delete(use_global=False, confirm=False)
-    
-    scene = bpy.context.scene
-    scene.unit_settings.system = 'METRIC'
-    scene.unit_settings.length_unit = 'MILLIMETERS'
-
 # 根据设计图定义YC164的尺寸
 dimensions = {
     # 从设计图表格中取值
@@ -49,18 +39,20 @@ dimensions = {
 
 def apply_all_modifiers(obj=None):
     """应用所有修改器"""
-    if bpy.context.mode != 'OBJECT':
+    if bpy.context and bpy.context.mode != 'OBJECT':
         bpy.ops.object.mode_set(mode='OBJECT')
     
     if obj:
         objects = [obj]
     else:
-        objects = bpy.context.scene.objects
+        if bpy.context:
+            objects = bpy.context.scene.objects
     
     for obj in objects:
         bpy.ops.object.select_all(action='DESELECT')
         obj.select_set(True)
-        bpy.context.view_layer.objects.active = obj
+        if bpy.context:
+            bpy.context.view_layer.objects.active = obj
         
         for modifier in list(obj.modifiers):
             try:
@@ -100,54 +92,57 @@ def create_resistor_body():
         size=1,
         location=(0, 0, height/2)  # 放置在z=0平面以上
     )
-    base = bpy.context.active_object
-    base.name = "YC164_Body_Base"
+    if bpy.context:
+        base = bpy.context.active_object
+        setattr(base, "name", "YC164_Body_Base")
+        
+        # 设置尺寸
+        setattr(base, "scale", (length, width, base_height))
+        bpy.ops.object.transform_apply(scale=True)
     
-    # 设置尺寸
-    base.scale = (length, width, base_height)
-    bpy.ops.object.transform_apply(scale=True)
-    
-    # 设置base材质
-    base.data.materials.clear()
-    mat_base = create_material("Ceramic_Body", dimensions['body_color'][:4], metallic=0.2, roughness=0.7, weight=0.1, ior=1.5)
-    base.data.materials.append(mat_base)
-    
-    # 创建cover立方体
-    bpy.ops.mesh.primitive_cube_add(
-        size=1,
-        location=(0, 0, base_height + cover_height/2)  # 放置在base上方
-    )
-    cover = bpy.context.active_object
-    cover.name = "YC164_Body_Cover"
-    
-    # 设置尺寸
-    cover.scale = (length, width, cover_height)
-    bpy.ops.object.transform_apply(scale=True)
+        # 设置base材质
+        if base:
+            getattr(base.data, "materials").clear()
+            mat_base = create_material("Ceramic_Body", dimensions['body_color'][:4], metallic=0.2, roughness=0.7, weight=0.1, ior=1.5)
+            getattr(base.data, "materials").append(mat_base)
+        
+        # 创建cover立方体
+        bpy.ops.mesh.primitive_cube_add(
+            size=1,
+            location=(0, 0, base_height + cover_height/2)  # 放置在base上方
+        )
+        cover = bpy.context.active_object
+        setattr(cover, "name", "YC164_Body_Cover")
+        
+        # 设置尺寸
+        setattr(cover, "scale", (length, width, cover_height))
+        bpy.ops.object.transform_apply(scale=True)
 
-    # 设置cover材质
-    cover.data.materials.clear()
-    mat_cover = create_material("Resin_Cover", dimensions['cover_color'][:4], metallic=0.0, roughness=0.8, weight=0.1, ior=1.5)
-    cover.data.materials.append(mat_cover)
-    
-    # 合并base和cover两部分
-    bpy.ops.object.select_all(action='DESELECT')
-    base.select_set(True)
-    cover.select_set(True)
-    bpy.context.view_layer.objects.active = base
-    bpy.ops.object.join()
-    
-    # 重命名合并后的对象
-    base.name = "YC164_Body"
-    
-    # 添加倒角修改器
-    bevel_mod = base.modifiers.new(name="Bevel", type='BEVEL')
-    bevel_mod.width = dimensions['chamfer_size']
-    bevel_mod.segments = dimensions['chamfer_segments']
-    bevel_mod.limit_method = 'ANGLE'
-    bevel_mod.angle_limit = math.radians(30)
-    
-    # 应用修改器
-    apply_all_modifiers(base)
+        # 设置cover材质
+        if cover:
+            getattr(cover.data, "materials").clear()
+            mat_cover = create_material("Resin_Cover", dimensions['cover_color'][:4], metallic=0.0, roughness=0.8, weight=0.1, ior=1.5)
+            getattr(cover.data, "materials").append(mat_cover)
+        
+        # 合并base和cover两部分
+        bpy.ops.object.select_all(action='DESELECT')
+        getattr(base, "select_set")(True)
+        getattr(cover, "select_set")(True)
+        bpy.context.view_layer.objects.active = base
+        bpy.ops.object.join()
+        
+        # 重命名合并后的对象
+        setattr(base, "name", "YC164_Body")
+        
+        # 添加倒角修改器
+        bevel_mod = getattr(base, "modifiers").new(name="Bevel", type='BEVEL')
+        setattr(bevel_mod, "width", dimensions['chamfer_size'])
+        setattr(bevel_mod, "segments", dimensions['chamfer_segments'])
+        setattr(bevel_mod, "limit_method", 'ANGLE')
+        setattr(bevel_mod, "angle_limit", math.radians(30))
+        
+        # 应用修改器
+        apply_all_modifiers(base)
     
     return base
 
@@ -283,12 +278,12 @@ def create_single_pin(pin_name, x_pos, y_pos, pin_width, pin_length, pin_height)
     
     # 创建引脚立方体
     bpy.ops.mesh.primitive_cube_add(size=1.0)
-    pin = bpy.context.active_object
-    pin.name = pin_name
+    pin = getattr(bpy.context, "active_object")
+    setattr(pin, "name", pin_name)
 
     # 设置尺寸
-    pin.dimensions = (pin_length, pin_width, pin_height)
-    pin.location = (x_pos, y_pos, z_pos)
+    setattr(pin, "dimensions", (pin_length, pin_width, pin_height))
+    setattr(pin, "location", (x_pos, y_pos, z_pos))
     bpy.ops.object.transform_apply(scale=True)
     
     # 设置材质
@@ -303,13 +298,13 @@ def create_marking(value):
     # 创建文本对象
     text_size = dimensions['W2'] * 0.6
     bpy.ops.object.text_add(location=(0, 0, dimensions['T'] + 0.01))
-    text_obj = bpy.context.active_object
-    text_obj.name = f"Text_{value}"
-    text_obj.data.body = value
-    text_obj.data.size = text_size
-    text_obj.data.extrude = 0.001
-    text_obj.data.align_x = 'CENTER'
-    text_obj.data.align_y = 'CENTER'
+    text_obj = getattr(bpy.context, "active_object")
+    setattr(text_obj, "name", f"Text_{value}")
+    setattr(text_obj.data, "body", value)
+    setattr(text_obj.data, "size", text_size)
+    setattr(text_obj.data, "extrude", 0.001)
+    setattr(text_obj.data, "align_x", 'CENTER')
+    setattr(text_obj.data, "align_y", 'CENTER')
 
     # 设置材质
     text_obj.data.materials.clear()
@@ -322,7 +317,8 @@ def create_collection_and_organize(body, pins, marking):
     """将所有对象组织到一个组合中"""
     # 创建新的组合
     collection = bpy.data.collections.new("YC164_Resistor_Array")
-    bpy.context.scene.collection.children.link(collection)
+    if bpy.context:
+        bpy.context.scene.collection.children.link(collection)
     
     # 收集所有对象
     objects_to_move = [body]
@@ -330,10 +326,11 @@ def create_collection_and_organize(body, pins, marking):
     objects_to_move.append(marking)
     
     # 从主场景移除并添加到新组合
-    for obj in objects_to_move:
-        if obj.name in bpy.context.scene.collection.objects:
-            bpy.context.scene.collection.objects.unlink(obj)
-        collection.objects.link(obj)
+    if bpy.context:
+        for obj in objects_to_move:
+            if obj.name in bpy.context.scene.collection.objects:
+                bpy.context.scene.collection.objects.unlink(obj)
+            collection.objects.link(obj)
     
     # 选择所有对象
     bpy.ops.object.select_all(action='DESELECT')
@@ -389,13 +386,14 @@ def main():
     print("=" * 60)
     
     # 设置视图显示
-    for area in bpy.context.screen.areas:
-        if area.type == 'VIEW_3D':
-            # 使用材质预览模式
-            area.spaces[0].shading.type = 'SOLID'
-            area.spaces[0].shading.color_type = 'MATERIAL'
-            area.spaces[0].shading.show_object_outline = True
-            area.spaces[0].shading.object_outline_color = (0, 0, 0)
+    if bpy.context:
+        for area in bpy.context.screen.areas:
+            if area.type == 'VIEW_3D':
+                # 使用材质预览模式
+                setattr(area.spaces[0], "shading.type", 'SOLID')
+                setattr(area.spaces[0], "shading.color_type", 'MATERIAL')
+                setattr(area.spaces[0], "shading.show_object_outline", True)
+                setattr(area.spaces[0], "shading.object_outline_color", (0, 0, 0))
     
     return collection
 

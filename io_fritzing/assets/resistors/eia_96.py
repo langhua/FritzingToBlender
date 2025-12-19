@@ -218,8 +218,9 @@ class EIA96_OT_GenerateCode(bpy.types.Operator):
     
     def execute(self, context):
         # 获取当前参数
-        resistance = context.scene.eia96_resistance
-        size_code = context.scene.eia96_size
+        if context:
+            resistance = getattr(context.scene, "eia96_resistance")
+            size_code = getattr(context.scene, "eia96_size")
         
         # 计算EIA-96代码
         result = calculate_eia96_code(resistance)
@@ -266,10 +267,11 @@ EIA-96丝印代码: {result['eia96_mark']}
         text_data.write(text)
         
         # 尝试切换到文本编辑器
-        for area in bpy.context.screen.areas:
-            if area.type == 'TEXT_EDITOR':
-                area.spaces.active.text = text_data
-                break
+        if bpy.context:
+            for area in getattr(bpy.context.screen, "areas"):
+                if area.type == 'TEXT_EDITOR':
+                    setattr(area.spaces.active, "text", text_data)
+                    break
 
 class EIA96_OT_DecodeCode(bpy.types.Operator):
     """解码EIA-96代码"""
@@ -280,7 +282,8 @@ class EIA96_OT_DecodeCode(bpy.types.Operator):
     
     def execute(self, context):
         # 获取输入的代码
-        code_str = context.scene.eia96_decode_code.upper().strip()
+        if context:
+            code_str = getattr(context.scene, "eia96_decode_code").upper().strip()
         
         if len(code_str) != 3:
             self.report({'ERROR'}, "EIA-96代码必须是3位字符")
@@ -323,10 +326,11 @@ EIA-96标准: ±1% 公差
         text_data.write(text)
         
         # 尝试切换到文本编辑器
-        for area in bpy.context.screen.areas:
-            if area.type == 'TEXT_EDITOR':
-                area.spaces.active.text = text_data
-                break
+        if bpy.context:
+            for area in getattr(bpy.context.screen, "areas"):
+                if area.type == 'TEXT_EDITOR':
+                    setattr(area.spaces.active, "text", text_data)
+                    break
 
 # ==================== 面板类 ====================
 class VIEW3D_PT_EIA96Calculator(bpy.types.Panel):
@@ -349,10 +353,12 @@ class VIEW3D_PT_EIA96Calculator(bpy.types.Panel):
         # 电阻值输入
         row = encode_box.row()
         row.label(text="电阻值:")
-        row.prop(context.scene, "eia96_resistance", text="")
+        if context:
+            row.prop(context.scene, "eia96_resistance", text="")
         
         # 实时计算结果
-        result = calculate_eia96_code(context.scene.eia96_resistance)
+        if context:
+            result = calculate_eia96_code(getattr(context.scene, "eia96_resistance"))
         
         result_box = encode_box.box()
         result_box.label(text="实时计算结果", icon='DRIVER')
@@ -373,7 +379,8 @@ class VIEW3D_PT_EIA96Calculator(bpy.types.Panel):
         # 代码输入
         row = decode_box.row()
         row.label(text="EIA-96代码:")
-        row.prop(context.scene, "eia96_decode_code", text="")
+        if context:
+            row.prop(context.scene, "eia96_decode_code", text="")
         
         # 解码按钮
         row = decode_box.row()
@@ -406,7 +413,7 @@ def register():
     from bpy.types import Scene
     
     # 电阻值
-    Scene.eia96_resistance = bpy.props.FloatProperty(
+    Scene.eia96_resistance: bpy.props.FloatProperty(
         name="电阻值",
         default=10000.0,  # 10kΩ
         min=0.001,
@@ -415,10 +422,10 @@ def register():
         precision=4,
         description="输入电阻值，计算EIA-96代码",
         update=lambda self, context: None
-    )
+    ) # type: ignore
     
     # 封装尺寸
-    Scene.eia96_size = bpy.props.EnumProperty(
+    Scene.eia96_size: bpy.props.EnumProperty(
         name="封装尺寸",
         items=[
             ('0201', "0201 (0.6×0.3mm)", "超小型封装"),
@@ -433,15 +440,15 @@ def register():
         ],
         default='0603',
         description="贴片电阻封装尺寸"
-    )
+    ) # type: ignore
     
     # 解码代码
-    Scene.eia96_decode_code = bpy.props.StringProperty(
+    Scene.eia96_decode_code: bpy.props.StringProperty(
         name="EIA-96代码",
         default="01C",
         description="输入EIA-96代码 (如: 01C, 68D)",
         maxlen=3
-    )
+    ) # type: ignore
     
     print("EIA-96贴片电阻计算器已注册")
 
@@ -464,17 +471,17 @@ def unregister():
     from bpy.types import Scene
     
     try:
-        del Scene.eia96_resistance
+        delattr(Scene, "eia96_resistance")
     except AttributeError:
         pass
     
     try:
-        del Scene.eia96_size
+        delattr(Scene, "eia96_size")
     except AttributeError:
         pass
     
     try:
-        del Scene.eia96_decode_code
+        delattr(Scene, "eia96_decode_code")
     except AttributeError:
         pass
     

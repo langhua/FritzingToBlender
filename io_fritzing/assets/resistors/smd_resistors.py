@@ -304,7 +304,8 @@ class SMD_OT_GenerateResistor(Operator):
     bl_options = {'REGISTER', 'UNDO'}
     
     def execute(self, context):
-        props = context.scene.smd_resistor_props
+        if context:
+            props = getattr(context.scene, "smd_resistor_props")
         
         # 计算电阻代码
         if props.standard_series == 'EIA-96':
@@ -333,7 +334,8 @@ class SMD_OT_GenerateResistor(Operator):
             bpy.data.collections.remove(old_collection)
         
         collection = bpy.data.collections.new(collection_name)
-        context.scene.collection.children.link(collection)
+        if context:
+            context.scene.collection.children.link(collection)
         
         # 创建电阻主体
         self.create_resistor_body(collection, length_mm, width_mm, height_mm)
@@ -345,15 +347,14 @@ class SMD_OT_GenerateResistor(Operator):
         self.create_resistor_cover(collection, length_mm, width_mm, height_mm, 0.035)
 
         # 创建丝印
-        # if props.show_silk_screen:
         self.create_silk_screen(collection, code_to_show, height_mm, width_mm, 0.01)
         
         # 选择所有生成的对象
         bpy.ops.object.select_all(action='DESELECT')
         for obj in collection.objects:
             obj.select_set(True)
-        if collection.objects:
-            context.view_layer.objects.active = collection.objects[0]
+        if collection.objects and context:
+            setattr(context.view_layer, "objects", collection.objects[0])
         
         # 报告结果
         self.report({'INFO'}, f"已生成{props.package_size}电阻: {format_resistance(props.resistance)} 丝印: {code_to_show}")
@@ -383,7 +384,7 @@ class SMD_OT_GenerateResistor(Operator):
         collection.objects.link(obj)
         
         # 应用材质
-        obj.data.materials.append(body_mat)
+        getattr(obj.data, "materials").append(body_mat)
         obj.location.z += height_mm * 1.05/2
         
         return obj
@@ -409,7 +410,7 @@ class SMD_OT_GenerateResistor(Operator):
         
         obj_left = bpy.data.objects.new("Left_Pad", mesh_left)
         collection.objects.link(obj_left)
-        obj_left.data.materials.append(pad_mat)
+        getattr(obj_left.data, "materials").append(pad_mat)
         obj_left.location.z += height_mm * 1.05/2
         
         # 右焊盘
@@ -428,7 +429,7 @@ class SMD_OT_GenerateResistor(Operator):
         
         obj_right = bpy.data.objects.new("Right_Pad", mesh_right)
         collection.objects.link(obj_right)
-        obj_right.data.materials.append(pad_mat)
+        getattr(obj_right.data, "materials").append(pad_mat)
         obj_right.location.z += height_mm * 1.05/2
         
         return [obj_left, obj_right]
@@ -457,7 +458,7 @@ class SMD_OT_GenerateResistor(Operator):
         collection.objects.link(obj)
         
         # 应用材质
-        obj.data.materials.append(cover_mat)
+        getattr(obj.data, "materials").append(cover_mat)
         obj.location.z += height_mm * 1.025
 
         return obj
@@ -469,19 +470,19 @@ class SMD_OT_GenerateResistor(Operator):
         
         # 创建文本曲线
         curve_data = bpy.data.curves.new(type="FONT", name="Silk_Screen_Text")
-        curve_data.body = code
-        curve_data.align_x = 'CENTER'
-        curve_data.align_y = 'CENTER'
-        curve_data.size = width_mm * 0.5
+        setattr(curve_data, "body", code)
+        setattr(curve_data, "align_x", 'CENTER')
+        setattr(curve_data, "align_y", 'CENTER')
+        setattr(curve_data, "size", width_mm * 0.5)
         
         # 尝试使用默认字体
         if bpy.data.fonts:
-            curve_data.font = bpy.data.fonts[0]
+            setattr(curve_data, "font", bpy.data.fonts[0])
         
         # 创建文本对象
         text_obj = bpy.data.objects.new("Silk_Screen_Text", curve_data)
         collection.objects.link(text_obj)
-        text_obj.data.extrude = thickness_mm * 0.5
+        setattr(text_obj.data, "extrude", thickness_mm * 0.5)
         
         # 设置文本对象的位置、旋转和缩放
         text_obj.scale = (1, 1, 0.1)
@@ -494,7 +495,7 @@ class SMD_OT_GenerateResistor(Operator):
         collection.objects.link(mesh_obj)
         
         # 应用材质
-        mesh_obj.data.materials.append(silk_mat)
+        getattr(mesh_obj.data, "materials").append(silk_mat)
         
         # 删除文本对象
         bpy.data.objects.remove(text_obj, do_unlink=True)
@@ -527,8 +528,8 @@ class VIEW3D_PT_SMDResistorGenerator(Panel):
     
     def draw(self, context):
         layout = self.layout
-        scene = context.scene
-        props = bpy.context.scene.smd_resistor_props
+        if context:
+            props = getattr(context.scene, "smd_resistor_props")
         
         # 输入参数部分
         box = layout.box()
@@ -624,7 +625,8 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
     
-    bpy.types.Scene.smd_resistor_props = PointerProperty(type=SMDResistorProperties)
+    if bpy.context:
+        setattr(bpy.context.scene, "smd_resistor_props", bpy.props.PointerProperty(type=SMDResistorProperties))
 
     print("贴片电阻生成器已注册")
 
@@ -635,7 +637,7 @@ def unregister():
     
     # 清理属性组
     try:
-        del bpy.types.Scene.smd_resistor_props
+        delattr(bpy.types.Scene, "smd_resistor_props")
     except AttributeError:
         pass
     
