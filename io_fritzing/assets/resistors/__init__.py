@@ -6,7 +6,7 @@ from bpy.types import Scene
 from io_fritzing.assets.resistors.color_bands import register as register_resistor_color_bands, unregister as unregister_resistor_color_bands
 from io_fritzing.assets.resistors.eia_96 import register as register_resistor_eia_96, unregister as unregister_resistor_eia_96
 from io_fritzing.assets.resistors.smd_resistors import register as register_resistor_smd, unregister as unregister_resistor_smd
-
+from io_fritzing.assets.resistors.YC164 import register as register_resistor_YC164, unregister as unregister_resistor_YC164
 
 # 注册函数
 def register():
@@ -19,6 +19,7 @@ def register():
     register_resistor_color_bands()
     register_resistor_eia_96()
     register_resistor_smd()
+    register_resistor_YC164()
     
     print("电阻模型生成器插件已注册")
 
@@ -27,6 +28,7 @@ def unregister():
     unregister_resistor_smd()
     unregister_resistor_color_bands()
     unregister_resistor_eia_96()
+    unregister_resistor_YC164()
     
     # 删除场景属性
     delattr(Scene, "resistor_icon_path")

@@ -413,7 +413,7 @@ def register():
     from bpy.types import Scene
     
     # 电阻值
-    Scene.eia96_resistance: bpy.props.FloatProperty(
+    Scene.eia96_resistance = bpy.props.FloatProperty(
         name="电阻值",
         default=10000.0,  # 10kΩ
         min=0.001,
@@ -422,10 +422,10 @@ def register():
         precision=4,
         description="输入电阻值，计算EIA-96代码",
         update=lambda self, context: None
-    ) # type: ignore
+    )
     
     # 封装尺寸
-    Scene.eia96_size: bpy.props.EnumProperty(
+    Scene.eia96_size = bpy.props.EnumProperty(
         name="封装尺寸",
         items=[
             ('0201', "0201 (0.6×0.3mm)", "超小型封装"),
@@ -440,15 +440,15 @@ def register():
         ],
         default='0603',
         description="贴片电阻封装尺寸"
-    ) # type: ignore
+    )
     
     # 解码代码
-    Scene.eia96_decode_code: bpy.props.StringProperty(
+    Scene.eia96_decode_code = bpy.props.StringProperty(
         name="EIA-96代码",
         default="01C",
         description="输入EIA-96代码 (如: 01C, 68D)",
         maxlen=3
-    ) # type: ignore
+    )
     
     print("EIA-96贴片电阻计算器已注册")
 

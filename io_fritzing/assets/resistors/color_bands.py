@@ -72,7 +72,7 @@ class ResistorIconManager:
                 icon_path = os.path.join(cls._icon_dir, f"icon_{color}.png")
                 if os.path.exists(icon_path):
                     try:
-                        cls._icons.load(color.upper(), icon_path, 'IMAGE')
+                        cls._icons.load(color, icon_path, 'IMAGE')
                         print(f"  加载图标: {color}")
                     except Exception as e:
                         print(f"  加载图标失败 {color}: {e}")
@@ -92,7 +92,7 @@ class ResistorIconManager:
         base_color = color_name.replace('_tol', '').upper()
         
         if base_color in icons:
-            return icons.__getattribute__(base_color).icon_id
+            return icons[base_color].icon_id
         
         # 回退到内置图标
         return cls.get_fallback_icon(color_name)
@@ -1235,7 +1235,7 @@ class RESISTOR_OT_ReloadIcons(bpy.types.Operator):
 def register():
     # 注册场景属性
     # 四色环电阻属性
-    bpy.types.Scene.four_band_resistance: bpy.props.FloatProperty(
+    bpy.types.Scene.four_band_resistance = bpy.props.FloatProperty(
         name="电阻值",
         default=1.0,
         min=0.1,
@@ -1243,9 +1243,9 @@ def register():
         step=100,
         precision=2,
         update=lambda self, context: None  # 添加更新回调以触发实时预览
-    ) # type: ignore
+    )
     
-    bpy.types.Scene.four_band_resistor_unit: bpy.props.EnumProperty(
+    bpy.types.Scene.four_band_resistor_unit = bpy.props.EnumProperty(
         name="单位",
         items=[
             ('Ω', "Ω", "欧姆"),
@@ -1253,9 +1253,9 @@ def register():
             ('MΩ', "MΩ", "兆欧姆")
         ],
         default='kΩ'
-    ) # type: ignore
+    )
 
-    bpy.types.Scene.four_band_tolerance: bpy.props.FloatProperty(
+    bpy.types.Scene.four_band_tolerance = bpy.props.FloatProperty(
         name="公差",
         default=5.0,
         min=0.0,
@@ -1263,9 +1263,9 @@ def register():
         step=5,
         precision=1,
         update=lambda self, context: None  # 添加更新回调以触发实时预览
-    ) # type: ignore
+    )
     
-    bpy.types.Scene.four_band_rated_power: bpy.props.EnumProperty(
+    bpy.types.Scene.four_band_rated_power = bpy.props.EnumProperty(
         name="电阻类型",
         items=[
             ('1_8W', "1/8W", "1/8瓦碳膜电阻"),
@@ -1275,10 +1275,10 @@ def register():
         ],
         default='1_4W',
         update=lambda self, context: None  # 添加更新回调以触发实时预览
-    ) # type: ignore
+    )
     
     # 五色环电阻属性
-    bpy.types.Scene.five_band_resistance_value: bpy.props.FloatProperty(
+    bpy.types.Scene.five_band_resistance = bpy.props.FloatProperty(
         name="电阻值",
         default=1.0,
         min=0.001,
@@ -1286,9 +1286,9 @@ def register():
         step=100,
         precision=4,
         update=lambda self, context: None  # 添加更新回调以触发实时预览
-    ) # type: ignore
+    )
     
-    bpy.types.Scene.five_band_resistor_unit: bpy.props.EnumProperty(
+    bpy.types.Scene.five_band_resistor_unit = bpy.props.EnumProperty(
         name="单位",
         items=[
             ('Ω', "Ω", "欧姆"),
@@ -1296,9 +1296,9 @@ def register():
             ('MΩ', "MΩ", "兆欧姆")
         ],
         default='kΩ'
-    ) # type: ignore
+    )
 
-    bpy.types.Scene.five_band_tolerance: bpy.props.FloatProperty(
+    bpy.types.Scene.five_band_tolerance = bpy.props.FloatProperty(
         name="公差",
         default=1.0,
         min=0.01,
@@ -1306,17 +1306,17 @@ def register():
         step=1,
         precision=2,
         update=lambda self, context: None  # 添加更新回调以触发实时预览
-    ) # type: ignore
+    )
     
     # 计算器属性
-    bpy.types.Scene.calc_band_count: bpy.props.EnumProperty(
+    bpy.types.Scene.calc_band_count = bpy.props.EnumProperty(
         name="色环数量",
         items=[
             ('FOUR', "四色环", "四色环电阻"),
             ('FIVE', "五色环", "五色环精密电阻")
         ],
         default='FOUR'
-    ) # type: ignore
+    )
     
     digit_color_items = [
         ('NONE', "无", "未选择"),
@@ -1366,7 +1366,7 @@ def register():
     
 
     # 五色环常用公差枚举
-    bpy.types.Scene.five_band_tolerance_enum: bpy.props.EnumProperty(
+    bpy.types.Scene.five_band_tolerance_enum = bpy.props.EnumProperty(
         name="公差",
         items=[
             ('0.05%', "0.05%", "0.05% 公差（灰色）"),
@@ -1378,19 +1378,19 @@ def register():
             ('CUSTOM', "自定义", "自定义公差值")
         ],
         default='1%'
-    ) # type: ignore
+    )
     
     # 自定义公差
-    bpy.types.Scene.five_band_tolerance_custom: bpy.props.FloatProperty(
+    bpy.types.Scene.five_band_tolerance_custom = bpy.props.FloatProperty(
         name="自定义公差",
         default=1.0,
         min=0.01,
         max=10.0,
         step=1,
         precision=2
-    ) # type: ignore
+    )
     
-    bpy.types.Scene.five_band_resistor_type: bpy.props.EnumProperty(
+    bpy.types.Scene.five_band_resistor_type = bpy.props.EnumProperty(
         name="电阻类型",
         items=[
             ('metal_film', "金属膜电阻", "金属膜精密电阻（蓝色体）"),
@@ -1398,9 +1398,9 @@ def register():
             # ('wire_wound', "线绕电阻", "线绕精密电阻（绿色体）"),
         ],
         default='metal_film'
-    ) # type: ignore
+    )
 
-    bpy.types.Scene.five_band_rated_power: bpy.props.EnumProperty(
+    bpy.types.Scene.five_band_rated_power = bpy.props.EnumProperty(
         name="电阻类型",
         items=[
             ('1_8W', "1/8W", "1/8瓦碳膜电阻"),
@@ -1410,7 +1410,7 @@ def register():
         ],
         default='1_4W',
         update=lambda self, context: None  # 添加更新回调以触发实时预览
-    ) # type: ignore
+    )
     
     # 注册类
     classes = [
@@ -1448,31 +1448,81 @@ def unregister():
     ResistorIconManager.unload_icons()
     
     # 删除场景属性
-    delattr(bpy.types.Scene, "four_band_resistance")
-    delattr(bpy.types.Scene, "four_band_resistor_unit")
-    delattr(bpy.types.Scene, "four_band_tolerance")
-    delattr(bpy.types.Scene, "four_band_rated_power")
+    try:
+        delattr(bpy.types.Scene, "calc_band_count")
+    except AttributeError:
+        pass
+    try:
+        delattr(bpy.types.Scene, "four_band_resistance")
+    except AttributeError:
+        pass
+    try:
+        delattr(bpy.types.Scene, "four_band_resistor_unit")
+    except AttributeError:
+        pass
+    try:
+        delattr(bpy.types.Scene, "four_band_tolerance")
+    except AttributeError:
+        pass
+    try:
+        delattr(bpy.types.Scene, "four_band_rated_power")
+    except AttributeError:
+        pass
 
-    delattr(bpy.types.Scene, "five_band_resistance")
-    delattr(bpy.types.Scene, "five_band_resistor_unit")
-    delattr(bpy.types.Scene, "five_band_tolerance")
-    delattr(bpy.types.Scene, "five_band_rated_power")
-    
-    delattr(bpy.types.Scene, "calc_band_count")
-
-    delattr(bpy.types.Scene, "five_band_tolerance_enum")
-    delattr(bpy.types.Scene, "five_band_tolerance_custom")
-    delattr(bpy.types.Scene, "five_band_resistor_type")
+    try:
+        delattr(bpy.types.Scene, "five_band_resistance")
+    except AttributeError:
+        pass
+    try:
+        delattr(bpy.types.Scene, "five_band_resistor_unit")
+    except AttributeError:
+        pass
+    try:
+        delattr(bpy.types.Scene, "five_band_tolerance")
+    except AttributeError:
+        pass
+    try:
+        delattr(bpy.types.Scene, "five_band_rated_power")
+    except AttributeError:
+        pass
+    try:
+        delattr(bpy.types.Scene, "calc_band_count")
+    except AttributeError:
+        pass
+    try:
+        delattr(bpy.types.Scene, "five_band_tolerance_enum")
+    except AttributeError:
+        pass
+    try:
+        delattr(bpy.types.Scene, "five_band_tolerance_custom")
+    except AttributeError:
+        pass
+    try:
+        delattr(bpy.types.Scene, "five_band_resistor_type")
+    except AttributeError:
+        pass
 
     
     for i in range(5):
         if i <= 2:
-            delattr(bpy.types.Scene, f"calc_color_{i}")
+            try:
+                delattr(bpy.types.Scene, f"calc_color_{i}")
+            except AttributeError:
+                pass
         elif i == 3:
-            delattr(bpy.types.Scene, f"calc_4color_{i}")
-            delattr(bpy.types.Scene, f"calc_5color_{i}")
+            try:
+                delattr(bpy.types.Scene, f"calc_4color_{i}")
+            except AttributeError:
+                pass
+            try:
+                delattr(bpy.types.Scene, f"calc_5color_{i}")
+            except AttributeError:
+                pass
         elif i == 4:
-            delattr(bpy.types.Scene, f"calc_5color_{i}")
+            try:
+                delattr(bpy.types.Scene, f"calc_5color_{i}")
+            except AttributeError:
+                pass
     
     print("色环电阻生成器插件已注销")
 

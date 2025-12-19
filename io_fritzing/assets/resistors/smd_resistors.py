@@ -354,7 +354,7 @@ class SMD_OT_GenerateResistor(Operator):
         for obj in collection.objects:
             obj.select_set(True)
         if collection.objects and context:
-            setattr(context.view_layer, "objects", collection.objects[0])
+            context.view_layer.objects.active = collection.objects[0]
         
         # 报告结果
         self.report({'INFO'}, f"已生成{props.package_size}电阻: {format_resistance(props.resistance)} 丝印: {code_to_show}")
@@ -625,8 +625,7 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
     
-    if bpy.context:
-        setattr(bpy.context.scene, "smd_resistor_props", bpy.props.PointerProperty(type=SMDResistorProperties))
+    setattr(bpy.types.Scene, "smd_resistor_props", bpy.props.PointerProperty(type=SMDResistorProperties))
 
     print("贴片电阻生成器已注册")
 
