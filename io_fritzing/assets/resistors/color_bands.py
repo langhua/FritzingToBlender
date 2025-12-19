@@ -11,7 +11,6 @@ from io_fritzing.assets.utils.material import create_material
 
 bl_info = {
     "name": "色环电阻生成器",
-    "author": "Assistant",
     "version": (5, 0, 0),
     "blender": (4, 2, 0),
     "location": "View3D > N > 电阻工具",

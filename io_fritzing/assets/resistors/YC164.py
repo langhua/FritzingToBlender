@@ -2,6 +2,7 @@ import bpy
 import bmesh
 from mathutils import Vector, Matrix
 import math
+from io_fritzing.assets.utils.material import create_material
 
 # 清理场景
 def clear_scene():
@@ -108,7 +109,7 @@ def create_resistor_body():
     
     # 设置base材质
     base.data.materials.clear()
-    mat_base = create_ceramic_material("Ceramic_Body")
+    mat_base = create_material("Ceramic_Body", dimensions['body_color'][:4], metallic=0.2, roughness=0.7, weight=0.1, ior=1.5)
     base.data.materials.append(mat_base)
     
     # 创建cover立方体
@@ -125,7 +126,7 @@ def create_resistor_body():
 
     # 设置cover材质
     cover.data.materials.clear()
-    mat_cover = create_resin_material("Resin_Cover")
+    mat_cover = create_material("Resin_Cover", dimensions['cover_color'][:4], metallic=0.0, roughness=0.8, weight=0.1, ior=1.5)
     cover.data.materials.append(mat_cover)
     
     # 合并base和cover两部分
@@ -150,112 +151,6 @@ def create_resistor_body():
     
     return base
 
-def create_ceramic_material(name):
-    """创建陶瓷材质"""
-    mat = bpy.data.materials.new(name=name)
-    mat.use_nodes = True
-    
-    # 设置陶瓷颜色
-    mat.diffuse_color = dimensions['body_color']
-    
-    nodes = mat.node_tree.nodes
-    nodes.clear()
-    
-    # 添加原理化BSDF节点
-    bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.location = (0, 0)
-    bsdf.inputs['Base Color'].default_value = dimensions['body_color']
-    bsdf.inputs['Metallic'].default_value = 0.2
-    bsdf.inputs['Roughness'].default_value = 0.7
-    bsdf.inputs['Transmission Weight'].default_value = 0.1
-    bsdf.inputs['IOR'].default_value = 1.5
-    
-    # 添加材质输出节点
-    output = nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = (400, 0)
-    
-    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
-    return mat
-
-def create_resin_material(name):
-    """创建树脂材质"""
-    mat = bpy.data.materials.new(name=name)
-    mat.use_nodes = True
-    
-    # 设置陶瓷颜色
-    mat.diffuse_color = dimensions['cover_color']
-    
-    nodes = mat.node_tree.nodes
-    nodes.clear()
-    
-    # 添加原理化BSDF节点
-    bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.location = (0, 0)
-    bsdf.inputs['Base Color'].default_value = dimensions['cover_color']
-    bsdf.inputs['Metallic'].default_value = 0.2
-    bsdf.inputs['Roughness'].default_value = 0.7
-    bsdf.inputs['Transmission Weight'].default_value = 0.1
-    bsdf.inputs['IOR'].default_value = 1.5
-    
-    # 添加材质输出节点
-    output = nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = (400, 0)
-    
-    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
-    return mat
-
-def create_metal_material(name):
-    """创建金属材质（引脚）"""
-    mat = bpy.data.materials.new(name=name)
-    mat.use_nodes = True
-    
-    # 设置金属色
-    mat.diffuse_color = dimensions['pin_color']
-    
-    nodes = mat.node_tree.nodes
-    nodes.clear()
-    
-    # 添加原理化BSDF节点
-    bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.location = (0, 0)
-    bsdf.inputs['Base Color'].default_value = dimensions['pin_color']
-    bsdf.inputs['Metallic'].default_value = 0.9
-    bsdf.inputs['Roughness'].default_value = 0.3
-    
-    # 添加材质输出节点
-    output = nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = (400, 0)
-    
-    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
-    return mat
-
-def create_white_material(name):
-    """创建白色材质（标记）"""
-    mat = bpy.data.materials.new(name=name)
-    mat.use_nodes = True
-    
-    mat.diffuse_color = dimensions['marking_color']
-    
-    nodes = mat.node_tree.nodes
-    nodes.clear()
-    
-    # 添加原理化BSDF节点
-    bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.location = (0, 0)
-    bsdf.inputs['Base Color'].default_value = dimensions['marking_color']
-    bsdf.inputs['Metallic'].default_value = 0.0
-    bsdf.inputs['Roughness'].default_value = 0.8
-    
-    # 添加材质输出节点
-    output = nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = (400, 0)
-    
-    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
-    return mat
 
 def create_pins():
     """创建8个引脚，4个电阻，每个电阻2个"""
@@ -398,7 +293,7 @@ def create_single_pin(pin_name, x_pos, y_pos, pin_width, pin_length, pin_height)
     
     # 设置材质
     pin.data.materials.clear()
-    mat_pin = create_metal_material("Metal_Silver")
+    mat_pin = create_material("Metal_Silver", dimensions['pin_color'][:4], metallic=0.9, roughness=0.3)
     pin.data.materials.append(mat_pin)
     
     return pin
@@ -418,7 +313,7 @@ def create_marking(value):
 
     # 设置材质
     text_obj.data.materials.clear()
-    mat_text = create_white_material("Text_White")
+    mat_text = create_material("Text_White", dimensions['marking_color'][:4], metallic=0.0, roughness=0.8)
     text_obj.data.materials.append(mat_text)
     
     return text_obj
