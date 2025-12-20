@@ -1,40 +1,20 @@
 import bpy
 import bmesh
-from mathutils import Vector, Matrix
-import math
-from typing import List, Tuple, Optional, Dict
 from bpy.types import Panel, Operator, PropertyGroup
 from bpy.props import FloatProperty, StringProperty, EnumProperty, IntProperty, BoolProperty, PointerProperty
-from io_fritzing.assets.resistors.eia_96 import calculate_eia96_code
+from io_fritzing.assets.resistors.eia_96 import resistor_to_eia96
 from io_fritzing.assets.utils.material import create_material
+from io_fritzing.assets.resistors.code_4digit import resistance_to_4digit
+from io_fritzing.assets.resistors.code_3digit import resistance_to_3digit
 
 bl_info = {
-    "name": "贴片电阻",
-    "version": (1, 1, 0),
+    "name": "贴片电阻生成器",
+    "version": (1, 10, 0),
     "blender": (4, 2, 0),
     "location": "View3D > N > 电阻工具 > 贴片电阻",
-    "description": "生成带有丝印的贴片电阻模型，支持E-24/E-96标准/EIA-96标准",
+    "description": "生成带有丝印的贴片电阻模型，使用直观的电阻值转换",
     "category": "3D View"
 }
-
-# ==================== 标准电阻系列 ====================
-# E-24系列 (5% 公差)
-E24_SERIES = [
-    1.0, 1.1, 1.2, 1.3, 1.5, 1.6, 1.8, 2.0, 2.2, 2.4, 2.7, 3.0, 
-    3.3, 3.6, 3.9, 4.3, 4.7, 5.1, 5.6, 6.2, 6.8, 7.5, 8.2, 9.1
-]
-
-# E-96系列 (1% 公差)
-E96_SERIES = [
-    1.00, 1.02, 1.05, 1.07, 1.10, 1.13, 1.15, 1.18, 1.21, 1.24, 1.27, 1.30,
-    1.33, 1.37, 1.40, 1.43, 1.47, 1.50, 1.54, 1.58, 1.62, 1.65, 1.69, 1.74,
-    1.78, 1.82, 1.87, 1.91, 1.96, 2.00, 2.05, 2.10, 2.15, 2.21, 2.26, 2.32,
-    2.37, 2.43, 2.49, 2.55, 2.61, 2.67, 2.74, 2.80, 2.87, 2.94, 3.01, 3.09,
-    3.16, 3.24, 3.32, 3.40, 3.48, 3.57, 3.65, 3.74, 3.83, 3.92, 4.02, 4.12,
-    4.22, 4.32, 4.42, 4.53, 4.64, 4.75, 4.87, 4.99, 5.11, 5.23, 5.36, 5.49,
-    5.62, 5.76, 5.90, 6.04, 6.19, 6.34, 6.49, 6.65, 6.81, 6.98, 7.15, 7.32,
-    7.50, 7.68, 7.87, 8.06, 8.25, 8.45, 8.66, 8.87, 9.09, 9.31, 9.53, 9.76
-]
 
 # 贴片电阻封装尺寸 (单位: mm)
 SMD_SIZES = {
@@ -52,177 +32,23 @@ SMD_SIZES = {
 def format_resistance(value: float) -> str:
     """格式化电阻值显示"""
     if value >= 1000000:  # 1MΩ以上
-        return f"{value/1000000:.3f}MΩ"
+        return f"{value/1000000:.4f}MΩ"
     elif value >= 1000:   # 1kΩ以上
-        return f"{value/1000:.3f}kΩ"
+        return f"{value/1000:.4f}kΩ"
     elif value >= 1:      # 1Ω以上
-        return f"{value:.3f}Ω"
+        return f"{value:.4f}Ω"
     elif value >= 0.001:  # 1mΩ以上
-        return f"{value*1000:.3f}mΩ"
+        return f"{value*1000:.4f}mΩ"
     else:                 # 小于1mΩ
-        return f"{value*1000000:.3f}μΩ"
+        return f"{value*1000000:.4f}μΩ"
 
-def get_nearest_standard_value(value: float, series: List[float] = E96_SERIES) -> Tuple[float, int]:
-    """
-    获取最接近的标准电阻值和对应的10的幂次
-    
-    返回: (标准值, 指数)
-    """
-    if value <= 0:
-        return series[0], 0
-    
-    min_diff = float('inf')
-    nearest_std = series[0]
-    nearest_exp = 0
-    
-    for std in series:
-        # 计算对数差值，找到最接近的10的幂次
-        if value > 0 and std > 0:
-            # 计算应该的指数
-            exp = round(math.log10(value / std))
-            # 计算缩放后的标准值
-            scaled_std = std * (10 ** exp)
-            # 计算相对误差
-            diff = abs(math.log10(value) - math.log10(scaled_std))
-            
-            if diff < min_diff:
-                min_diff = diff
-                nearest_std = std
-                nearest_exp = exp
-    
-    return nearest_std, nearest_exp
-
-def calculate_smd_code(resistance: float, tolerance: float = 0.01, 
-                      use_e96: bool = True) -> Dict:
-    """
-    计算贴片电阻的3位/4位数字代码
-    
-    返回字典包含:
-    - digits_code: 数字代码字符串
-    - standard_value: 标准电阻值
-    - code_3digit: 3位数字代码
-    - code_4digit: 4位数字代码
-    - tolerance_percent: 公差百分比
-    - relative_error: 相对误差百分比
-    """
-    if resistance <= 0:
-        return {
-            'digits_code': "000",
-            'standard_value': 0,
-            'code_3digit': '000',
-            'code_4digit': '0000',
-            'tolerance_percent': 5.0,
-            'relative_error': 0.0
-        }
-    
-    # 选择标准系列
-    series = E96_SERIES if use_e96 else E24_SERIES
-    
-    # 获取最接近的标准值和指数
-    std_value, exp = get_nearest_standard_value(resistance, series)
-    
-    # 计算有效数字和乘数
-    # 将标准值缩放到1.00-9.99之间
-    digits_float = std_value
-    multiplier_exp = exp
-    
-    # 调整到1.00-9.99之间
-    while digits_float >= 10.0:
-        digits_float /= 10.0
-        multiplier_exp += 1
-    
-    while digits_float < 1.0 and digits_float > 0:
-        digits_float *= 10.0
-        multiplier_exp -= 1
-    
-    # 确保是三位有效数字
-    if digits_float >= 10.0:
-        digits_float /= 10.0
-        multiplier_exp += 1
-    
-    if digits_float < 1.0:
-        digits_float *= 10.0
-        multiplier_exp -= 1
-    
-    # 四舍五入到适当的小数位数
-    if use_e96:
-        # E-96系列: 保留2位小数
-        digits_float = round(digits_float, 2)
-    else:
-        # E-24系列: 保留1位小数
-        digits_float = round(digits_float, 1)
-    
-    if digits_float >= 10.0:
-        digits_float /= 10.0
-        multiplier_exp += 1
-    
-    # 计算数字代码
-    if use_e96:
-        # E-96系列: 4位数字代码 (前3位有效数字 + 1位乘数)
-        # 获取三位有效数字
-        digit1 = int(digits_float)
-        digit2 = int((digits_float * 10) % 10)
-        digit3 = int((digits_float * 100) % 10)
-        
-        # 处理乘数为0的特殊情况
-        if multiplier_exp == 0:
-            code_4digit = f"{digit1}{digit2}{digit3}0"
-        else:
-            code_4digit = f"{digit1}{digit2}{digit3}{multiplier_exp}"
-        
-        # 3位数字代码 (E-24风格，精度较低)
-        digits_float_e24 = round(digits_float, 1)
-        if digits_float_e24 >= 10.0:
-            digits_float_e24 /= 10.0
-            multiplier_exp_e24 = multiplier_exp + 1
-        else:
-            multiplier_exp_e24 = multiplier_exp
-        
-        digit1_e24 = int(digits_float_e24)
-        digit2_e24 = int((digits_float_e24 * 10) % 10)
-        
-        if multiplier_exp_e24 == 0:
-            code_3digit = f"{digit1_e24}{digit2_e24}0"
-        else:
-            code_3digit = f"{digit1_e24}{digit2_e24}{multiplier_exp_e24}"
-        
-        digits_code = code_4digit
-        
-    else:
-        # E-24系列: 3位数字代码 (前2位有效数字 + 1位乘数)
-        digit1 = int(digits_float)
-        digit2 = int((digits_float * 10) % 10)
-        
-        if multiplier_exp == 0:
-            code_3digit = f"{digit1}{digit2}0"
-        else:
-            code_3digit = f"{digit1}{digit2}{multiplier_exp}"
-        
-        # 4位数字代码 (E-96风格，精度较低)
-        code_4digit = f"{digit1}{digit2}0{multiplier_exp}"
-        digits_code = code_3digit
-    
-    # 计算标准电阻值
-    standard_value = (digits_float) * (10 ** multiplier_exp)
-    
-    # 计算相对误差
-    if resistance > 0:
-        relative_error = ((standard_value - resistance) / resistance) * 100
-    else:
-        relative_error = 0.0
-    
-    # 公差百分比
-    tolerance_percent = tolerance * 100
-    
-    return {
-        'digits_code': digits_code,
-        'standard_value': standard_value,
-        'code_3digit': code_3digit,
-        'code_4digit': code_4digit,
-        'tolerance_percent': tolerance_percent,
-        'relative_error': relative_error,
-        'is_e96': use_e96
+def get_tolerance_value(tolerance_enum: str) -> float:
+    """从枚举值获取公差百分比的小数形式"""
+    tolerance_map = {
+        '1%': 0.01,
+        '5%': 0.05,
     }
+    return tolerance_map.get(tolerance_enum, 0.01)  # 默认1%
 
 # ==================== 属性组 ====================
 class SMDResistorProperties(PropertyGroup):
@@ -237,21 +63,19 @@ class SMDResistorProperties(PropertyGroup):
         max=10000000.0,
         precision=4,
         step=100
-    )  # type: ignore 忽略类型检查器的类型提示错误
+    )  # type: ignore
     
+    # 公差
     tolerance: EnumProperty(
         name="公差",
         description="选择电阻公差百分比",
         items=[
-            ('0.5%', "0.5%", "0.5% 公差"),
             ('1%', "1%", "1% 公差"),
-            ('2%', "2%", "2% 公差"),
             ('5%', "5%", "5% 公差"),
-            ('10%', "10%", "10% 公差"),
         ],
         default='1%',
-        update=lambda self, context: self.on_value_update(context)
-    )  # type: ignore 忽略类型检查器的类型提示错误
+        update=lambda self, context: self.update_code_type(context)
+    )  # type: ignore
     
     # 封装选择
     package_size: EnumProperty(
@@ -268,31 +92,49 @@ class SMDResistorProperties(PropertyGroup):
             ('2512', "2512 (6.3×3.2mm)", "超大功率封装"),
         ],
         default='0805',
-        update=lambda self, context: self.on_value_update(context)
-    )  # type: ignore 忽略类型检查器的类型提示错误
+        update=lambda self, context: self.update_code_type(context)
+    )  # type: ignore
     
-    # 标准系列
-    standard_series: EnumProperty(
-        name="标准系列",
-        description="选择电阻标准系列",
-        items=[
-            ('E24', "E-24 (5%)", "E-24系列，5%公差，3位数字代码"),
-            ('E96', "E-96 (1%)", "E-96系列，1%公差，4位数字代码"),
-            ('EIA-96', "EIA-96 (1%)", "EIA-96系列，1%公差，2位数字1位字母代码"),
-        ],
-        default='E96'
-    )  # type: ignore 忽略类型检查器的类型提示错误
+    # 编码类型（根据封装尺寸和公差自动确定，用户可查看但不可编辑）
+    code_type: StringProperty(
+        name="编码类型",
+        description="根据封装尺寸和公差自动确定的丝印编码类型",
+        default="4位编码"
+    )  # type: ignore
     
-    def on_value_update(self, context):
-        """当封装尺寸改变时的回调函数"""
-        # 根据封装尺寸自动设置标准系列
-        # 大封装（0805及以上）建议使用E-96
-        if self.package_size in ['0805', '1206', '1210', '1812', '2010', '2512']:
-            self.standard_series = 'E96'
-        elif self.tolerance == '1%':
-            self.standard_series = 'EIA-96'
-        else:
-            self.standard_series = 'E24'
+    def update_code_type(self, context):
+        """根据封装尺寸和公差更新编码类型"""
+        package = self.package_size
+        tol = self.tolerance
+
+        self.code_type = get_code_type(package, tol)
+        
+        # 同时更新编码值
+        self.update_code_value()
+
+    def update_code_value(self):
+        """根据电阻值和编码类型计算编码值"""
+        if self.code_type is None:
+            self.code_value = "无"
+        elif self.code_type != "3位编码" and self.code_type != "4位编码" and self.code_type != "EIA-96":
+            self.code_value = "未知"
+
+def get_code_type(package_size: str, tolerance: str) -> str | None:
+    # 根据规则确定编码类型
+    if package_size == '0402':
+        code_type = "无"
+    elif package_size == '0603':
+        if tolerance == '1%':
+            code_type = "EIA-96"
+        else:  # 5%
+            code_type = "3位编码"
+    else:  # 0805及以上
+        if tolerance == '1%':
+            code_type = "4位编码"
+        else:  # 5%
+            code_type = "3位编码"
+        
+    return code_type
 
 
 # ==================== 操作类 ====================
@@ -308,212 +150,189 @@ class SMD_OT_GenerateResistor(Operator):
             props = getattr(context.scene, "smd_resistor_props")
         
         # 计算电阻代码
-        if props.standard_series == 'EIA-96':
-            code_dict = calculate_eia96_code(props.resistance)
+        if props.code_type == 'EIA-96':
+            code_dict = resistor_to_eia96(props.resistance)
             code_to_show = code_dict['eia96_mark']
+        elif props.code_type == '4位编码':
+            code_to_show = resistance_to_4digit(props.resistance)
+        elif props.code_type == '3位编码':
+            # 3DIGIT
+            code_to_show = resistance_to_3digit(props.resistance)
+        elif props.code_type == '无':
+            code_to_show = "无"
         else:
-            use_e96 = (props.standard_series == 'E96')
-            result = calculate_smd_code(props.resistance, get_tolerance_value(props.tolerance), use_e96)
-            code_to_show = result['code_4digit'] if use_e96 else result['code_3digit']
-        
-        # 获取封装尺寸
-        if props.package_size in SMD_SIZES:
-            length_mm, width_mm, height_mm, pad_length_mm = SMD_SIZES[props.package_size]
-        else:
-            # 默认0805封装
-            length_mm, width_mm, height_mm, pad_length_mm = SMD_SIZES['0805']
+            code_to_show = "未知"
         
         # 创建电阻集合
-        collection_name = f"SMD_Resistor_{props.package_size}_{code_to_show}"
-        
-        # 如果集合已存在，先删除
-        if collection_name in bpy.data.collections:
-            old_collection = bpy.data.collections[collection_name]
-            for obj in list(old_collection.objects):
-                bpy.data.objects.remove(obj, do_unlink=True)
-            bpy.data.collections.remove(old_collection)
+        if code_to_show != "无":
+            collection_name = f"SMD_Resistor_{props.package_size}"
+        else:
+            collection_name = f"SMD_Resistor_{props.package_size}_{code_to_show}"
         
         collection = bpy.data.collections.new(collection_name)
         if context:
             context.scene.collection.children.link(collection)
         
-        # 创建电阻主体
-        self.create_resistor_body(collection, length_mm, width_mm, height_mm)
-        
-        # 创建焊盘
-        self.create_pads(collection, length_mm, width_mm, height_mm, pad_length_mm)
-        
-        # 创建树脂层
-        self.create_resistor_cover(collection, length_mm, width_mm, height_mm, 0.035)
+        generate_smd_resistor_with_code(collection, props.package_size, code_to_show)
 
-        # 创建丝印
-        self.create_silk_screen(collection, code_to_show, height_mm, width_mm, 0.01)
-        
         # 选择所有生成的对象
         bpy.ops.object.select_all(action='DESELECT')
         for obj in collection.objects:
             obj.select_set(True)
-        if collection.objects and context:
+        if context and collection.objects:
             context.view_layer.objects.active = collection.objects[0]
         
         # 报告结果
         self.report({'INFO'}, f"已生成{props.package_size}电阻: {format_resistance(props.resistance)} 丝印: {code_to_show}")
         return {'FINISHED'}
-    
-    def create_resistor_body(self, collection, length_mm, width_mm, height_mm):
-        """创建电阻主体"""
-        # 创建材质
-        body_mat = create_material("Resistor_Body", (0.9, 0.9, 0.9), metallic=0.0, roughness=0.8)
-        
-        # 创建网格
-        bm = bmesh.new()
-        bmesh.ops.create_cube(bm, size=1.0)
-        
-        # 缩放
-        for v in bm.verts:
-            v.co.x *= length_mm
-            v.co.y *= width_mm
-            v.co.z *= height_mm
-        
-        # 创建网格对象
-        mesh = bpy.data.meshes.new("Resistor_Body")
-        bm.to_mesh(mesh)
-        bm.free()
-        
-        obj = bpy.data.objects.new("Resistor_Body", mesh)
-        collection.objects.link(obj)
-        
-        # 应用材质
-        getattr(obj.data, "materials").append(body_mat)
-        obj.location.z += height_mm * 1.05/2
-        
-        return obj
-    
-    def create_pads(self, collection, length_mm, width_mm, height_mm, pad_length_mm):
-        """创建焊盘"""
-        # 创建材质
-        pad_mat = create_material("Resistor_Pad", (0.9, 0.9, 0.95, 1.0), metallic=0.8, roughness=0.3)
-        
-        # 左焊盘
-        bm_left = bmesh.new()
-        bmesh.ops.create_cube(bm_left, size=1.0)
-        
-        for v in bm_left.verts:
-            v.co.x *= pad_length_mm
-            v.co.y *= width_mm * 1.1
-            v.co.z *= height_mm * 1.05
-            v.co.x -= (length_mm/2 + pad_length_mm/2)
-        
-        mesh_left = bpy.data.meshes.new("Left_Pad")
-        bm_left.to_mesh(mesh_left)
-        bm_left.free()
-        
-        obj_left = bpy.data.objects.new("Left_Pad", mesh_left)
-        collection.objects.link(obj_left)
-        getattr(obj_left.data, "materials").append(pad_mat)
-        obj_left.location.z += height_mm * 1.05/2
-        
-        # 右焊盘
-        bm_right = bmesh.new()
-        bmesh.ops.create_cube(bm_right, size=1.0)
-        
-        for v in bm_right.verts:
-            v.co.x *= pad_length_mm
-            v.co.y *= width_mm * 1.1
-            v.co.z *= height_mm * 1.05
-            v.co.x += (length_mm/2 + pad_length_mm/2)
-        
-        mesh_right = bpy.data.meshes.new("Right_Pad")
-        bm_right.to_mesh(mesh_right)
-        bm_right.free()
-        
-        obj_right = bpy.data.objects.new("Right_Pad", mesh_right)
-        collection.objects.link(obj_right)
-        getattr(obj_right.data, "materials").append(pad_mat)
-        obj_right.location.z += height_mm * 1.05/2
-        
-        return [obj_left, obj_right]
-    
-    def create_resistor_cover(self, collection, length_mm, width_mm, height_mm, thickness_mm):
-        """创建电阻表面涂层"""
-        # 创建材质
-        cover_mat = create_material("Resistor_Cover", (0.1, 0.1, 0.1), metallic=0.0, roughness=0.8, weight=0.1, ior=1.5)
-        
-        # 创建网格
-        bm = bmesh.new()
-        bmesh.ops.create_cube(bm, size=1.0)
-        
-        # 缩放
-        for v in bm.verts:
-            v.co.x *= length_mm
-            v.co.y *= width_mm
-            v.co.z *= thickness_mm
-        
-        # 创建网格对象
-        mesh = bpy.data.meshes.new("Resistor_Cover")
-        bm.to_mesh(mesh)
-        bm.free()
-        
-        obj = bpy.data.objects.new("Resistor_Cover", mesh)
-        collection.objects.link(obj)
-        
-        # 应用材质
-        getattr(obj.data, "materials").append(cover_mat)
-        obj.location.z += height_mm * 1.025
 
-        return obj
+def create_resistor_body(collection, length_mm, width_mm, height_mm):
+    """创建电阻主体"""
+    # 创建材质
+    body_mat = create_material("Resistor_Body", (0.9, 0.9, 0.9), metallic=0.0, roughness=0.8)
     
-    def create_silk_screen(self, collection, code, height_mm, width_mm, thickness_mm):
-        """创建丝印"""
-        # 获取丝印颜色
-        silk_mat = create_material("Silk_Screen", (1.0, 1.0, 1.0, 1.0), metallic=0.0, roughness=0.9)
-        
-        # 创建文本曲线
-        curve_data = bpy.data.curves.new(type="FONT", name="Silk_Screen_Text")
-        setattr(curve_data, "body", code)
-        setattr(curve_data, "align_x", 'CENTER')
-        setattr(curve_data, "align_y", 'CENTER')
-        setattr(curve_data, "size", width_mm * 0.5)
-        
-        # 尝试使用默认字体
-        if bpy.data.fonts:
-            setattr(curve_data, "font", bpy.data.fonts[0])
-        
-        # 创建文本对象
-        text_obj = bpy.data.objects.new("Silk_Screen_Text", curve_data)
-        collection.objects.link(text_obj)
-        setattr(text_obj.data, "extrude", thickness_mm * 0.5)
-        
-        # 设置文本对象的位置、旋转和缩放
-        text_obj.scale = (1, 1, 0.1)
-        
-        # 转换为网格
-        text_mesh = bpy.data.meshes.new_from_object(text_obj)
-        
-        # 创建新的网格对象
-        mesh_obj = bpy.data.objects.new("Silk_Screen", text_mesh)
-        collection.objects.link(mesh_obj)
-        
-        # 应用材质
-        getattr(mesh_obj.data, "materials").append(silk_mat)
-        
-        # 删除文本对象
-        bpy.data.objects.remove(text_obj, do_unlink=True)
+    # 创建网格
+    bm = bmesh.new()
+    bmesh.ops.create_cube(bm, size=1.0)
+    
+    # 缩放
+    for v in bm.verts:
+        v.co.x *= length_mm
+        v.co.y *= width_mm
+        v.co.z *= height_mm
+    
+    # 创建网格对象
+    mesh = bpy.data.meshes.new("Resistor_Body")
+    bm.to_mesh(mesh)
+    bm.free()
+    
+    obj = bpy.data.objects.new("Resistor_Body", mesh)
+    collection.objects.link(obj)
+    
+    # 应用材质
+    getattr(obj.data, "materials").append(body_mat)
+    obj.location.z += height_mm * 1.05/2
+    
+    return obj
+    
+def create_pads(collection, length_mm, width_mm, height_mm, pad_length_mm):
+    """创建焊盘"""
+    # 创建材质
+    pad_mat = create_material("Resistor_Pad", (0.9, 0.9, 0.95, 1.0), metallic=0.8, roughness=0.3)
+    
+    # 左焊盘
+    bm_left = bmesh.new()
+    bmesh.ops.create_cube(bm_left, size=1.0)
+    
+    for v in bm_left.verts:
+        v.co.x *= pad_length_mm
+        v.co.y *= width_mm * 1.1
+        v.co.z *= height_mm * 1.05
+        v.co.x -= (length_mm/2 + pad_length_mm/2)
+    
+    mesh_left = bpy.data.meshes.new("Left_Pad")
+    bm_left.to_mesh(mesh_left)
+    bm_left.free()
+    
+    obj_left = bpy.data.objects.new("Left_Pad", mesh_left)
+    collection.objects.link(obj_left)
+    getattr(obj_left.data, "materials").append(pad_mat)
+    obj_left.location.z += height_mm * 1.05/2
+    
+    # 右焊盘
+    bm_right = bmesh.new()
+    bmesh.ops.create_cube(bm_right, size=1.0)
+    
+    for v in bm_right.verts:
+        v.co.x *= pad_length_mm
+        v.co.y *= width_mm * 1.1
+        v.co.z *= height_mm * 1.05
+        v.co.x += (length_mm/2 + pad_length_mm/2)
+    
+    mesh_right = bpy.data.meshes.new("Right_Pad")
+    bm_right.to_mesh(mesh_right)
+    bm_right.free()
+    
+    obj_right = bpy.data.objects.new("Right_Pad", mesh_right)
+    collection.objects.link(obj_right)
+    getattr(obj_right.data, "materials").append(pad_mat)
+    obj_right.location.z += height_mm * 1.05/2
+    
+    return [obj_left, obj_right]
+    
+def create_resistor_cover(collection, length_mm, width_mm, height_mm, thickness_mm):
+    """创建电阻表面涂层"""
+    # 创建材质
+    cover_mat = create_material("Resistor_Cover", (0.1, 0.1, 0.1), metallic=0.0, roughness=0.8, weight=0.1, ior=1.5)
+    
+    # 创建网格
+    bm = bmesh.new()
+    bmesh.ops.create_cube(bm, size=1.0)
+    
+    # 缩放
+    for v in bm.verts:
+        v.co.x *= length_mm
+        v.co.y *= width_mm
+        v.co.z *= thickness_mm
+    
+    # 创建网格对象
+    mesh = bpy.data.meshes.new("Resistor_Cover")
+    bm.to_mesh(mesh)
+    bm.free()
+    
+    obj = bpy.data.objects.new("Resistor_Cover", mesh)
+    collection.objects.link(obj)
+    
+    # 应用材质
+    getattr(obj.data, "materials").append(cover_mat)
+    obj.location.z += height_mm * 1.025
 
-        mesh_obj.location.z += height_mm * 1.025 + 0.0175 + 0.005
-        
-        return mesh_obj
+    return obj
+    
+def create_silk_screen(collection, code, height_mm, width_mm, thickness_mm):
+    """创建丝印"""
+    # 获取丝印颜色
+    silk_mat = create_material("Silk_Screen", (1.0, 1.0, 1.0, 1.0), metallic=0.0, roughness=0.9)
+    
+    # 创建文本曲线
+    curve_data = bpy.data.curves.new(type="FONT", name="Silk_Screen_Text")
+    setattr(curve_data, "body", code)
+    setattr(curve_data, "align_x", 'CENTER')
+    setattr(curve_data, "align_y", 'CENTER')
+    setattr(curve_data, "size", width_mm * 0.5)
+    
+    # 尝试使用默认字体
+    if bpy.data.fonts:
+        setattr(curve_data, "font", bpy.data.fonts[0])
+    
+    # 创建文本对象
+    text_obj = bpy.data.objects.new("Silk_Screen_Text", curve_data)
+    collection.objects.link(text_obj)
+    setattr(text_obj.data, "extrude", thickness_mm * 0.5)
+    
+    # 设置文本对象的位置、旋转和缩放
+    text_obj.scale = (1, 1, 0.1)
+    
+    text_obj.location.z = height_mm * 1.025 + 0.0175 + 0.005
 
-def get_tolerance_value(tolerance_enum: str) -> float:
-    """从枚举值获取公差百分比的小数形式"""
-    tolerance_map = {
-        '0.5%': 0.005,
-        '1%': 0.01,
-        '2%': 0.02,
-        '5%': 0.05,
-        '10%': 0.10
-    }
-    return tolerance_map.get(tolerance_enum, 0.01)  # 默认1%
+    # 转换为网格
+    if bpy.context:
+        bpy.context.view_layer.objects.active = text_obj
+    text_obj.select_set(True)
+    
+    # 转换曲线为网格
+    bpy.ops.object.convert(target='MESH')
+    
+    # 获取转换后的网格对象
+    if bpy.context:
+        mesh_obj = bpy.context.active_object
+    
+    # 重命名
+    if mesh_obj:
+        mesh_obj.name = "Silk_Screen"
+        getattr(mesh_obj.data, "materials").append(silk_mat)  # 应用材质
+    
+    return mesh_obj
 
 # ==================== 面板类 ====================
 class VIEW3D_PT_SMDResistorGenerator(Panel):
@@ -550,68 +369,101 @@ class VIEW3D_PT_SMDResistorGenerator(Panel):
         row.label(text="封装尺寸:")
         row.prop(props, "package_size", text="")
         
+        # 代码类型
+        row = box.row()
+        row.label(text="代码类型:")
+        row.label(text=props.code_type)
+        
         layout.separator()
         
         # 实时计算结果
-        tolerance = get_tolerance_value(props.tolerance)
-        if tolerance == 0.01:
-            if props.package_size == '0603':
-                eia96_result = calculate_eia96_code(props.resistance)
-                result = {
-                            'digits_code': eia96_result['eia96_mark'],
-                            'standard_value': eia96_result['standard_value'],
-                            'code_3digit': '000',
-                            'code_4digit': '0000',
-                            'tolerance_percent': 1.0,
-                            'relative_error': eia96_result['relative_error']
-                        }
-            elif props.package_size == '0402':
-                eia96_result = calculate_eia96_code(props.resistance)
-                result = {
-                            'digits_code': None,
-                            'standard_value': eia96_result['standard_value'],
-                            'code_3digit': '000',
-                            'code_4digit': '0000',
-                            'tolerance_percent': 1.0,
-                            'relative_error': eia96_result['relative_error']
-                        }
-            else:
-                result = calculate_smd_code(props.resistance, tolerance, True)
-        else:
-            result = calculate_smd_code(props.resistance, tolerance, False)
-        
         result_box = layout.box()
         result_box.label(text="计算结果", icon='DRIVER')
         
-        row = result_box.row()
-        row.label(text="使用标准:")
-        row.label(text=f"{props.standard_series}")
+        standard_value = props.resistance
+        if props.code_type == 'EIA-96':
+            result = resistor_to_eia96(props.resistance)
+            code_to_show = result['eia96_mark']
+            standard_value = result['standard_value']
+        elif props.code_type == '4位编码':
+            code_to_show = resistance_to_4digit(props.resistance)
+        else:
+            code_to_show = resistance_to_3digit(props.resistance)
+        
         # 显示标准值
         row = result_box.row()
-        row.label(text="标准值:")
-        row.label(text=f"{format_resistance(result['standard_value'])}")
+        if standard_value != props.resistance:
+            row.label(text="标准值:", icon='INFO')
+        else:
+            row.label(text="电阻值:", icon='CHECKMARK')
+        row.label(text=f"{format_resistance(standard_value)}")
         
         # 显示丝印代码
         row = result_box.row()
-        row.label(text="丝印代码:")
+        row.label(text="丝印代码:", icon='SORTBYEXT')
+        row.label(text=code_to_show, icon='TEXT')
 
-        if result['code_4digit'] != '0000':        
-            row.label(text=result['code_4digit'])
-        elif result['code_3digit'] != '000':
-            row.label(text=result['code_3digit'])
-        elif result['digits_code'] is not None:
-            row.label(text=result['digits_code'])
-        
-        # 显示公差
+        # 显示标准值与输入值的偏差
         row = result_box.row()
-        row.label(text="公差:")
-        row.label(text=f"±{result['tolerance_percent']}%")
+        if standard_value != props.resistance:
+            row.label(text="偏差:", icon='MODIFIER')
+            row.label(text=f"{(standard_value - props.resistance) / standard_value * 100:.2f}%")
         
-        row = result_box.row()
+        # 操作按钮
+        action_box = layout.box()
+        row = action_box.row()
         row.scale_y = 1.5
-        row.operator("smd.generate_resistor", text="生成电阻")
-       
+        row.operator("smd.generate_resistor", text="生成电阻", icon='ADD')
 
+def generate_smd_resistor(resistance: float, tolerance: str, package_size: str) -> bpy.types.Collection:
+    """生成贴片电阻模型"""
+    code_type = get_code_type(package_size, tolerance)
+    # 计算电阻代码
+    code_to_show = None
+    if code_type == 'EIA-96':
+        code_dict = resistor_to_eia96(resistance)
+        code_to_show = code_dict['eia96_mark']
+    elif code_type == '4位编码':
+        code_to_show = resistance_to_4digit(resistance)
+    elif code_type == '3位编码':
+        # 3DIGIT
+        code_to_show = resistance_to_3digit(resistance)
+
+    # 创建电阻集合
+    if code_to_show == "无" or code_to_show == "未知":
+        collection_name = f"SMD_Resistor_{package_size}"
+    else:
+        collection_name = f"SMD_Resistor_{package_size}_{code_to_show}"
+    
+    collection = bpy.data.collections.new(collection_name)
+    if bpy.context:
+        bpy.context.scene.collection.children.link(collection)
+        
+    return generate_smd_resistor_with_code(collection, package_size, code_to_show)
+
+def generate_smd_resistor_with_code(collection: bpy.types.Collection, package_size: str, silk_code: str|None) -> bpy.types.Collection:
+    # 获取封装尺寸
+    if package_size in SMD_SIZES:
+        length_mm, width_mm, height_mm, pad_length_mm = SMD_SIZES[package_size]
+    else:
+        # 默认0805封装
+        length_mm, width_mm, height_mm, pad_length_mm = SMD_SIZES['0805']
+    
+    # 创建电阻主体
+    create_resistor_body(collection, length_mm, width_mm, height_mm)
+    
+    # # 创建焊盘
+    create_pads(collection, length_mm, width_mm, height_mm, pad_length_mm)
+            
+    # 创建树脂层
+    create_resistor_cover(collection, length_mm, width_mm, height_mm, 0.035)
+
+    # 创建丝印
+    create_silk_screen(collection, silk_code, height_mm, width_mm, 0.0175)
+    
+    return collection
+
+        
 # ==================== 注册和注销 ====================
 classes = [
     SMDResistorProperties,
@@ -621,14 +473,14 @@ classes = [
 
 def register():
     """注册插件"""
-    # 注册属性组
     for cls in classes:
         bpy.utils.register_class(cls)
     
+    # 注册属性组
     setattr(bpy.types.Scene, "smd_resistor_props", bpy.props.PointerProperty(type=SMDResistorProperties))
-
+    
     print("贴片电阻生成器已注册")
-
+    
 def unregister():
     """注销插件"""
     for cls in reversed(classes):

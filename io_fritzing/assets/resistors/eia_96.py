@@ -74,7 +74,7 @@ def format_resistance(value: float) -> str:
     else:                 # 小于1mΩ
         return f"{value*1000000:.3f}μΩ"
 
-def calculate_eia96_code(resistance: float) -> Dict:
+def resistor_to_eia96(resistance: float) -> Dict:
     """
     计算EIA-96标准丝印代码
     
@@ -223,7 +223,7 @@ class EIA96_OT_GenerateCode(bpy.types.Operator):
             size_code = getattr(context.scene, "eia96_size")
         
         # 计算EIA-96代码
-        result = calculate_eia96_code(resistance)
+        result = resistor_to_eia96(resistance)
         
         # 获取封装尺寸
         if size_code in SMD_SIZES:
@@ -358,7 +358,7 @@ class VIEW3D_PT_EIA96Calculator(bpy.types.Panel):
         
         # 实时计算结果
         if context:
-            result = calculate_eia96_code(getattr(context.scene, "eia96_resistance"))
+            result = resistor_to_eia96(getattr(context.scene, "eia96_resistance"))
         
         result_box = encode_box.box()
         result_box.label(text="实时计算结果", icon='DRIVER')

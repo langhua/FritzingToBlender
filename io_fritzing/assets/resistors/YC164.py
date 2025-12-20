@@ -51,304 +51,21 @@ class OBJECT_OT_create_yc164(bpy.types.Operator):
     bl_description = "创建YC164 4位0603贴片排阻3D模型"
     bl_options = {'REGISTER', 'UNDO'}
     
-    def apply_all_modifiers(self, obj=None):
-        """应用所有修改器"""
-        if bpy.context and bpy.context.mode != 'OBJECT':
-            bpy.ops.object.mode_set(mode='OBJECT')
-        
-        if obj:
-            objects = [obj]
-        else:
-            if bpy.context:
-                objects = bpy.context.scene.objects
-        
-        for obj in objects:
-            bpy.ops.object.select_all(action='DESELECT')
-            obj.select_set(True)
-            if bpy.context:
-                bpy.context.view_layer.objects.active = obj
-            
-            for modifier in list(obj.modifiers):
-                try:
-                    bpy.ops.object.modifier_apply(modifier=modifier.name)
-                except:
-                    obj.modifiers.remove(modifier)
-
-    def create_resistor_body(self):
-        """创建排阻主体"""
-        length = dimensions['L']   # 3.20mm
-        width = dimensions['W2'] - dimensions['B']   # 1.60mm
-        height = dimensions['T']
-        base_height = height * 0.9
-        cover_height = height * 0.1 + 0.01
-        
-        # 创建base立方体
-        bpy.ops.mesh.primitive_cube_add(
-            size=1,
-            location=(0, 0, height/2)  # 放置在z=0平面以上
-        )
-        if bpy.context:
-            base = bpy.context.active_object
-            setattr(base, "name", "YC164_Body_Base")
-            
-            # 设置尺寸
-            setattr(base, "scale", (length, width, base_height))
-            bpy.ops.object.transform_apply(scale=True)
-        
-            # 设置base材质
-            if base:
-                getattr(base.data, "materials").clear()
-                mat_base = create_material("Ceramic_Body", dimensions['body_color'][:4], metallic=0.2, roughness=0.7, weight=0.1, ior=1.5)
-                getattr(base.data, "materials").append(mat_base)
-            
-            # 创建cover立方体
-            bpy.ops.mesh.primitive_cube_add(
-                size=1,
-                location=(0, 0, base_height + cover_height/2)  # 放置在base上方
-            )
-            cover = bpy.context.active_object
-            setattr(cover, "name", "YC164_Body_Cover")
-            
-            # 设置尺寸
-            setattr(cover, "scale", (length, width, cover_height))
-            bpy.ops.object.transform_apply(scale=True)
-
-            # 设置cover材质
-            if cover:
-                getattr(cover.data, "materials").clear()
-                mat_cover = create_material("Resin_Cover", dimensions['cover_color'][:4], metallic=0.0, roughness=0.8, weight=0.1, ior=1.5)
-                getattr(cover.data, "materials").append(mat_cover)
-            
-            # 合并base和cover两部分
-            bpy.ops.object.select_all(action='DESELECT')
-            getattr(base, "select_set")(True)
-            getattr(cover, "select_set")(True)
-            bpy.context.view_layer.objects.active = base
-            bpy.ops.object.join()
-            
-            # 重命名合并后的对象
-            setattr(base, "name", "YC164_Body")
-            
-            # 添加倒角修改器
-            bevel_mod = getattr(base, "modifiers").new(name="Bevel", type='BEVEL')
-            setattr(bevel_mod, "width", dimensions['chamfer_size'])
-            setattr(bevel_mod, "segments", dimensions['chamfer_segments'])
-            setattr(bevel_mod, "limit_method", 'ANGLE')
-            setattr(bevel_mod, "angle_limit", math.radians(30))
-            
-            # 应用修改器
-            self.apply_all_modifiers(base)
-        
-        return base
-
-    def create_single_pin(self, pin_name, x_pos, y_pos, pin_width, pin_length, pin_height):
-        """创建单个引脚"""
-        # 引脚中心位置
-        z_pos = pin_height / 2  # 引脚底部在z=0平面
-        
-        # 创建引脚立方体
-        bpy.ops.mesh.primitive_cube_add(size=1.0)
-        pin = getattr(bpy.context, "active_object")
-        setattr(pin, "name", pin_name)
-
-        # 设置尺寸
-        setattr(pin, "dimensions", (pin_length, pin_width, pin_height))
-        setattr(pin, "location", (x_pos, y_pos, z_pos))
-        bpy.ops.object.transform_apply(scale=True)
-        
-        # 设置材质
-        pin.data.materials.clear()
-        mat_pin = create_material("Metal_Silver", dimensions['pin_color'][:4], metallic=0.9, roughness=0.3)
-        pin.data.materials.append(mat_pin)
-        
-        return pin
-
-    def create_pins(self):
-        """创建8个引脚，4个电阻，每个电阻2个"""
-        pins = []
-        
-        # 引脚尺寸
-        side_pin_length = dimensions['H']
-        center_pin_length = dimensions['H2']
-        pin_width = dimensions['B']
-        pin_height = dimensions['T']
-        
-        # 引脚间距
-        pin_spacing = dimensions['pin_spacing']  # 0.80mm
-        
-        # 总长度
-        total_length = dimensions['L']  # 3.20mm
-        
-        # 计算引脚位置
-        # 8个引脚，平均分布在两侧
-        # 左侧4个引脚，右侧4个引脚
-        
-        # 一排4个引脚x坐标
-        left_x = -total_length / 2 + side_pin_length / 2
-        left_center_x = -pin_spacing/2
-        right_x = total_length / 2 - side_pin_length / 2
-        right_center_x = pin_spacing/2
-        
-        # 一排引脚y坐标
-        top_y = dimensions['W2'] / 2 - pin_width / 2
-        bottom_y = -top_y
-        
-        # 创建上排引脚
-        pin_name = f"Pin_Top_Left"
-        pin = self.create_single_pin(
-            pin_name=pin_name,
-            x_pos=left_x,
-            y_pos=top_y,
-            pin_width=pin_width,
-            pin_length=side_pin_length,
-            pin_height=pin_height,
-        )
-        pins.append(pin)
-        
-        pin_name = f"Pin_Top_Left_Center"
-        pin = self.create_single_pin(
-            pin_name=pin_name,
-            x_pos=left_center_x,
-            y_pos=top_y,
-            pin_width=pin_width,
-            pin_length=center_pin_length,
-            pin_height=pin_height,
-        )
-        pins.append(pin)
-        
-        pin_name = f"Pin_Top_Right_Center"
-        pin = self.create_single_pin(
-            pin_name=pin_name,
-            x_pos=right_center_x,
-            y_pos=top_y,
-            pin_width=pin_width,
-            pin_length=center_pin_length,
-            pin_height=pin_height,
-        )
-        pins.append(pin)
-        
-        pin_name = f"Pin_Top_Right"
-        pin = self.create_single_pin(
-            pin_name=pin_name,
-            x_pos=right_x,
-            y_pos=top_y,
-            pin_width=pin_width,
-            pin_length=side_pin_length,
-            pin_height=pin_height,
-        )
-        pins.append(pin)
-        
-        # 创建下排引脚
-        pin_name = f"Pin_Bottom_Left"
-        pin = self.create_single_pin(
-            pin_name=pin_name,
-            x_pos=left_x,
-            y_pos=bottom_y,
-            pin_width=pin_width,
-            pin_length=side_pin_length,
-            pin_height=pin_height,
-        )
-        pins.append(pin)
-        
-        pin_name = f"Pin_Bottom_Left_Center"
-        pin = self.create_single_pin(
-            pin_name=pin_name,
-            x_pos=left_center_x,
-            y_pos=bottom_y,
-            pin_width=pin_width,
-            pin_length=center_pin_length,
-            pin_height=pin_height,
-        )
-        pins.append(pin)
-        
-        pin_name = f"Pin_Bottom_Right_Center"
-        pin = self.create_single_pin(
-            pin_name=pin_name,
-            x_pos=right_center_x,
-            y_pos=bottom_y,
-            pin_width=pin_width,
-            pin_length=center_pin_length,
-            pin_height=pin_height,
-        )
-        pins.append(pin)
-        
-        pin_name = f"Pin_Bottom_Right"
-        pin = self.create_single_pin(
-            pin_name=pin_name,
-            x_pos=right_x,
-            y_pos=bottom_y,
-            pin_width=pin_width,
-            pin_length=side_pin_length,
-            pin_height=pin_height,
-        )
-        pins.append(pin)
-
-        return pins
-
-    def create_marking(self, value):
-        """在主体上创建单个标记"""
-        # 电阻值使用三位码
-        code = resistance_to_3digit(resistance=float(value))
-
-        # 创建文本对象
-        text_size = dimensions['W2'] * 0.6
-        bpy.ops.object.text_add(location=(0, 0, dimensions['T'] + 0.01))
-        text_obj = getattr(bpy.context, "active_object")
-        setattr(text_obj, "name", f"Text_{code}")
-        setattr(text_obj.data, "body", code)
-        setattr(text_obj.data, "size", text_size)
-        setattr(text_obj.data, "extrude", 0.001)
-        setattr(text_obj.data, "align_x", 'CENTER')
-        setattr(text_obj.data, "align_y", 'CENTER')
-
-        # 设置材质
-        text_obj.data.materials.clear()
-        mat_text = create_material("Text_White", dimensions['marking_color'][:4], metallic=0.0, roughness=0.8)
-        text_obj.data.materials.append(mat_text)
-        
-        return text_obj
-
-    def create_collection_and_organize(self, body, pins, marking):
-        """将所有对象组织到一个组合中"""
-        # 创建新的组合
-        collection = bpy.data.collections.new("YC164_Resistor_Array")
-        if bpy.context:
-            bpy.context.scene.collection.children.link(collection)
-        
-        # 收集所有对象
-        objects_to_move = [body]
-        objects_to_move.extend(pins)
-        objects_to_move.append(marking)
-        
-        # 从主场景移除并添加到新组合
-        if bpy.context:
-            for obj in objects_to_move:
-                if obj.name in bpy.context.scene.collection.objects:
-                    bpy.context.scene.collection.objects.unlink(obj)
-                collection.objects.link(obj)
-        
-        # 选择所有对象
-        bpy.ops.object.select_all(action='DESELECT')
-        for obj in objects_to_move:
-            obj.select_set(True)
-        
-        return collection
-
     def execute(self, context):
         # 获取属性
         if context:
             props = getattr(context.scene, "yc164_props")
         
         # 创建YC164排阻模型
-        body = self.create_resistor_body()
-        pins = self.create_pins()
-        marking = self.create_marking(value=props.resistor_value)
+        body = create_resistor_body()
+        pins = create_pins()
+        marking = create_marking(value=props.resistor_value)
         
         # 确保所有修改器都被应用
-        self.apply_all_modifiers()
+        apply_all_modifiers()
         
         # 将所有对象组织到一个组合中
-        self.create_collection_and_organize(body, pins, marking)
+        create_collection_and_organize(body, pins, marking)
         
         # 设置视图显示
         if context:
@@ -362,6 +79,305 @@ class OBJECT_OT_create_yc164(bpy.types.Operator):
         
         self.report({'INFO'}, f"YC164排阻创建完成! 电阻值: {props.resistor_value}")
         return {'FINISHED'}
+
+def apply_all_modifiers(obj=None):
+    """应用所有修改器"""
+    if bpy.context and bpy.context.mode != 'OBJECT':
+        bpy.ops.object.mode_set(mode='OBJECT')
+    
+    if obj:
+        objects = [obj]
+    else:
+        if bpy.context:
+            objects = bpy.context.scene.objects
+    
+    for obj in objects:
+        bpy.ops.object.select_all(action='DESELECT')
+        obj.select_set(True)
+        if bpy.context:
+            bpy.context.view_layer.objects.active = obj
+        
+        for modifier in list(obj.modifiers):
+            try:
+                bpy.ops.object.modifier_apply(modifier=modifier.name)
+            except:
+                obj.modifiers.remove(modifier)
+
+def create_resistor_body():
+    """创建排阻主体"""
+    length = dimensions['L']   # 3.20mm
+    width = dimensions['W2'] - dimensions['B']   # 1.60mm
+    height = dimensions['T']
+    base_height = height * 0.9
+    cover_height = height * 0.1 + 0.01
+    
+    # 创建base立方体
+    bpy.ops.mesh.primitive_cube_add(
+        size=1,
+        location=(0, 0, height/2)  # 放置在z=0平面以上
+    )
+    if bpy.context:
+        base = bpy.context.active_object
+        setattr(base, "name", "YC164_Body_Base")
+        
+        # 设置尺寸
+        setattr(base, "scale", (length, width, base_height))
+        bpy.ops.object.transform_apply(scale=True)
+    
+        # 设置base材质
+        if base:
+            getattr(base.data, "materials").clear()
+            mat_base = create_material("Ceramic_Body", dimensions['body_color'][:4], metallic=0.2, roughness=0.7, weight=0.1, ior=1.5)
+            getattr(base.data, "materials").append(mat_base)
+        
+        # 创建cover立方体
+        bpy.ops.mesh.primitive_cube_add(
+            size=1,
+            location=(0, 0, base_height + cover_height/2)  # 放置在base上方
+        )
+        cover = bpy.context.active_object
+        setattr(cover, "name", "YC164_Body_Cover")
+        
+        # 设置尺寸
+        setattr(cover, "scale", (length, width, cover_height))
+        bpy.ops.object.transform_apply(scale=True)
+
+        # 设置cover材质
+        if cover:
+            getattr(cover.data, "materials").clear()
+            mat_cover = create_material("Resin_Cover", dimensions['cover_color'][:4], metallic=0.0, roughness=0.8, weight=0.1, ior=1.5)
+            getattr(cover.data, "materials").append(mat_cover)
+        
+        # 合并base和cover两部分
+        bpy.ops.object.select_all(action='DESELECT')
+        getattr(base, "select_set")(True)
+        getattr(cover, "select_set")(True)
+        bpy.context.view_layer.objects.active = base
+        bpy.ops.object.join()
+        
+        # 重命名合并后的对象
+        setattr(base, "name", "YC164_Body")
+        
+        # 添加倒角修改器
+        bevel_mod = getattr(base, "modifiers").new(name="Bevel", type='BEVEL')
+        setattr(bevel_mod, "width", dimensions['chamfer_size'])
+        setattr(bevel_mod, "segments", dimensions['chamfer_segments'])
+        setattr(bevel_mod, "limit_method", 'ANGLE')
+        setattr(bevel_mod, "angle_limit", math.radians(30))
+        
+        # 应用修改器
+        apply_all_modifiers(base)
+    
+    return base
+
+def create_single_pin(pin_name, x_pos, y_pos, pin_width, pin_length, pin_height):
+    """创建单个引脚"""
+    # 引脚中心位置
+    z_pos = pin_height / 2  # 引脚底部在z=0平面
+    
+    # 创建引脚立方体
+    bpy.ops.mesh.primitive_cube_add(size=1.0)
+    pin = getattr(bpy.context, "active_object")
+    setattr(pin, "name", pin_name)
+
+    # 设置尺寸
+    setattr(pin, "dimensions", (pin_length, pin_width, pin_height))
+    setattr(pin, "location", (x_pos, y_pos, z_pos))
+    bpy.ops.object.transform_apply(scale=True)
+    
+    # 设置材质
+    pin.data.materials.clear()
+    mat_pin = create_material("Metal_Silver", dimensions['pin_color'][:4], metallic=0.9, roughness=0.3)
+    pin.data.materials.append(mat_pin)
+    
+    return pin
+
+def create_pins():
+    """创建8个引脚，4个电阻，每个电阻2个"""
+    pins = []
+    
+    # 引脚尺寸
+    side_pin_length = dimensions['H']
+    center_pin_length = dimensions['H2']
+    pin_width = dimensions['B']
+    pin_height = dimensions['T']
+    
+    # 引脚间距
+    pin_spacing = dimensions['pin_spacing']  # 0.80mm
+    
+    # 总长度
+    total_length = dimensions['L']  # 3.20mm
+    
+    # 计算引脚位置
+    # 8个引脚，平均分布在两侧
+    # 左侧4个引脚，右侧4个引脚
+    
+    # 一排4个引脚x坐标
+    left_x = -total_length / 2 + side_pin_length / 2
+    left_center_x = -pin_spacing/2
+    right_x = total_length / 2 - side_pin_length / 2
+    right_center_x = pin_spacing/2
+    
+    # 一排引脚y坐标
+    top_y = dimensions['W2'] / 2 - pin_width / 2
+    bottom_y = -top_y
+    
+    # 创建上排引脚
+    pin_name = f"Pin_Top_Left"
+    pin = create_single_pin(
+        pin_name=pin_name,
+        x_pos=left_x,
+        y_pos=top_y,
+        pin_width=pin_width,
+        pin_length=side_pin_length,
+        pin_height=pin_height,
+    )
+    pins.append(pin)
+    
+    pin_name = f"Pin_Top_Left_Center"
+    pin = create_single_pin(
+        pin_name=pin_name,
+        x_pos=left_center_x,
+        y_pos=top_y,
+        pin_width=pin_width,
+        pin_length=center_pin_length,
+        pin_height=pin_height,
+    )
+    pins.append(pin)
+    
+    pin_name = f"Pin_Top_Right_Center"
+    pin = create_single_pin(
+        pin_name=pin_name,
+        x_pos=right_center_x,
+        y_pos=top_y,
+        pin_width=pin_width,
+        pin_length=center_pin_length,
+        pin_height=pin_height,
+    )
+    pins.append(pin)
+    
+    pin_name = f"Pin_Top_Right"
+    pin = create_single_pin(
+        pin_name=pin_name,
+        x_pos=right_x,
+        y_pos=top_y,
+        pin_width=pin_width,
+        pin_length=side_pin_length,
+        pin_height=pin_height,
+    )
+    pins.append(pin)
+    
+    # 创建下排引脚
+    pin_name = f"Pin_Bottom_Left"
+    pin = create_single_pin(
+        pin_name=pin_name,
+        x_pos=left_x,
+        y_pos=bottom_y,
+        pin_width=pin_width,
+        pin_length=side_pin_length,
+        pin_height=pin_height,
+    )
+    pins.append(pin)
+    
+    pin_name = f"Pin_Bottom_Left_Center"
+    pin = create_single_pin(
+        pin_name=pin_name,
+        x_pos=left_center_x,
+        y_pos=bottom_y,
+        pin_width=pin_width,
+        pin_length=center_pin_length,
+        pin_height=pin_height,
+    )
+    pins.append(pin)
+    
+    pin_name = f"Pin_Bottom_Right_Center"
+    pin = create_single_pin(
+        pin_name=pin_name,
+        x_pos=right_center_x,
+        y_pos=bottom_y,
+        pin_width=pin_width,
+        pin_length=center_pin_length,
+        pin_height=pin_height,
+    )
+    pins.append(pin)
+    
+    pin_name = f"Pin_Bottom_Right"
+    pin = create_single_pin(
+        pin_name=pin_name,
+        x_pos=right_x,
+        y_pos=bottom_y,
+        pin_width=pin_width,
+        pin_length=side_pin_length,
+        pin_height=pin_height,
+    )
+    pins.append(pin)
+
+    return pins
+
+def create_marking(value):
+    """在主体上创建单个标记"""
+    # 电阻值使用三位码
+    code = resistance_to_3digit(resistance=float(value))
+
+    # 创建文本对象
+    text_size = dimensions['W2'] * 0.6
+    bpy.ops.object.text_add(location=(0, 0, dimensions['T'] + 0.01))
+    text_obj = getattr(bpy.context, "active_object")
+    setattr(text_obj, "name", f"Text_{code}")
+    setattr(text_obj.data, "body", code)
+    setattr(text_obj.data, "size", text_size)
+    setattr(text_obj.data, "extrude", 0.001)
+    setattr(text_obj.data, "align_x", 'CENTER')
+    setattr(text_obj.data, "align_y", 'CENTER')
+
+    # 设置材质
+    text_obj.data.materials.clear()
+    mat_text = create_material("Text_White", dimensions['marking_color'][:4], metallic=0.0, roughness=0.8)
+    text_obj.data.materials.append(mat_text)
+    
+    return text_obj
+
+def create_collection_and_organize(body, pins, marking):
+    """将所有对象组织到一个组合中"""
+    # 创建新的组合
+    collection = bpy.data.collections.new("YC164_Resistor_Array")
+    if bpy.context:
+        bpy.context.scene.collection.children.link(collection)
+    
+    # 收集所有对象
+    objects_to_move = [body]
+    objects_to_move.extend(pins)
+    objects_to_move.append(marking)
+    
+    # 从主场景移除并添加到新组合
+    if bpy.context:
+        for obj in objects_to_move:
+            if obj.name in bpy.context.scene.collection.objects:
+                bpy.context.scene.collection.objects.unlink(obj)
+            collection.objects.link(obj)
+    
+    # 选择所有对象
+    bpy.ops.object.select_all(action='DESELECT')
+    for obj in objects_to_move:
+        obj.select_set(True)
+    
+    return collection
+
+
+def generate_yc164_resistor(value):
+    """生成YC164排阻"""
+    # 创建YC164排阻模型
+    body = create_resistor_body()
+    pins = create_pins()
+    marking = create_marking(value)
+    
+    # 确保所有修改器都被应用
+    apply_all_modifiers()
+    
+    # 将所有对象组织到一个组合中
+    collection = create_collection_and_organize(body, pins, marking)
+    return collection
+
 
 # UI面板类
 class VIEW3D_PT_yc164_panel(bpy.types.Panel):
@@ -384,7 +400,7 @@ class VIEW3D_PT_yc164_panel(bpy.types.Panel):
         box.prop(props, "resistor_value")
         
         # 创建按钮
-        box.operator("object.create_yc164", text="创建YC164排阻", icon='ADD')
+        box.operator("object.create_yc164", text="生成YC164排阻", icon='ADD')
        
 
 # 注册类
