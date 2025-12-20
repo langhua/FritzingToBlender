@@ -57,3 +57,52 @@ def resistance_to_3digit(resistance: float) -> str:
     
     # 如果找不到合适的乘数，使用默认
     return "000"
+
+def test_resistance_3digit_calculations():
+    """测试电阻值计算"""
+    test_cases_3digit = [
+        (0.0047, "0.0047Ω → R01"),
+        (0.047, "0.047Ω → R05"),
+        (0.47, "0.47Ω → R47"),
+        (4.7, "4.7Ω → 4R7"),
+        (47, "47Ω → 47R"),
+        (470, "470Ω → 471"),
+        (4700, "4.7kΩ → 472"),
+        (10000, "10kΩ → 103"),
+        (100, "100Ω → 101"),
+        (2200, "2.2kΩ → 222"),
+    ]
+    
+    print("=" * 60)
+    print("贴片电阻3位代码计算测试")
+    print("=" * 60)
+    
+    all_passed_3digit = True
+    for resistance, description in test_cases_3digit:
+        code_3digit = resistance_to_3digit(resistance)
+        expected = description.split("→ ")[1]
+        
+        status = "✓" if code_3digit == expected else "✗"
+        
+        if code_3digit != expected:
+            all_passed_3digit = False
+        
+        print(f"{status} {description}")
+        print(f"  计算值: {code_3digit}")
+        
+        if code_3digit != expected:
+            print(f"  错误: 期望 {expected}, 得到 {code_3digit}")
+    
+    print("-" * 40)
+    
+    if all_passed_3digit:
+        print("✓ 所有3位测试通过！")
+    else:
+        print("✗ 3位测试失败")
+    
+    print("=" * 60)
+    
+    return all_passed_3digit
+
+if __name__ == "__main__":
+    test_resistance_3digit_calculations()

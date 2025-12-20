@@ -72,3 +72,52 @@ def resistance_to_4digit(resistance: float) -> str:
     
     # 如果找不到合适的乘数，使用默认
     return "0000"
+
+def test_resistance_4digit_calculations():
+    """测试4位电阻值计算"""
+    test_cases_4digit = [
+        (0.0047, "0.0047Ω → R005"),
+        (0.047, "0.047Ω → R047"),
+        (0.47, "0.47Ω → R470"),
+        (4.7, "4.7Ω → 4R70"),
+        (47, "47Ω → 47R0"),
+        (470, "470Ω → 4700"),
+        (4700, "4.7kΩ → 4701"),
+        (10000, "10kΩ → 1002"),
+        (100, "100Ω → 1000"),
+        (2200, "2.2kΩ → 2201"),
+    ]
+    
+    print("=" * 60)
+    print("贴片电阻4位代码计算测试")
+    print("=" * 60)
+    
+    all_passed_4digit = True
+    for resistance, description in test_cases_4digit:
+        code_4digit = resistance_to_4digit(resistance)
+        expected = description.split("→ ")[1]
+        
+        status = "✓" if code_4digit == expected else "✗"
+        
+        if code_4digit != expected:
+            all_passed_4digit = False
+        
+        print(f"{status} {description}")
+        print(f"  计算值: {code_4digit}")
+        
+        if code_4digit != expected:
+            print(f"  错误: 期望 {expected}, 得到 {code_4digit}")
+    
+    print("-" * 40)
+    
+    if all_passed_4digit:
+        print("✓ 所有4位测试通过！")
+    else:
+        print("✗ 有4位测试失败")
+    
+    print("=" * 60)
+    
+    return all_passed_4digit
+
+if __name__ == "__main__":
+    test_resistance_4digit_calculations()
