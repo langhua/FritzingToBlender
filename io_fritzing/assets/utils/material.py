@@ -1,8 +1,8 @@
 import bpy
 # 材质创建函数
-def create_material(name, base_color, metallic=0.0, roughness=0.8, weight=None, ior=None):
-    # if name in bpy.data.materials:
-    #     return bpy.data.materials[name]
+def create_material(name, base_color, metallic=0.0, roughness=0.8, weight=None, ior=None) -> bpy.types.Material:
+    if name in bpy.data.materials:
+        return bpy.data.materials[name]
     
     mat = bpy.data.materials.new(name=name)
     if base_color is not None and len(base_color) == 3:

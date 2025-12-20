@@ -65,7 +65,7 @@ def create_resistor_icon(color_name, rgb_color, size=32, border_radius=4):
     img = Image.alpha_composite(shadow_img, img)
     
     # 保存为PNG
-    filename = f"icons/icon_{color_name}.png"
+    filename = f"icons/{color_name}.png"
     img.save(filename, 'PNG', quality=95)
     print(f"已创建: {filename}")
     

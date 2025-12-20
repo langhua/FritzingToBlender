@@ -2,6 +2,7 @@ import bpy
 import math
 from io_fritzing.assets.utils.material import create_material
 from io_fritzing.assets.utils.scene import clear_scene
+from io_fritzing.assets.resistors.code_3digit import resistance_to_3digit
 
 # 清理场景
 # 根据设计图定义YC164的尺寸
@@ -39,16 +40,10 @@ dimensions = {
 class YC164Properties(bpy.types.PropertyGroup):
     resistor_value: bpy.props.StringProperty(
         name="电阻值",
-        description="电阻值标记 (如: 103 表示10kΩ)",
-        default="103"
+        description="电阻值标记",
+        default="1000"
     ) # type: ignore
     
-    auto_clear_scene: bpy.props.BoolProperty(
-        name="自动清理场景",
-        description="创建前自动清理场景",
-        default=True
-    ) # type: ignore
-
 # 操作符类 - 创建YC164排阻
 class OBJECT_OT_create_yc164(bpy.types.Operator):
     bl_idname = "object.create_yc164"
@@ -292,12 +287,15 @@ class OBJECT_OT_create_yc164(bpy.types.Operator):
 
     def create_marking(self, value):
         """在主体上创建单个标记"""
+        # 电阻值使用三位码
+        code = resistance_to_3digit(resistance=float(value))
+
         # 创建文本对象
         text_size = dimensions['W2'] * 0.6
         bpy.ops.object.text_add(location=(0, 0, dimensions['T'] + 0.01))
         text_obj = getattr(bpy.context, "active_object")
-        setattr(text_obj, "name", f"Text_{value}")
-        setattr(text_obj.data, "body", value)
+        setattr(text_obj, "name", f"Text_{code}")
+        setattr(text_obj.data, "body", code)
         setattr(text_obj.data, "size", text_size)
         setattr(text_obj.data, "extrude", 0.001)
         setattr(text_obj.data, "align_x", 'CENTER')
@@ -341,10 +339,6 @@ class OBJECT_OT_create_yc164(bpy.types.Operator):
         if context:
             props = getattr(context.scene, "yc164_props")
         
-        # 清理场景（如果启用）
-        if props.auto_clear_scene:
-            clear_scene()
-        
         # 创建YC164排阻模型
         body = self.create_resistor_body()
         pins = self.create_pins()
@@ -385,42 +379,13 @@ class VIEW3D_PT_yc164_panel(bpy.types.Panel):
         if context:
             props = getattr(context.scene, "yc164_props")
         
-        # 面板标题
         box = layout.box()
-        box.label(text="YC164 4位0603排阻", icon='MOD_ARRAY')
-        
-        # 参数设置
-        layout.label(text="参数设置:")
-        layout.prop(props, "resistor_value")
-        layout.prop(props, "auto_clear_scene")
-        
-        # 分隔线
-        layout.separator()
+        box.label(text="参数设置:", icon='MOD_ARRAY')
+        box.prop(props, "resistor_value")
         
         # 创建按钮
-        layout.operator("object.create_yc164", text="创建YC164排阻", icon='ADD')
-        
-        # 规格信息
-        box = layout.box()
-        box.label(text="规格信息:", icon='INFO')
-        
-        col = box.column(align=True)
-        col.label(text=f"尺寸: {dimensions['L']}mm × {dimensions['W2']}mm × {dimensions['T']}mm")
-        col.label(text=f"引脚数: {dimensions['num_pins']} (4个独立电阻)")
-        col.label(text=f"引脚间距: {dimensions['P']}mm")
-        
-        # 分隔线
-        layout.separator()
-        
-        # 应用说明
-        box = layout.box()
-        box.label(text="应用说明:", icon='SCRIPT')
-        
-        col = box.column(align=True)
-        col.label(text="• 用于PCB电路板的电阻网络")
-        col.label(text="• 节省空间，提高电路密度")
-        col.label(text="• 适合高频电路")
-        col.label(text="• 适用于自动贴片机")
+        box.operator("object.create_yc164", text="创建YC164排阻", icon='ADD')
+       
 
 # 注册类
 classes = (
@@ -448,7 +413,7 @@ def unregister():
 
 # 保留原有的main函数（可选）
 def main():
-    """主函数（保留原有功能）"""
+    """主函数"""
     # 清理场景
     clear_scene()
     
@@ -457,7 +422,7 @@ def main():
     operator.execute(bpy.context)
     
     # 打印规格信息
-    print("YC164 4位0603贴片排阻3D模型创建完成！")
+    print("YC164 4位0603、±5%贴片排阻3D模型创建完成！")
     print("=" * 60)
     print("产品信息:")
     print("  型号: YC164 贴片排阻")
