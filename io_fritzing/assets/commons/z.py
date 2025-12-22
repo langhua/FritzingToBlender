@@ -2,18 +2,7 @@ import bpy
 import bmesh
 from mathutils import Vector
 import math
-
-# 清理场景
-def clear_scene():
-    if bpy.context.mode != 'OBJECT':
-        bpy.ops.object.mode_set(mode='OBJECT')
-    
-    bpy.ops.object.select_all(action='SELECT')
-    bpy.ops.object.delete(use_global=False, confirm=False)
-    
-    scene = bpy.context.scene
-    scene.unit_settings.system = 'METRIC'
-    scene.unit_settings.length_unit = 'MILLIMETERS'
+from io_fritzing.assets.utils.scene import clear_scene
 
 # 定义精确的尺寸参数
 dimensions = {
@@ -254,7 +243,7 @@ def create_z_model(type='tubular', dimensions=dimensions, name='z_model'):
                 pass
             
             try:
-                bm.faces.new(reversed(sections[-1]))
+                bm.faces.new(list(reversed(sections[-1])))
             except:
                 pass
 

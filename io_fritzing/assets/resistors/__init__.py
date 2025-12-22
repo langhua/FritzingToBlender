@@ -3,7 +3,7 @@ import os
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 from bpy.types import Scene
-from io_fritzing.assets.resistors.color_bands import register as register_resistor_color_bands, unregister as unregister_resistor_color_bands
+from io_fritzing.assets.resistors.color_band_resistors import register as register_resistor_color_bands, unregister as unregister_resistor_color_bands
 from io_fritzing.assets.resistors.eia_96 import register as register_resistor_eia_96, unregister as unregister_resistor_eia_96
 from io_fritzing.assets.resistors.smd_resistors import register as register_resistor_smd, unregister as unregister_resistor_smd
 from io_fritzing.assets.resistors.YC164 import register as register_resistor_YC164, unregister as unregister_resistor_YC164
