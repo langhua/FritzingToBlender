@@ -76,10 +76,15 @@ def create_sot23_6_model():
     # 确保所有修改器都被应用
     apply_all_modifiers()
     
-    # 将所有对象组织到一个组合中
-    collection = create_collection_and_organize(body, pins)
+    if body is not None:
+        bpy.ops.object.select_all(action='DESELECT')
+        body.select_set(True)
+        for obj in pins:
+            obj.select_set(True)
+        bpy.context.view_layer.objects.active = body
+        bpy.ops.object.join()
     
-    return body, pins, collection
+    return body
 
 def create_chip_body():
     """创建芯片主体 - 使用布尔运算添加Pin1标记凹坑"""

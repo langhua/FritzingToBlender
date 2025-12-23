@@ -617,7 +617,7 @@ def create_small_l_bends(plate, metal_mat):
 
 def create_right_angled_trapezoid_modifications(plate):
     """创建两侧的直角梯形修型"""
-    print("创建两块直角梯形板，用于L型弯折板的修型...")
+    # print("创建两块直角梯形板，用于L型弯折板的修型...")
     plate1 = trapezoid.create_right_angled_trapezoid(4.2, 1.2, 3, 0.6)
     plate1.name = "Left_Trapezoid_Cutter"
     plate1.delta_rotation_euler = (-math.pi/2, math.pi, -math.pi/2)
@@ -642,7 +642,7 @@ def create_right_angled_trapezoid_modifications(plate):
 
 def create_small_right_angled_trapezoid_modifications(plate):
     """创建两侧的小直角梯形修型"""
-    print("创建两块直角梯形板，用于L型弯折板的修型...")
+    # print("创建两块直角梯形板，用于L型弯折板的修型...")
     plate1 = trapezoid.create_right_angled_trapezoid(1.4, 0.9, 0.3, 0.6)
     plate1.name = "Left_Trapezoid_Cutter"
     plate1.delta_rotation_euler = (-math.pi/2, math.pi/2, -math.pi/2)
@@ -667,7 +667,7 @@ def create_small_right_angled_trapezoid_modifications(plate):
 
 def create_rectangular_modifications(plate):
     """创建两侧的矩形修型"""
-    print("创建两块长方体板，用于L型弯折板的修型...")
+    # print("创建两块长方体板，用于L型弯折板的修型...")
     bpy.ops.mesh.primitive_cube_add(size=1, location=(-3.65, 1, -3.5))
     plate3 = bpy.context.active_object
     plate3.name = "Left_Cube_Cutter"
@@ -747,7 +747,7 @@ def create_right_angled_trapezoid_plates(plate, metal_mat):
 
 def create_z_pin_plates(plate, metal_mat, z_pin_dimensions):
     """创建z字形引脚板"""
-    print("创建z字形引脚板...")
+    # print("创建z字形引脚板...")
     # 创建对象
     z_pin_left = z_pin.create_z_model(type='rectangular_solid', dimensions=z_pin_dimensions)
     z_pin_left.name = 'z_pin_left'

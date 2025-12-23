@@ -75,7 +75,7 @@ def create_z_model(type='tubular', dimensions=dimensions, name='z_model'):
     path_points = []
     
     # 第1段: 直线s1_len
-    print(f"第1段: 从{current_point}开始，方向{current_direction}，长度{s1_len}mm")
+    # print(f"第1段: 从{current_point}开始，方向{current_direction}，长度{s1_len}mm")
     for i in range(dimensions['straight_segments'] + 1):
         t = i / dimensions['straight_segments']
         point = start_point + current_direction * s1_len * t
@@ -83,15 +83,15 @@ def create_z_model(type='tubular', dimensions=dimensions, name='z_model'):
     
     # 更新当前位置
     current_point = start_point + current_direction * s1_len
-    print(f"  终点: {current_point}")
+    # print(f"  终点: {current_point}")
     
     # 第2段: 圆弧，半径s2_rad，角度s2_angle_deg
     # 圆心在(s1_len,0,-s2_rad)
     center2 = Vector((s1_len, 0, -s2_rad))
-    print(f"\n第2段: 圆弧，半径{s2_rad}mm，角度{s2_angle_deg}度")
-    print(f"  圆心: {center2}")
-    print(f"  起始点: {current_point}")
-    print(f"  圆弧从0度到{s2_angle_deg}度")
+    # print(f"\n第2段: 圆弧，半径{s2_rad}mm，角度{s2_angle_deg}度")
+    # print(f"  圆心: {center2}")
+    # print(f"  起始点: {current_point}")
+    # print(f"  圆弧从0度到{s2_angle_deg}度")
     
     # 计算圆弧起始角度
     start_vec = current_point - center2
@@ -113,13 +113,13 @@ def create_z_model(type='tubular', dimensions=dimensions, name='z_model'):
     current_point = path_points[-1]
     end_angle2 = start_angle2 + s2_angle
     current_direction = Vector((math.cos(end_angle2), 0, math.sin(end_angle2))).normalized()
-    print(f"  终点: {current_point}")
-    print(f"  新方向: {current_direction}")
+    # print(f"  终点: {current_point}")
+    # print(f"  新方向: {current_direction}")
     
     # 第3段: 直线s3_len，方向(cos_s2,0,sin_s2)
     s3_dir = Vector((cos_s2, 0, sin_s2)).normalized()
-    print(f"\n第3段: 方向{s3_dir}，长度{s3_len}mm")
-    print(f"  起始点: {current_point}")
+    # print(f"\n第3段: 方向{s3_dir}，长度{s3_len}mm")
+    # print(f"  起始点: {current_point}")
     
     for i in range(1, dimensions['straight_segments'] + 1):
         t = i / dimensions['straight_segments']
@@ -129,13 +129,13 @@ def create_z_model(type='tubular', dimensions=dimensions, name='z_model'):
     # 更新当前位置
     current_point = current_point + s3_dir * s3_len
     current_direction = s3_dir.copy()
-    print(f"  终点: {current_point}")
+    # print(f"  终点: {current_point}")
     
     # 第4段: 圆弧，半径s4_rad，角度s4_angle_deg
     # 需要计算圆心
-    print(f"\n第4段: 圆弧，半径{s4_rad}mm，角度{s4_angle_deg}度")
-    print(f"  起始点: {current_point}")
-    print(f"  当前方向: {current_direction}")
+    # print(f"\n第4段: 圆弧，半径{s4_rad}mm，角度{s4_angle_deg}度")
+    # print(f"  起始点: {current_point}")
+    # print(f"  当前方向: {current_direction}")
     
     # 计算圆心：圆心在当前点的垂直方向
     # 对于在XZ平面的弯曲，圆心在当前点的法线方向
@@ -143,8 +143,8 @@ def create_z_model(type='tubular', dimensions=dimensions, name='z_model'):
     normal = Vector((-current_direction.z, 0, current_direction.x))  # 法线方向
     center4 = current_point + normal * s4_rad
     
-    print(f"  圆心: {center4}")
-    print(f"  圆弧从当前方向弯曲{s4_angle_deg}度")
+    # print(f"  圆心: {center4}")
+    # print(f"  圆弧从当前方向弯曲{s4_angle_deg}度")
     
     # 计算圆弧起始角度
     start_vec4 = current_point - center4
@@ -166,13 +166,13 @@ def create_z_model(type='tubular', dimensions=dimensions, name='z_model'):
     current_point = path_points[-1]
     end_angle4 = start_angle4 + s4_angle
     current_direction = Vector((math.cos(end_angle4), 0, math.sin(end_angle4))).normalized()
-    print(f"  终点: {current_point}")
-    print(f"  新方向: {current_direction}")
+    # print(f"  终点: {current_point}")
+    # print(f"  新方向: {current_direction}")
     
     # 第5段: 直线s5_len，方向(cos_s4_s2,0,sin_s4_s2)
     s5_dir = Vector((cos_s4_s2, 0, sin_s4_s2)).normalized()
-    print(f"\n第5段: 方向{s5_dir}，长度{s5_len}mm")
-    print(f"  起始点: {current_point}")
+    # print(f"\n第5段: 方向{s5_dir}，长度{s5_len}mm")
+    # print(f"  起始点: {current_point}")
     
     for i in range(1, dimensions['straight_segments'] + 1):
         t = i / dimensions['straight_segments']
@@ -181,11 +181,11 @@ def create_z_model(type='tubular', dimensions=dimensions, name='z_model'):
     
     # 最终点
     final_point = current_point + s5_dir * s5_len
-    print(f"  终点: {final_point}")
+    # print(f"  终点: {final_point}")
     
     # 计算路径总长度
     total_length = s1_len + s2_rad * s2_angle + s3_len + s4_rad * s4_angle + s5_len
-    print(f"\n路径总长度: {total_length:.2f}mm")
+    # print(f"\n路径总长度: {total_length:.2f}mm")
     
     sections = []
     if type == 'tubular':

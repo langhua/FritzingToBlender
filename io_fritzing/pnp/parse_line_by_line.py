@@ -10,6 +10,7 @@ from io_fritzing.assets.switch.PB86_A0 import create_pb86_button, pb86_a0_dimens
 from io_fritzing.assets.resistors.smd_resistors import generate_smd_resistor, SMD_SIZES
 from io_fritzing.assets.sod.sod323 import create_sod323_model
 from io_fritzing.assets.sot.sot23_3 import create_sot23_3_model
+from io_fritzing.assets.sot.sot23_6 import create_sot23_6_model
 
 class PnpParseLineByLine(Operator):
     bl_idname = "fritzing.pnp_parse_line_by_line"
@@ -115,6 +116,7 @@ def process_line(designator, description, package, center_x, center_y, rotation,
             component = create_sot23_3_model()
         elif package.capitalize().startswith('Sot23-6'):
             print(f" **** SOT23-6 ****")
+            component = create_sot23_6_model()
         elif package.capitalize().startswith('Sop20'):
             print(f" **** SOP20 ****")
         elif package.capitalize().startswith('Sod323'):
