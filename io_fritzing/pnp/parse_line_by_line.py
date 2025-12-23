@@ -12,6 +12,7 @@ from io_fritzing.assets.sod.sod323 import create_sod323_model
 from io_fritzing.assets.sot.sot23_3 import create_sot23_3_model
 from io_fritzing.assets.sot.sot23_6 import create_sot23_6_model
 from io_fritzing.assets.mx.mx125 import create_mx125_2p
+from io_fritzing.assets.vqfn_hr.vqfn_hr_12 import create_vqfn_hr_12
 
 class PnpParseLineByLine(Operator):
     bl_idname = "fritzing.pnp_parse_line_by_line"
@@ -141,11 +142,10 @@ def process_line(designator, description, package, center_x, center_y, rotation,
             component = create_ts_d014_switch()
         elif package.capitalize().startswith('Vqfn-hr-12'):
             print(f" **** VQFN-HR-12 ****")
+            component = create_vqfn_hr_12(description_parts[6])
         elif package.lower().find('mx1.25') > 0:
             print(f" **** MX1.25 ****")
             component = create_mx125_2p()
-            # 针对MX1.25 2P的单独处理，绕Z轴旋转180度
-            component.rotation_euler.z += math.pi
         else:
             print(f" !!!! Unknown !!!!")
             return False

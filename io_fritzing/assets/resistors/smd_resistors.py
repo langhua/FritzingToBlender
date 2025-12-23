@@ -312,7 +312,7 @@ def create_silk_screen(collection, code, height_mm, width_mm, thickness_mm):
     
     # 设置文本对象的位置、旋转和缩放
     text_obj.scale = (1, 1, 0.1)
-    
+    bpy.ops.object.transform_apply(scale=True)
     text_obj.location.z = height_mm * 1.025 + 0.0175 + 0.005
 
     # 转换为网格
