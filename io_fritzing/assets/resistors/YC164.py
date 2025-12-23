@@ -334,8 +334,26 @@ def create_marking(value):
     text_obj.data.materials.clear()
     mat_text = create_material("Text_White", dimensions['marking_color'][:4], metallic=0.0, roughness=0.8)
     text_obj.data.materials.append(mat_text)
+
+    # 转换为网格
+    if bpy.context:
+        bpy.context.view_layer.objects.active = text_obj
+    text_obj.select_set(True)
     
-    return text_obj
+    # 转换曲线为网格
+    bpy.ops.object.convert(target='MESH')
+    
+    # 获取转换后的网格对象
+    if bpy.context:
+        mesh_obj = bpy.context.active_object
+    
+    # 重命名
+    if mesh_obj:
+        mesh_obj.name = f"Text_{code}"
+        getattr(mesh_obj.data, "materials").append(mat_text)  # 应用材质
+    
+    return mesh_obj
+
 
 def create_collection_and_organize(body, pins, marking):
     """将所有对象组织到一个组合中"""
@@ -360,12 +378,34 @@ def create_collection_and_organize(body, pins, marking):
     bpy.ops.object.select_all(action='DESELECT')
     for obj in objects_to_move:
         obj.select_set(True)
+    bpy.context.active_object = body
+    bpy.ops.object.join()
     
     return collection
+
+def join_objects(body, pins, marking):
+    """将所有对象组织到一个物体中"""
+    # 收集所有对象
+    objects_to_move = [body]
+    objects_to_move.extend(pins)
+    objects_to_move.append(marking)
+    
+    # 选择所有对象
+    bpy.ops.object.select_all(action='DESELECT')
+    for obj in objects_to_move:
+        obj.select_set(True)
+    bpy.context.view_layer.objects.active = body
+    bpy.ops.object.join()
+    
+    return body
 
 
 def generate_yc164_resistor(value):
     """生成YC164排阻"""
+    bpy.context.scene.unit_settings.system = 'METRIC'
+    bpy.context.scene.unit_settings.length_unit = 'MILLIMETERS'
+    bpy.context.scene.unit_settings.scale_length = 0.001
+
     # 创建YC164排阻模型
     body = create_resistor_body()
     pins = create_pins()
@@ -375,8 +415,9 @@ def generate_yc164_resistor(value):
     apply_all_modifiers()
     
     # 将所有对象组织到一个组合中
-    collection = create_collection_and_organize(body, pins, marking)
-    return collection
+    yc164 = join_objects(body, pins, marking)
+
+    return yc164
 
 
 # UI面板类

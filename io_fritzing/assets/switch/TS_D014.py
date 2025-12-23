@@ -159,7 +159,7 @@ def create_base():
     length = dimensions['base_length']
     width = dimensions['base_width']
     height = dimensions['base_height']
-    
+
     # 创建立方体
     bpy.ops.mesh.primitive_cube_add(
         size=1,

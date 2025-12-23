@@ -422,13 +422,18 @@ def generate_smd_resistor(resistance: float, tolerance: str, package_size: str) 
     code_to_show = None
     if code_type == 'EIA-96':
         code_dict = resistor_to_eia96(resistance)
-        code_to_show = code_dict['eia96_mark']
+        print(f"   -> 相对误差：{code_dict['relative_error']}")
+        if code_dict['relative_error'] >= 0.01:
+            code_to_show = resistance_to_3digit(resistance)
+        else:
+            code_to_show = code_dict['eia96_mark']
     elif code_type == '4位编码':
         code_to_show = resistance_to_4digit(resistance)
     elif code_type == '3位编码':
         # 3DIGIT
         code_to_show = resistance_to_3digit(resistance)
-
+    print(f'   -> 代码：{code_to_show}')
+ 
     # 创建电阻集合
     if code_to_show == "无" or code_to_show == "未知":
         collection_name = f"SMD_Resistor_{package_size}"

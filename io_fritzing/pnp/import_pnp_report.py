@@ -1,6 +1,7 @@
 import bpy
 from bpy.props import FloatProperty, StringProperty
 from bpy.types import Operator, Scene
+from typing import Literal, cast
 from io_fritzing.pnp.pnp_import_data import PnpImportData
 
 
@@ -24,7 +25,8 @@ importdata = PnpImportData(filename='',
                             skipped=0,
                             invalid=0,
                             failed_lines=[],
-                            invalid_lines=[])
+                            invalid_lines=[],
+                            pcb_thickness=1.6)
 
 
 class PnpImportProgressReport(Operator):
@@ -70,6 +72,7 @@ class PnpImportProgressReport(Operator):
                 setattr(context.scene, 'progress_indicator', 101)  # done
             if context:
                 context.window_manager.event_timer_remove(self.timer)
+
             return {'CANCELLED'}
 
         # total steps = 12

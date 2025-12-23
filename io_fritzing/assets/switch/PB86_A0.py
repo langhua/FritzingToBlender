@@ -71,26 +71,22 @@ pb86_a0_dimensions = {
 
 def create_pb86_button(dims = pb86_a0_dimensions, color = 'Black'):
     """创建PB86按键完整模型"""
-    # 创建主集合
-    collection = bpy.data.collections.new("PB86_A0_Button")
-    bpy.context.scene.collection.children.link(collection)
-
-    if color.capitalize() == 'Red':
+    if color.capitalize() == 'Red' or color.find('红') > -1:
         print("选择红色按键帽")
         button_cap_color = ((0.8, 0.2, 0.2, 1.0), 0.5, 0.0)
-    elif color.capitalize() == 'Blue':
+    elif color.capitalize() == 'Blue' or color.find('蓝') > -1:
         print("选择蓝色按键帽")
         button_cap_color = ((0.2, 0.2, 0.8, 1.0), 0.5, 0.0)
-    elif color.capitalize() == 'Green':
+    elif color.capitalize() == 'Green' or color.find('绿') > -1:
         print("选择绿色按键帽")
         button_cap_color = ((0.2, 0.8, 0.2, 1.0), 0.5, 0.0)
-    elif color.capitalize() == 'Yellow':
+    elif color.capitalize() == 'Yellow' or color.find('黄') > -1:
         print("选择黄色按键帽")
         button_cap_color = ((0.8, 0.8, 0.2, 1.0), 0.5, 0.0)
-    elif color.capitalize() == 'White':
+    elif color.capitalize() == 'White' or color.find('白') > -1:
         print("选择白色按键帽")
         button_cap_color = ((0.9, 0.9, 0.9, 1.0), 0.5, 0.0)
-    elif color.capitalize() == 'Gray' or color.capitalize() == 'Grey':
+    elif color.capitalize() == 'Gray' or color.capitalize() == 'Grey' or color.find('灰') > -1:
         print("选择灰色按键帽")
         button_cap_color = ((0.5, 0.5, 0.5, 1.0), 0.5, 0.0)
     else:
@@ -100,35 +96,32 @@ def create_pb86_button(dims = pb86_a0_dimensions, color = 'Black'):
     # 1. 创建底座（黑色，PA66材料）
     print("创建底座...")
     base, pa66_mat = create_base(dims)
-    bpy.context.scene.collection.objects.unlink(base)
-    collection.objects.link(base)
     
     # 2. 创建固定钉（黑色，PA66材料）
     print("创建固定钉...")
     fixed_nails = create_fixed_nails(dims, pa66_mat)
-    for obj in fixed_nails:
-        bpy.context.scene.collection.objects.unlink(obj)
-        collection.objects.link(obj)
     
     # 3. 创建引脚
     print("创建引脚...")
     pins = create_pins(dims, pa66_mat)
-    for obj in pins:
-        bpy.context.scene.collection.objects.unlink(obj)
-        collection.objects.link(obj)
 
     # 4. 创建按键帽（ABS材料）
     print("创建按键帽...")
     button_cap, abs_mat = create_button_cap(dims, color = button_cap_color)
-    collection.objects.link(button_cap)
 
     bpy.ops.object.select_all(action='DESELECT')
-    for obj in collection.objects:
+    base.select_set(True)
+    for obj in fixed_nails:
         obj.select_set(True)
-    bpy.context.view_layer.objects.active = collection.objects[0]
+    for obj in pins:
+        obj.select_set(True)
+    button_cap.select_set(True)
+    bpy.context.view_layer.objects.active = base
     bpy.ops.object.join()
+
+    base.rotation_euler.z = -math.pi/2
     
-    return collection
+    return base
 
 
 def create_base(dims):
@@ -862,107 +855,86 @@ def main():
     
     # 创建模型
     print("正在创建PB86-A0红色按键模型...")
-    collection = create_pb86_button(color='red')
-    for obj in collection.objects:
-        obj.rotation_euler.z = math.pi/2
+    red_button = create_pb86_button(color='red')
+    red_button.rotation_euler.z = math.pi/2
     
     print("")
     print("模型组件:")
     print("  1. 底座 (PA66材料，黑色)")
     print("  2. 按键帽 (ABS材料, 红色)")
     print("  3. 引脚 (C, NO, NC)")
-    print("")
-    print(f"所有组件已添加到集合: {collection.name}")
     print("=" * 60)
     
     print("正在创建PB86-A0蓝色按键模型...")
-    collection = create_pb86_button(color='blue')
-    for obj in collection.objects:
-        obj.location.x += 20
-        obj.rotation_euler.z = math.pi/2
+    blue_button = create_pb86_button(color='blue')
+    blue_button.location.x += 20
+    blue_button.rotation_euler.z = math.pi/2
     
     print("")
     print("模型组件:")
     print("  1. 底座 (PA66材料，黑色)")
     print("  2. 按键帽 (ABS材料, 蓝色)")
     print("  3. 引脚 (C, NO, NC)")
-    print("")
-    print(f"所有组件已添加到集合: {collection.name}")
     print("=" * 60)
     
     print("正在创建PB86-A0绿色按键模型...")
-    collection = create_pb86_button(color='green')
-    for obj in collection.objects:
-        obj.location.x += 40
-        obj.rotation_euler.z = math.pi/2
+    green_button = create_pb86_button(color='green')
+    green_button.location.x += 40
+    green_button.rotation_euler.z = math.pi/2
 
     print("")
     print("模型组件:")
     print("  1. 底座 (PA66材料，黑色)")
     print("  2. 按键帽 (ABS材料, 绿色)")
     print("  3. 引脚 (C, NO, NC)")
-    print("")
-    print(f"所有组件已添加到集合: {collection.name}")
     print("=" * 60)
     
     print("正在创建PB86-A0灰色按键模型...")
-    collection = create_pb86_button(color='gray')
-    for obj in collection.objects:
-        obj.location.x += 60
-        obj.rotation_euler.z = math.pi/2
+    gray_button = create_pb86_button(color='gray')
+    gray_button.location.x += 60
+    gray_button.rotation_euler.z = math.pi/2
         
     print("")
     print("模型组件:")
     print("  1. 底座 (PA66材料，黑色)")
     print("  2. 按键帽 (ABS材料, 灰色)")
     print("  3. 引脚 (C, NO, NC)")
-    print("")
-    print(f"所有组件已添加到集合: {collection.name}")
     print("=" * 60)
     
     print("正在创建PB86-A0黄色按键模型...")
-    collection = create_pb86_button(color='yellow')
-    for obj in collection.objects:
-        obj.location.x -= 20    
-        obj.rotation_euler.z = math.pi/2
+    yellow_button = create_pb86_button(color='yellow')
+    yellow_button.location.x -= 20    
+    yellow_button.rotation_euler.z = math.pi/2
 
     print("")
     print("模型组件:")
     print("  1. 底座 (PA66材料，黑色)")
     print("  2. 按键帽 (ABS材料, 黑色)")
     print("  3. 引脚 (C, NO, NC)")
-    print("")
-    print(f"所有组件已添加到集合: {collection.name}")
     print("=" * 60)
     
-    print("正在创建PB86-A0红色按键模型...")
-    collection = create_pb86_button()
-    for obj in collection.objects:
-        obj.location.x -= 40
-        obj.rotation_euler.z = math.pi/2
+    print("正在创建PB86-A0黑色按键模型...")
+    black_button = create_pb86_button()
+    black_button.location.x -= 40
+    black_button.rotation_euler.z = math.pi/2
     
     print("")
     print("模型组件:")
     print("  1. 底座 (PA66材料，黑色)")
     print("  2. 按键帽 (ABS材料, 黑色)")
     print("  3. 引脚 (C, NO, NC)")
-    print("")
-    print(f"所有组件已添加到集合: {collection.name}")
     print("=" * 60)
     
     print("正在创建PB86-A0白色按键模型...")
-    collection = create_pb86_button(color='white')
-    for obj in collection.objects:
-        obj.location.x -= 60
-        obj.rotation_euler.z = math.pi/2
+    white_button = create_pb86_button(color='white')
+    white_button.location.x -= 60
+    white_button.rotation_euler.z = math.pi/2
     
     print("")
     print("模型组件:")
     print("  1. 底座 (PA66材料，黑色)")
     print("  2. 按键帽 (ABS材料, 白色)")
     print("  3. 引脚 (C, NO, NC)")
-    print("")
-    print(f"所有组件已添加到集合: {collection.name}")
     print("=" * 60)
     
     # 设置视图显示
@@ -981,8 +953,7 @@ def main():
             # 设置白色背景
             area.spaces[0].shading.background_type = 'VIEWPORT'
             area.spaces[0].shading.background_color = (1.0, 1.0, 1.0)
-    
-    return collection
+
 
 if __name__ == "__main__":
-    collection = main()
+    main()

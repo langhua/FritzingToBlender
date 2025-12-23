@@ -14,3 +14,4 @@ class PnpImportData:
     invalid: int
     failed_lines: list[int]
     invalid_lines: list[int]
+    pcb_thickness: float      # PCB板厚度
