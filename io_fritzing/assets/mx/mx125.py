@@ -4,6 +4,7 @@ from mathutils import Vector
 import math
 import io_fritzing.assets.commons.trapezoid as trapezoid
 import io_fritzing.assets.commons.rounded_rect as rounded_rect
+from io_fritzing.assets.utils.material import create_material
 
 # 清理场景
 def clear_scene():
@@ -176,7 +177,7 @@ def create_housing_with_thickness(dims):
 
     # 8. 添加材质
     housing.data.materials.clear()
-    mat = create_lcp_material()
+    mat = create_material(name="LCP_Material", base_color=mx125_2p_dimensions['color'], metallic=0.1, roughness=0.6)
     housing.data.materials.append(mat)
 
     return housing, mat
@@ -248,6 +249,7 @@ def create_wings(dims, mat):
 def create_c_shape_metal(dims):
     """创建C形金属固定件"""
     c_shapes = []
+    mat = create_material(name="Metal_Pin_Material", base_color=(0.88, 0.88, 0.90, 1.0), metallic=0.9, roughness=0.3)
 
     # 壳尺寸
     outer_length = dims['housing_length']
@@ -298,7 +300,6 @@ def create_c_shape_metal(dims):
     bpy.context.view_layer.objects.active = c_shape_left
     bpy.ops.object.join()
     c_shape_left.data.materials.clear()
-    mat = create_metal_material()
     c_shape_left.data.materials.append(mat)
     
     # 5. 右侧顶部
@@ -339,7 +340,6 @@ def create_c_shape_metal(dims):
     bpy.context.view_layer.objects.active = c_shape_right
     bpy.ops.object.join()
     c_shape_right.data.materials.clear()
-    mat = create_metal_material()
     c_shape_right.data.materials.append(mat)
     
     c_shapes.append(c_shape_left)
@@ -404,7 +404,7 @@ def create_pins(dims, mat):
     pin_right_leg = rounded_rect.create_rounded_rectangle(1, pin_width, wing_height, pin_thickness, pin_width/2, 8, "top")
     pin_right_leg.name = "Right_Pin_Column_Metal"
     pin_right_leg.delta_rotation_euler = (math.pi/2, 0, math.pi/2)
-    pin_right_leg.location = (pin_pitch/2 + pin_thickness/2, outer_width * 3/8 + pin_width, wing_height/2)
+    pin_right_leg.location = (pin_pitch/2 - pin_thickness/2, outer_width * 3/8 + pin_width, wing_height/2)
     bpy.ops.object.transform_apply(scale=True)
     
     # 7. 右侧引脚脚板
@@ -429,91 +429,40 @@ def create_pins(dims, mat):
 
     return pins
 
-def create_lcp_material():
-    """创建LCP（液晶聚合物）材质 - 米白色，耐高温"""
-    mat = bpy.data.materials.new(name="LCP_Material")
-    mat.use_nodes = True
-    
-    # 设置米白色
-    lcp_color = mx125_2p_dimensions['color']
-    mat.diffuse_color = lcp_color
-    
-    nodes = mat.node_tree.nodes
-    nodes.clear()
-    
-    # 添加原理化BSDF节点
-    bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.location = (0, 0)
-    bsdf.inputs['Base Color'].default_value = lcp_color
-    bsdf.inputs['Metallic'].default_value = 0.1
-    bsdf.inputs['Roughness'].default_value = 0.6
-    
-    # 添加材质输出节点
-    output = nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = (400, 0)
-    
-    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
-    return mat
-
-def create_metal_material():
-    """创建金属引脚材质"""
-    mat = bpy.data.materials.new(name="Metal_Pin_Material")
-    mat.use_nodes = True
-    
-    # 设置金属色
-    metal_color = (0.88, 0.88, 0.90, 1.0)
-    mat.diffuse_color = metal_color
-    
-    nodes = mat.node_tree.nodes
-    nodes.clear()
-    
-    # 添加原理化BSDF节点
-    bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.location = (0, 0)
-    bsdf.inputs['Base Color'].default_value = metal_color
-    bsdf.inputs['Metallic'].default_value = 0.9
-    bsdf.inputs['Roughness'].default_value = 0.3
-    
-    # 添加材质输出节点
-    output = nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = (400, 0)
-    
-    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
-    return mat
-
-
-def create_mx125_2p(collection, dims = mx125_2p_dimensions):
+def create_mx125_2p(dims = mx125_2p_dimensions):
     # 创建模型
-    print("正在创建模型...")
+    # print("正在创建模型...")
     
     # 1. 创建外壳
-    print("创建带有0.2mm壁厚的外壳...")
+    # print("创建带有0.2mm壁厚的外壳...")
     housing, lcp_mat = create_housing_with_thickness(dims)
-    bpy.context.scene.collection.objects.unlink(housing)
-    collection.objects.link(housing)
 
     # 2. 创建两侧固定件
-    print("创建两侧固定件...")
+    # print("创建两侧固定件...")
     wings = create_wings(dims, lcp_mat)
-    for wing in wings:
-        bpy.context.scene.collection.objects.unlink(wing)
-        collection.objects.link(wing)
 
     # 3. 创建C形金属固定件
-    print("创建C形金属固定件...")
+    # print("创建C形金属固定件...")
     c_shapes, metal_mat = create_c_shape_metal(dims)
-    for c_shape in c_shapes:
-        bpy.context.scene.collection.objects.unlink(c_shape)
-        collection.objects.link(c_shape)
 
     # 4. 创建引脚
-    print("创建引脚...")
+    # print("创建引脚...")
     pins = create_pins(dims, metal_mat)
-    for pin in pins:
-        bpy.context.scene.collection.objects.unlink(pin)
-        collection.objects.link(pin)
+
+    if housing is not None:
+        bpy.ops.object.select_all(action='DESELECT')
+        housing.select_set(True)
+        for obj in wings:
+            obj.select_set(True)
+        for obj in c_shapes:
+            obj.select_set(True)
+        for obj in pins:
+            obj.select_set(True)
+        bpy.context.view_layer.objects.active = housing
+        bpy.ops.object.join()
+        housing.name = 'MX125_2P'
+    housing.location.y += (dims['total_width'] - dims['housing_width'])/2
+    return housing
 
 
 def main():
@@ -531,7 +480,7 @@ def main():
     collection = bpy.data.collections.new("MX125_2P_Wall")
     bpy.context.scene.collection.children.link(collection)
 
-    create_mx125_2p(collection)
+    mx125 = create_mx125_2p()
     
     print("尺寸参数:")
     print(f"  总长度: {dims['total_length']}mm")

@@ -11,6 +11,7 @@ from io_fritzing.assets.resistors.smd_resistors import generate_smd_resistor, SM
 from io_fritzing.assets.sod.sod323 import create_sod323_model
 from io_fritzing.assets.sot.sot23_3 import create_sot23_3_model
 from io_fritzing.assets.sot.sot23_6 import create_sot23_6_model
+from io_fritzing.assets.mx.mx125 import create_mx125_2p
 
 class PnpParseLineByLine(Operator):
     bl_idname = "fritzing.pnp_parse_line_by_line"
@@ -142,6 +143,9 @@ def process_line(designator, description, package, center_x, center_y, rotation,
             print(f" **** VQFN-HR-12 ****")
         elif package.lower().find('mx1.25') > 0:
             print(f" **** MX1.25 ****")
+            component = create_mx125_2p()
+            # 针对MX1.25 2P的单独处理，绕Z轴旋转180度
+            component.rotation_euler.z += math.pi
         else:
             print(f" !!!! Unknown !!!!")
             return False
@@ -159,7 +163,6 @@ def process_line(designator, description, package, center_x, center_y, rotation,
 def post_parse(component, center_x, center_y, rotation, layer):
     # 先旋转
     if float(rotation) != 0.0:
-        # 注意：fritzing的转动方向与blender相反
         print(f"   -> 旋转：{rotation}")
         component.rotation_euler.z += -float(rotation) * math.pi / 180
     if layer == 'Bottom':
