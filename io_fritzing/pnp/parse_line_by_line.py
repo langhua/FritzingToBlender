@@ -14,6 +14,7 @@ from io_fritzing.assets.sot.sot23_6 import create_sot23_6_model
 from io_fritzing.assets.mx.mx125 import create_mx125_2p
 from io_fritzing.assets.vqfn_hr.vqfn_hr_12 import create_vqfn_hr_12
 from io_fritzing.assets.sop.sop20 import create_sop20_model
+from io_fritzing.assets.esp.esp12 import create_esp12f_model
 
 class PnpParseLineByLine(Operator):
     bl_idname = "fritzing.pnp_parse_line_by_line"
@@ -149,8 +150,17 @@ def process_line(designator, description, package, center_x, center_y, rotation,
             print(f" **** MX1.25 ****")
             component = create_mx125_2p()
         else:
-            print(f" !!!! Unknown !!!!")
-            return False
+            if description_parts[6].strip() != '':
+                mpn = description_parts[6].strip()
+                if mpn.capitalize().startswith('Esp-12'):
+                    component = create_esp12f_model()
+                    component.rotation_euler.z += math.pi / 2
+                else:
+                    print(f" !!!! Unknown !!!!")
+                    return False
+            else:
+                print(f" !!!! Unknown !!!!")
+                return False
 
     # 调整元件位置
     if component is not None:

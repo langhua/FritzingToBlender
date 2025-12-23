@@ -1,6 +1,6 @@
 import bpy
 # 材质创建函数
-def create_material(name, base_color, metallic=0.0, roughness=0.8, weight=None, ior=None) -> bpy.types.Material:
+def create_material(name, base_color, metallic=0.0, roughness=0.8, weight=None, ior=None, emission_color=None, emission_strength=0.0, alpha=1.0) -> bpy.types.Material:
     if name in bpy.data.materials:
         return bpy.data.materials[name]
     
@@ -25,6 +25,8 @@ def create_material(name, base_color, metallic=0.0, roughness=0.8, weight=None, 
         bsdf.inputs['Metallic'].__setattr__('default_value', metallic)
         bsdf.inputs['Roughness'].__setattr__('default_value', roughness)
 
+        if alpha:
+            bsdf.inputs['Alpha'].default_value = alpha
         if weight is not None:
             bsdf.inputs['Transmission Weight'].__setattr__('default_value', weight)
         if ior is not None:
@@ -34,5 +36,14 @@ def create_material(name, base_color, metallic=0.0, roughness=0.8, weight=None, 
         if weight is not None or ior is not None:
             output.location = (400, 0)
         mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
+
+        if emission_color:
+            bsdf.inputs['Emission Color'].default_value = (*emission_color, 1.0)
+            bsdf.inputs['Emission Strength'].default_value = emission_strength
+        
+        if alpha < 1.0:
+            mat.blend_method = 'BLEND'
+            mat.shadow_method = 'CLIP'
+            mat.show_transparent_back = True
+
     return mat

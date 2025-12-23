@@ -86,8 +86,8 @@ def create_esp12f_antenna(pcb_length_mm, pcb_width_mm, left_margin_mm, top_margi
         segments.append(segment)
         
         # 打印坐标信息
-        print(f"段 {num}: 起点({start[0]:.2f}, {start[1]:.2f})mm -> 终点({end[0]:.2f}, {end[1]:.2f})mm")
-        print(f"  -> 线段长度: {math.sqrt((end[0] - start[0])**2 + (end[1] - start[1])**2):.2f}mm")
+        # print(f"段 {num}: 起点({start[0]:.2f}, {start[1]:.2f})mm -> 终点({end[0]:.2f}, {end[1]:.2f})mm")
+        # print(f"  -> 线段长度: {math.sqrt((end[0] - start[0])**2 + (end[1] - start[1])**2):.2f}mm")
     
     return segments
     
@@ -119,7 +119,6 @@ def create_antenna_segment(start_mm, end_mm, segment_number, trace_width, trace_
     bpy.ops.object.transform_apply(scale=True)
     
     segment.data.materials.append(copper_mat)
-    add_to_collection(antenna_collection, segment)
     return segment
 
 def add_to_collection(antenna_collection, obj):

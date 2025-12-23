@@ -2,6 +2,7 @@ import bpy
 import math
 import bmesh
 from mathutils import Vector, Matrix
+from io_fritzing.assets.utils.material import create_material
 
 def clear_scene():
     # 清除默认场景
@@ -26,37 +27,6 @@ def create_led_with_color(color_name, color_rgb = None):
             led_collection.objects.link(obj)
         if obj.name in bpy.context.scene.collection.objects:
             bpy.context.scene.collection.objects.unlink(obj)
-    
-    def create_material(name, color, metallic=0.0, roughness=0.5, 
-                        emission_color=None, emission_strength=0.0, alpha=1.0):
-        """创建材质"""
-        mat = bpy.data.materials.new(name)
-        mat.use_nodes = True
-        nodes = mat.node_tree.nodes
-        for node in nodes:
-            nodes.remove(node)
-        
-        bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-        bsdf.location = (0, 0)
-        output = nodes.new(type='ShaderNodeOutputMaterial')
-        output.location = (300, 0)
-        mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-        
-        bsdf.inputs['Base Color'].default_value = (*color, alpha)
-        bsdf.inputs['Metallic'].default_value = metallic
-        bsdf.inputs['Roughness'].default_value = roughness
-        bsdf.inputs['Alpha'].default_value = alpha
-        
-        if emission_color:
-            bsdf.inputs['Emission Color'].default_value = (*emission_color, 1.0)
-            bsdf.inputs['Emission Strength'].default_value = emission_strength
-        
-        if alpha < 1.0:
-            mat.blend_method = 'BLEND'
-            mat.shadow_method = 'CLIP'
-            mat.show_transparent_back = True
-        
-        return mat
     
     # 根据设计图设置精确尺寸
     # 主体（body）：白色塑料外壳

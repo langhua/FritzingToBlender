@@ -4,16 +4,8 @@ import bmesh
 from mathutils import Vector
 from io_fritzing.assets.commons.antenna import create_esp12f_antenna
 from io_fritzing.assets.led.led0603 import create_led_with_color
-
-def clear_scene():
-    # 清除默认场景
-    bpy.ops.object.select_all(action='SELECT')
-    bpy.ops.object.delete(use_global=False)
-
-    # 设置单位为毫米
-    scene = bpy.context.scene
-    scene.unit_settings.system = 'METRIC'
-    scene.unit_settings.length_unit = 'MILLIMETERS'
+from io_fritzing.assets.utils.material import create_material
+from io_fritzing.assets.utils.scene import clear_scene
 
 def create_esp12f_model():
     """创建ESP-12F模型的完整函数"""
@@ -28,24 +20,6 @@ def create_esp12f_model():
         if obj.name in bpy.context.scene.collection.objects:
             bpy.context.scene.collection.objects.unlink(obj)
     
-    def create_material(name, color, metallic=0.0, roughness=0.5):
-        mat = bpy.data.materials.new(name)
-        mat.use_nodes = True
-        nodes = mat.node_tree.nodes
-        for node in nodes:
-            nodes.remove(node)
-        
-        bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-        bsdf.location = (0, 0)
-        output = nodes.new(type='ShaderNodeOutputMaterial')
-        output.location = (300, 0)
-        mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-        
-        bsdf.inputs['Base Color'].default_value = (*color, 1.0)
-        bsdf.inputs['Metallic'].default_value = metallic
-        bsdf.inputs['Roughness'].default_value = roughness
-        return mat
-    
     # ============================================
     # 1. 创建PCB板 (24×16×0.6mm)
     # ============================================
@@ -59,10 +33,7 @@ def create_esp12f_model():
     pcb.scale = (pcb_length, pcb_width, pcb_thickness)
     pcb.location = (0, 0, 0)
     
-    add_to_collection(pcb)
-    
     pcb_mat = create_material("PCB_Mat", (0.1, 0.3, 0.1))
-    pcb_mat.diffuse_color=(0.1, 0.3, 0.1, 1)
     pcb.data.materials.append(pcb_mat)
     
     # ============================================
@@ -83,10 +54,7 @@ def create_esp12f_model():
     shield.scale = (shield_length, shield_width, shield_thickness)
     shield.location = (shield_x, shield_y, shield_z)
     
-    add_to_collection(shield)
-    
     shield_mat = create_material("Shield_Mat", (0.8, 0.8, 0.85), metallic=0.9, roughness=0.3)
-    shield_mat.diffuse_color = (0.8, 0.8, 0.85, 1)
     shield.data.materials.append(shield_mat)
     
     # ============================================
@@ -95,7 +63,6 @@ def create_esp12f_model():
     # 根据图片重新排序引脚名称
     # ============================================
     pin_mat = create_material("Pin_Mat", (1.0, 0.84, 0.0), metallic=0.9, roughness=0.2)
-    pin_mat.diffuse_color = (1.0, 0.84, 0.0, 1)
     
     # 引脚尺寸
     pin_width = 1
@@ -111,7 +78,6 @@ def create_esp12f_model():
         pin.location = (x, y, z)
         pin.rotation_euler.z = math.radians(rot_z)
         pin.data.materials.append(pin_mat)
-        add_to_collection(pin)
         return pin
     
     # 引脚Z位置
@@ -126,36 +92,37 @@ def create_esp12f_model():
     top_pin_names = ["VCC", "GPIO13", "GPIO12", "GPIO14", "GPIO16", "EN", "ADC", "RST"]
     first_pin_x = -pcb_length/2 + 1.5
     
+    top_pins = []
     for i in range(8):
         x_pos = first_pin_x + i * pin_spacing
         y_pos = pcb_width/2 - pin_length/2
-        create_pin(x_pos, y_pos, pin_z, 0, f"Top_{top_pin_names[i]}")
+        pin = create_pin(x_pos, y_pos, pin_z, 0, f"Top_{top_pin_names[i]}")
+        top_pins.append(pin)
     
     # ② 底部8个引脚
     # 从右到左：TXD0, RXD0, GPIO5, GPIO4, GPIO0,, GPIO15, GND
     # 在模型中从左到右
     bottom_pin_names = ["GND", "GPIO15", "GPIO2", "GPIO0", "GPIO4", "GPIO5", "RXD0", "TXD0"]
-    
+    bottom_pins = []
     for i in range(8):
         x_pos = first_pin_x + i * pin_spacing
         y_pos = -pcb_width/2 + pin_length/2
-        create_pin(x_pos, y_pos, pin_z, 0, f"Bottom_{bottom_pin_names[i]}")
+        pin = create_pin(x_pos, y_pos, pin_z, 0, f"Bottom_{bottom_pin_names[i]}")
+        bottom_pins.append(pin)
     
     # ③ 左侧6个引脚
     # 从上到下：CS0, MISO, GPIO9, GPIO10, MOSI, SCLK
     # 在模型中从上到下
     left_pin_names = ["CS0", "MISO", "GPIO9", "GPIO10", "MOSI", "SCLK"]
-    
+    left_pins = []
     for i in range(6):
         y_pos = (i - 2.5) * pin_spacing
         x_pos = -pcb_length/2 + pin_length/2
-        create_pin(x_pos, y_pos, pin_z, 90, f"Left_{left_pin_names[i]}")
+        pin = create_pin(x_pos, y_pos, pin_z, 90, f"Left_{left_pin_names[i]}")
+        left_pins.append(pin)
     
-    # 根据图片，没有右侧引脚
-
     # ④ 创建右侧天线
     antenna_collection = bpy.data.collections.new("ESP12F_Antenna")
-    esp12f_collection.children.link(antenna_collection)
     trace_thickness = 0.035  # 1oz = 0.035mm
     antenna_width = 6
     antenna_segments = create_esp12f_antenna(pcb_width, antenna_width, 0.5, 0.3, 0.5, trace_thickness, pin_mat, antenna_collection)
@@ -164,17 +131,24 @@ def create_esp12f_model():
         segment.location.z += pcb_thickness/2 + trace_thickness/2
         segment.rotation_euler.z = math.radians(-90)
 
+    # LED灯
     led_collection, led_body, led_lens = create_led_with_color("blue")
-    esp12f_collection.children.link(led_collection)
+    bpy.ops.object.select_all(action='DESELECT')
+    led_body.select_set(True)
+    led_lens.select_set(True)
     for obj in led_collection.objects:
-        obj.location.x += pcb_length/2 - antenna_width - led_body.dimensions.y
-        obj.location.y += -pcb_width/2 + pin_length
-        obj.location.z += pcb_thickness/2 + trace_thickness/2
-        obj.rotation_euler.z = math.radians(-90)
-    
+        obj.select_set(True)
+    bpy.context.view_layer.objects.active = led_body
+    bpy.ops.object.join()
+    led_body.name = 'LED_Package'
+
+    led_body.location.x += pcb_length/2 - antenna_width - led_body.dimensions.y
+    led_body.location.y += -pcb_width/2 + pin_length
+    led_body.location.z += pcb_thickness/2 + trace_thickness/2
+    led_body.rotation_euler.z = math.radians(-90)
+
     # ============================================
     # 4. 创建文字
-    # 根据图片中的文字
     # ============================================
     def add_text(text, location, size=1.5, extrude=0.1):
         bpy.ops.object.text_add(location=location)
@@ -185,8 +159,20 @@ def create_esp12f_model():
         text_obj.data.extrude = extrude
         text_obj.data.align_x = 'CENTER'
         text_obj.data.align_y = 'CENTER'
-        add_to_collection(text_obj)
-        return text_obj
+
+        # 转换为网格
+        if bpy.context:
+            bpy.context.view_layer.objects.active = text_obj
+        text_obj.select_set(True)
+        
+        # 转换曲线为网格
+        bpy.ops.object.convert(target='MESH')
+        
+        # 获取转换后的网格对象
+        if bpy.context:
+            mesh_obj = bpy.context.active_object
+        
+        return mesh_obj
     
     # 文字位置
     text_z = shield_z + shield_thickness/2 + 0.1
@@ -198,18 +184,36 @@ def create_esp12f_model():
     
     # 设置文字材质
     text_mat = create_material("Text_Mat", (1, 1, 1))
-    text_mat.diffuse_color = (1, 1, 1, 1)
     for text_obj in [esp12_text, esp_text]:
         text_obj.data.materials.append(text_mat)
     
-    # ============================================
-    # 5. 设置视图
-    # ============================================
-    for area in bpy.context.screen.areas:
-        if area.type == 'VIEW_3D':
-            area.spaces[0].shading.type = 'MATERIAL'
-    
-    return esp12f_collection, pcb, shield
+    # 合并模型
+    bpy.ops.object.select_all(action='DESELECT')
+    pcb.select_set(True)
+    led_body.select_set(True)
+    esp12_text.select_set(True)
+    esp_text.select_set(True)
+    shield.select_set(True)
+    for obj in top_pins:
+        obj.select_set(True)
+    for obj in bottom_pins:
+        obj.select_set(True)
+    for obj in left_pins:
+        obj.select_set(True)
+    for obj in antenna_segments:
+        obj.select_set(True)
+    bpy.context.view_layer.objects.active = pcb
+    bpy.ops.object.join()
+    pcb.name = 'ESP12F'
+
+    pcb.location.z += pin_thickness/2
+
+    # 删除两个collection
+    bpy.data.collections.remove(led_collection)
+    bpy.data.collections.remove(antenna_collection)
+    bpy.data.collections.remove(esp12f_collection)
+ 
+    return pcb
 
 def main():
     clear_scene()
@@ -222,35 +226,12 @@ def main():
     print("底部引脚 (从右到左): TXD0, RXD0, GPIO5, GPIO4, GPIO0, GPIO2, GPIO15, GND")
     print("左侧引脚 (从上到下): CS0, MISO, GPIO9, GPIO10, MOSI, SCLK")
     print("=" * 50)
-    
-    try:
-        collection, pcb, shield = create_esp12f_model()
+
+    esp12f = create_esp12f_model()
         
-        # 获取引脚
-        top_pins = [obj for obj in collection.objects if "Top_" in obj.name]
-        bottom_pins = [obj for obj in collection.objects if "Bottom_" in obj.name]
-        left_pins = [obj for obj in collection.objects if "Left_" in obj.name]
+    if esp12f is not None:
+        print("ESP-12F模型创建成功！")
         
-        # 按位置排序
-        top_pins.sort(key=lambda p: p.location.x)
-        bottom_pins.sort(key=lambda p: p.location.x)
-        left_pins.sort(key=lambda p: p.location.y, reverse=True)  # 从上到下
-        
-        # 输出顺序
-        print("引脚排列 (从左到右/从上到下):")
-        print(f"顶部引脚: {[pin.name.split('_')[1] for pin in top_pins]}")
-        print(f"底部引脚: {[pin.name.split('_')[1] for pin in bottom_pins]}")
-        print(f"左侧引脚: {[pin.name.split('_')[1] for pin in left_pins]}")
-        
-        print(f"PCB尺寸: {pcb.scale.x:.3f}×{pcb.scale.y:.3f}×{pcb.scale.z:.3f}mm")
-        print(f"引脚厚度: 0.7mm (在PCB上下各露出0.05mm)")
-        print("模型创建成功！")
-        print("在Outliner中查看'ESP12F_Model'集合")
-        
-    except Exception as e:
-        print(f"创建模型时出错: {str(e)}")
-        import traceback
-        traceback.print_exc()
 
 if __name__ == "__main__":
     main()

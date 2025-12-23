@@ -2,7 +2,8 @@ import bpy
 
 # 清理场景
 def clear_scene():
-    bpy.ops.object.mode_set(mode='OBJECT')
+    if bpy.context.mode != 'OBJECT':
+        bpy.ops.object.mode_set(mode='OBJECT')
     
     bpy.ops.object.select_all(action='SELECT')
     bpy.ops.object.delete(use_global=False, confirm=False)
