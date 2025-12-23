@@ -3,17 +3,8 @@ import bmesh
 from mathutils import Vector
 from io_fritzing.assets.commons.rounded_rect import create_rounded_rectangle
 import math
-
-def clear_scene():
-    context = bpy.context
-    if context is not None and hasattr(context, 'mode') and context.mode != 'OBJECT':
-        bpy.ops.object.mode_set(mode='OBJECT')
-    bpy.ops.object.select_all(action='SELECT')
-    bpy.ops.object.delete(use_global=False, confirm=False)
-    scene = getattr(context, 'scene', None)
-    if scene is not None:
-        scene.unit_settings.system = 'METRIC'
-        scene.unit_settings.length_unit = 'MILLIMETERS'
+from io_fritzing.assets.utils.material import create_material
+from io_fritzing.assets.utils.scene import clear_scene
 
 pin_width = 0.3
 pin_length = 0.5
@@ -37,7 +28,7 @@ def create_vqfn_hr_12(chip_name = 'VQFN-HR-12'):
     text_obj = create_surface_text(chip_name, body_width, body_height)
 
     # 创建引脚1标记
-    pin1_marker_obj = create_surface_marker(Vector((-body_length/2 + pin_length/2, pin_spacing * 1.5, body_height + 0.01)))
+    pin1_marker_obj = create_pin1_marker(Vector((-body_length/2 + pin_length/2, pin_spacing * 1.5, body_height + 0.01)))
     
     if chip_body is not None:
         bpy.ops.object.select_all(action='DESELECT')
@@ -76,13 +67,11 @@ def create_chip_body(length, width, height):
         if view_layer and hasattr(view_layer, 'objects'):
             view_layer.objects.active = body
         bpy.ops.object.modifier_apply(modifier=bevel_modifier.name)
+        
     # 设置材质
-    material = create_black_plastic_material()
-    if hasattr(body, 'data') and hasattr(body.data, 'materials'):
-        if body.data.materials:
-            body.data.materials[0] = material
-        else:
-            body.data.materials.append(material)
+    material = create_material(name = "VQFN-HR-12_Chip_Body", base_color = (0.05, 0.05, 0.05, 1.0), metallic = 0.0, roughness = 0.8)
+    getattr(body.data, "materials").clear()
+    getattr(body.data, "materials").append(material)
     return body
 
 def create_pins(length, width, height):
@@ -149,12 +138,9 @@ def create_pin(position, width, length, height, pin_number, rounded_corners):
         pin.name = f"Pin_{pin_number}"
         # 设置材质
         if pin.type == 'MESH':  # 添加类型检查
-            material = create_metal_material()
-            if hasattr(pin, 'data') and hasattr(pin.data, 'materials'):
-                if pin.data.__getattribute__('materials'):
-                    pin.data.__setattr__('materials', [material])
-                else:
-                    pin.data.__getattribute__('materials').append(material)
+            material = create_material(name="Metal", base_color = (0.8, 0.8, 0.85, 1.0), metallic = 1.0, roughness = 0.2)
+            getattr(pin.data, "materials").clear()
+            getattr(pin.data, "materials").append(material)
 
     return pin
 
@@ -194,17 +180,16 @@ def create_surface_text(chip_name, chip_width, height):
     if view_layer and hasattr(view_layer, 'objects'):
         view_layer.objects.active = text_obj
     bpy.ops.object.convert(target='MESH')
+
     # 设置文字材质
-    material = create_white_material()
-    if hasattr(text_obj, 'data') and hasattr(text_obj.data, 'materials'):
-        if text_obj.data.materials:
-            text_obj.data.materials[0] = material
-        else:
-            text_obj.data.materials.append(material)
+    material = create_material(name="White", base_color = (0.9, 0.9, 0.9, 1.0), metallic = 0.0, roughness = 0.2)
+    getattr(text_obj.data, "materials").clear()
+    getattr(text_obj.data, "materials").append(material)
+
     return text_obj
 
-def create_surface_marker(location):
-    """创建表面文字标记"""
+def create_pin1_marker(location):
+    """创建引脚1标记"""
     bpy.ops.object.text_add(location=location)
     pin1_marker_obj = getattr(bpy.context, 'active_object', None)
     if pin1_marker_obj is None:
@@ -220,7 +205,8 @@ def create_surface_marker(location):
         if hasattr(pin1_marker_obj.data, 'size'):
             pin1_marker_obj.data.size = 0.3
     pin1_marker_obj.scale = (0.8, 0.8, 0.1)
-    # 将文字转换为网格
+
+    # 将标记转换为网格
     bpy.ops.object.select_all(action='DESELECT')
     if hasattr(pin1_marker_obj, 'select_set'):
         pin1_marker_obj.select_set(True)
@@ -228,92 +214,13 @@ def create_surface_marker(location):
     if view_layer and hasattr(view_layer, 'objects'):
         view_layer.objects.active = pin1_marker_obj
     bpy.ops.object.convert(target='MESH')
-    # 设置文字材质
-    material = create_white_material()
-    if hasattr(pin1_marker_obj, 'data') and hasattr(pin1_marker_obj.data, 'materials'):
-        if pin1_marker_obj.data.materials:
-            pin1_marker_obj.data.materials[0] = material
-        else:
-            pin1_marker_obj.data.materials.append(material)
+
+    # 设置标记材质
+    material = create_material(name="White", base_color = (0.9, 0.9, 0.9, 1.0), metallic = 0.0, roughness = 0.2)
+    getattr(pin1_marker_obj.data, "materials").clear()
+    getattr(pin1_marker_obj.data, "materials").append(material)
+
     return pin1_marker_obj
-
-def create_black_plastic_material():
-    """创建黑色塑料材质"""
-    material = bpy.data.materials.new(name="Black_Plastic")
-    material.diffuse_color = (0.05, 0.05, 0.05, 1.0)
-    material.use_nodes = True
-    if material.node_tree is not None and hasattr(material, 'node_tree') and hasattr(material.node_tree, 'nodes') and hasattr(material.node_tree, 'links'):
-        material.node_tree.nodes.clear()
-        # 添加原理化BSDF节点
-        bsdf = material.node_tree.nodes.new(type='ShaderNodeBsdfPrincipled')
-        bsdf.location = (0, 0)
-        # 设置塑料材质参数
-        bsdf.inputs['Base Color'].__setattr__('default_value', (0.05, 0.05, 0.05, 1.0))  # 深黑色
-        bsdf.inputs['Metallic'].__setattr__('default_value', 0.0)  # 非金属
-        bsdf.inputs['Roughness'].__setattr__('default_value', 0.8)  # 高粗糙度，模拟塑料
-        # 添加材质输出节点
-        output = material.node_tree.nodes.new(type='ShaderNodeOutputMaterial')
-        output.location = (400, 0)
-        # 连接节点
-        material.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    return material
-
-def create_metal_material():
-    """创建金属材质"""
-    material = bpy.data.materials.new(name="Metal")
-    material.use_nodes = True
-
-    # 设置diffuse_color，在实体模式下也能区分
-    material.diffuse_color = (0.8, 0.8, 0.85, 1.0)  # 银白色
-
-    # 清除默认节点
-    if material.node_tree is not None and hasattr(material, 'node_tree') and hasattr(material.node_tree, 'nodes'):
-        material.node_tree.nodes.clear()
-    
-    # 添加原理化BSDF节点
-    if material.node_tree is not None and hasattr(material, 'node_tree') and hasattr(material.node_tree, 'nodes'):
-        bsdf = material.node_tree.nodes.new(type='ShaderNodeBsdfPrincipled')
-        bsdf.location = (0, 0)
-    
-        # 设置金属材质参数
-        bsdf.inputs['Base Color'].__setattr__('default_value', (0.8, 0.8, 0.85, 1.0))  # 银白色
-        bsdf.inputs['Metallic'].__setattr__('default_value', 1.0)  # 金属材质
-        bsdf.inputs['Roughness'].__setattr__('default_value', 0.2)  # 低粗糙度，光滑金属
-    
-        # 添加材质输出节点
-        output = material.node_tree.nodes.new(type='ShaderNodeOutputMaterial')
-        output.location = (400, 0)
-    
-        # 连接节点
-        material.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-
-    return material
-
-def create_white_material():
-    """创建白色材质"""
-    material = bpy.data.materials.new(name="White")
-    material.use_nodes = True
-    
-    # 设置diffuse_color，在实体模式下也能区分
-    material.diffuse_color = (0.9, 0.9, 0.9, 1.0)  # 白色
-    
-    # 添加原理化BSDF节点
-    if material.node_tree is not None and hasattr(material.node_tree, 'nodes'):  # 添加检查
-        bsdf = material.node_tree.nodes.new(type='ShaderNodeBsdfPrincipled')
-        bsdf.location = (0, 0)
-    
-        # 设置金属材质参数
-        bsdf.inputs['Base Color'].__setattr__('default_value', (0.9, 0.9, 0.9, 1.0))  # 银白色
-        bsdf.inputs['Roughness'].__setattr__('default_value', 0.2)  # 低粗糙度，光滑金属
-        
-        # 添加材质输出节点
-        output = material.node_tree.nodes.new(type='ShaderNodeOutputMaterial')
-        output.location = (400, 0)
-        
-        # 连接节点
-        material.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-
-    return material
 
 # 执行创建函数
 if __name__ == "__main__":

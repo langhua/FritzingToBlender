@@ -2,18 +2,8 @@ import bpy
 import bmesh
 from mathutils import Vector
 import math
-
-# 清理场景
-def clear_scene():
-    if bpy.context.mode != 'OBJECT':
-        bpy.ops.object.mode_set(mode='OBJECT')
-    
-    bpy.ops.object.select_all(action='SELECT')
-    bpy.ops.object.delete(use_global=False, confirm=False)
-    
-    scene = bpy.context.scene
-    scene.unit_settings.system = 'METRIC'
-    scene.unit_settings.length_unit = 'MILLIMETERS'
+from io_fritzing.assets.utils.scene import clear_scene
+from io_fritzing.assets.utils.material import create_material
 
 # 根据图纸中的尺寸表定义参数 - 修正后的尺寸
 dimensions = {
@@ -69,7 +59,7 @@ def apply_all_modifiers():
             except:
                 obj.modifiers.remove(modifier)
 
-def create_sop20_model():
+def create_sop20_model(chip_name = 'SOP20'):
     """创建SOP20完整模型"""
     # 创建芯片主体
     body = create_chip_body()
@@ -78,15 +68,24 @@ def create_sop20_model():
     pins = create_pins_from_waistline()
     
     # 添加SOP20标记文字
-    text_marker = create_text_marker()
+    text_marker = create_text_marker(chip_name)
     
     # 确保所有修改器都被应用
     apply_all_modifiers()
+
+    # 将所有对象合并
+    bpy.ops.object.select_all(action='DESELECT')
+    body.select_set(True)
+    text_marker.select_set(True)
+    for obj in pins:
+        obj.select_set(True)
+    bpy.context.view_layer.objects.active = body
+    bpy.ops.object.join()
+    body.name = chip_name
     
-    # 将所有对象组织到一个组合中
-    collection = create_collection_and_organize(body, pins, text_marker)
-    
-    return body, pins, text_marker, collection
+    body.rotation_euler.z += -math.pi/2
+
+    return body
 
 def create_chip_body():
     """创建芯片主体 - 使用布尔运算添加Pin1标记凹坑"""
@@ -122,68 +121,10 @@ def create_chip_body():
     
     # 设置材质 - 改进材质设置
     body.data.materials.clear()
-    mat_body = create_plastic_material("Plastic_Black")
+    mat_body = create_material(name="Plastic_Black", base_color = (0.05, 0.05, 0.05, 1.0), metallic = 0.0, roughness = 0.8)
     body.data.materials.append(mat_body)
     
     return body
-
-def create_plastic_material(name):
-    """创建塑料材质 - 改进的材质设置"""
-    mat = bpy.data.materials.new(name=name)
-    mat.use_nodes = True
-    
-    # 设置diffuse_color，在实体模式下也能区分
-    mat.diffuse_color = (0.05, 0.05, 0.05, 1.0)  # 深黑色
-    
-    # 清除默认节点
-    mat.node_tree.nodes.clear()
-    
-    # 添加原理化BSDF节点
-    bsdf = mat.node_tree.nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.location = (0, 0)
-    
-    # 设置塑料材质参数
-    bsdf.inputs['Base Color'].default_value = (0.05, 0.05, 0.05, 1.0)  # 深黑色
-    bsdf.inputs['Metallic'].default_value = 0.0  # 非金属
-    bsdf.inputs['Roughness'].default_value = 0.8  # 高粗糙度，模拟塑料
-    
-    # 添加材质输出节点
-    output = mat.node_tree.nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = (400, 0)
-    
-    # 连接节点
-    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
-    return mat
-
-def create_metal_material(name):
-    """创建金属材质 - 改进的材质设置"""
-    mat = bpy.data.materials.new(name=name)
-    mat.use_nodes = True
-    
-    # 设置diffuse_color，在实体模式下也能区分
-    mat.diffuse_color = (0.8, 0.8, 0.85, 1.0)  # 银白色
-    
-    # 清除默认节点
-    mat.node_tree.nodes.clear()
-    
-    # 添加原理化BSDF节点
-    bsdf = mat.node_tree.nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.location = (0, 0)
-    
-    # 设置金属材质参数
-    bsdf.inputs['Base Color'].default_value = (0.8, 0.8, 0.85, 1.0)  # 银白色
-    bsdf.inputs['Metallic'].default_value = 1.0  # 金属材质
-    bsdf.inputs['Roughness'].default_value = 0.2  # 低粗糙度，光滑金属
-    
-    # 添加材质输出节点
-    output = mat.node_tree.nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = (400, 0)
-    
-    # 连接节点
-    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
-    return mat
 
 def create_pin1_marker_cut(body):
     """创建Pin1标记凹坑 - 使用布尔修改器在主体上创建凹坑"""
@@ -221,7 +162,7 @@ def create_pin1_marker_cut(body):
     bpy.ops.object.delete(use_global=False)
 
 
-def create_text_marker():
+def create_text_marker(chip_name = 'SOP20'):
     """创建SOP20标记文字"""
     # 在主体顶部添加SOP20文字标记
     text_location = (0, 0, dimensions['body_height'] + dimensions['standoff_height'] + 0.01)
@@ -229,13 +170,13 @@ def create_text_marker():
     # 创建文本对象
     bpy.ops.object.text_add(location=text_location)
     text_obj = bpy.context.active_object
-    text_obj.name = "SOP20_Text"
+    text_obj.name = f"{chip_name}_Text"
     
     # 设置文本内容
-    text_obj.data.body = "SOP20"
+    text_obj.data.body = chip_name
     
     # 设置文本大小
-    text_obj.data.size = 0.8
+    text_obj.data.size = 2
     text_obj.data.align_x = 'CENTER'
     text_obj.data.align_y = 'CENTER'
     
@@ -248,9 +189,7 @@ def create_text_marker():
     
     # 设置文本材质
     text_obj.data.materials.clear()
-    mat_text = bpy.data.materials.new(name="Text_White")
-    mat_text.use_nodes = True
-    mat_text.diffuse_color = (0.9, 0.9, 0.9, 1.0)
+    mat_text = create_material(name="Text_White", base_color = (0.9, 0.9, 0.9, 1.0), metallic = 0.0, roughness = 0.8)
     text_obj.data.materials.append(mat_text)
     
     return text_obj
@@ -473,44 +412,17 @@ def create_pin_with_caps(x_pos, y_pos, pin_number, side, pin_length, foot_length
     
     # 设置材质 - 使用金属材质
     pin.data.materials.clear()
-    mat_pin = create_metal_material("Metal_Silver")
+    mat_pin = create_material(name="Metal_Silver", base_color = (0.8, 0.8, 0.85, 1.0), metallic = 1.0, roughness = 0.2)
     pin.data.materials.append(mat_pin)
     
     return pin
-
-def create_collection_and_organize(body, pins, text_marker):
-    """将所有对象组织到一个组合中"""
-    # 创建新的组合
-    collection = bpy.data.collections.new("SOP20_Package")
-    bpy.context.scene.collection.children.link(collection)
-    
-    # 将对象从主场景中移除
-    bpy.context.scene.collection.objects.unlink(body)
-    for pin in pins:
-        bpy.context.scene.collection.objects.unlink(pin)
-    bpy.context.scene.collection.objects.unlink(text_marker)
-    
-    # 将对象添加到新组合中
-    collection.objects.link(body)
-    for pin in pins:
-        collection.objects.link(pin)
-    collection.objects.link(text_marker)
-    
-    # 选择所有对象
-    bpy.ops.object.select_all(action='DESELECT')
-    body.select_set(True)
-    for pin in pins:
-        pin.select_set(True)
-    text_marker.select_set(True)
-    
-    return collection
 
 def main():
     # 清理场景
     clear_scene()
     
     # 创建SOP20封装模型
-    body, pins, text_marker, collection = create_sop20_model()
+    sop20 = create_sop20_model()
     
     # 验证引脚位置
     pin1 = bpy.data.objects.get("Pin_1")

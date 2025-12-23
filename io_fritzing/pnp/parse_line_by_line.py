@@ -13,6 +13,7 @@ from io_fritzing.assets.sot.sot23_3 import create_sot23_3_model
 from io_fritzing.assets.sot.sot23_6 import create_sot23_6_model
 from io_fritzing.assets.mx.mx125 import create_mx125_2p
 from io_fritzing.assets.vqfn_hr.vqfn_hr_12 import create_vqfn_hr_12
+from io_fritzing.assets.sop.sop20 import create_sop20_model
 
 class PnpParseLineByLine(Operator):
     bl_idname = "fritzing.pnp_parse_line_by_line"
@@ -121,6 +122,7 @@ def process_line(designator, description, package, center_x, center_y, rotation,
             component = create_sot23_6_model()
         elif package.capitalize().startswith('Sop20'):
             print(f" **** SOP20 ****")
+            component = create_sop20_model(description_parts[6])
         elif package.capitalize().startswith('Sod323'):
             print(f" **** SOD323 ****")
             component, pins, collection = create_sod323_model()

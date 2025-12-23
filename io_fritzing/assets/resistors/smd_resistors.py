@@ -284,6 +284,7 @@ def create_resistor_cover(collection, length_mm, width_mm, height_mm, thickness_
     collection.objects.link(obj)
     
     # 应用材质
+    getattr(obj.data, "materials").clear()
     getattr(obj.data, "materials").append(cover_mat)
     obj.location.z += height_mm * 1.025
 
