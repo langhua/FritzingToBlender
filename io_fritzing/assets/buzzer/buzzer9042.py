@@ -1,19 +1,7 @@
 import bpy
-import bmesh
-from mathutils import Vector, Matrix
 import math
-
-# 清理场景
-def clear_scene():
-    if bpy.context.mode != 'OBJECT':
-        bpy.ops.object.mode_set(mode='OBJECT')
-    
-    bpy.ops.object.select_all(action='SELECT')
-    bpy.ops.object.delete(use_global=False, confirm=False)
-    
-    scene = bpy.context.scene
-    scene.unit_settings.system = 'METRIC'
-    scene.unit_settings.length_unit = 'MILLIMETERS'
+from io_fritzing.assets.utils.scene import clear_scene
+from io_fritzing.assets.utils.material import create_material
 
 # 根据图片说明修正蜂鸣器9042的尺寸
 dimensions = {
@@ -79,11 +67,18 @@ def create_buzzer_9042_model():
     
     # 确保所有修改器都被应用
     apply_all_modifiers()
+
+    # 将所有对象合并
+    bpy.ops.object.select_all(action='DESELECT')
+    body.select_set(True)
+    marker.select_set(True)
+    for obj in pins:
+        obj.select_set(True)
+    bpy.context.view_layer.objects.active = body
+    bpy.ops.object.join()
+    body.name = "Buzzer_9042"
     
-    # 将所有对象组织到一个组合中
-    collection = create_collection_and_organize(body, pins, marker)
-    
-    return body, pins, collection
+    return body
 
 def create_buzzer_body():
     """创建蜂鸣器主体"""
@@ -112,82 +107,10 @@ def create_buzzer_body():
     
     # 设置材质
     body.data.materials.clear()
-    mat_body = create_plastic_material("Plastic_Black")
+    mat_body = create_material(name = "Plastic_Black", base_color = (0.1, 0.1, 0.1, 1.0), metallic = 0.0, roughness = 0.8)
     body.data.materials.append(mat_body)
     
     return body
-
-def create_plastic_material(name):
-    """创建黑色塑料材质"""
-    mat = bpy.data.materials.new(name=name)
-    mat.use_nodes = True
-    
-    # 设置基础颜色
-    mat.diffuse_color = (0.1, 0.1, 0.1, 1.0)  # 黑色
-    
-    nodes = mat.node_tree.nodes
-    nodes.clear()
-    
-    # 添加原理化BSDF节点
-    bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.location = (0, 0)
-    bsdf.inputs['Base Color'].default_value = (0.1, 0.1, 0.1, 1.0)
-    bsdf.inputs['Metallic'].default_value = 0.0
-    bsdf.inputs['Roughness'].default_value = 0.8
-    
-    output = nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = (400, 0)
-    
-    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
-    return mat
-
-def create_metal_material(name):
-    """创建金属材质"""
-    mat = bpy.data.materials.new(name=name)
-    mat.use_nodes = True
-    
-    # 设置金属色
-    mat.diffuse_color = (0.85, 0.85, 0.88, 1.0)  # 银色 nodes = mat.node_tree.nodes
-    mat.node_tree.nodes.clear()
-    
-    # 添加原理化BSDF节点
-    bsdf = mat.node_tree.nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.location = (0, 0)
-    bsdf.inputs['Base Color'].default_value = (0.85, 0.85, 0.88, 1.0)
-    bsdf.inputs['Metallic'].default_value = 0.9
-    bsdf.inputs['Roughness'].default_value = 0.3
-    
-    output = mat.node_tree.nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = (400, 0)
-    
-    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
-    return mat
-
-def create_white_material(name):
-    """创建白色材质"""
-    mat = bpy.data.materials.new(name=name)
-    mat.use_nodes = True
-    
-    mat.diffuse_color = (1.0, 1.0, 1.0, 1.0)  # 纯白色
-    
-    nodes = mat.node_tree.nodes
-    nodes.clear()
-    
-    # 添加原理化BS
-    bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.location = (0, 0)
-    bsdf.inputs['Base Color'].default_value = (1.0, 1.0, 1.0, 1.0)
-    bsdf.inputs['Metallic'].default_value = 0.0
-    bsdf.inputs['Roughness'].default_value = 0.6
-    
-    output = nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = (400, 0)
-    
-    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
-    return mat
 
 def create_sound_hole(body):
     """在蜂鸣器顶部创建中心发声孔"""
@@ -263,7 +186,7 @@ def create_single_pin(y_pos, pin_number):
     
     # 设置材质
     pin.data.materials.clear()
-    mat_pin = create_metal_material("Metal_Silver")
+    mat_pin = create_material(name="Metal_Silver", base_color = (0.85, 0.85, 0.88, 1.0), metallic = 0.9, roughness = 0.3)
     pin.data.materials.append(mat_pin)
     
     return pin
@@ -330,7 +253,7 @@ def create_cross_marker(body):
     
     # 设置十字标记材质
     cross_h.data.materials.clear()
-    mat_cross = create_white_material("Cross_White")
+    mat_cross = create_material("Cross_White", base_color=(1.0, 1.0, 1.0, 1.0), metallic=0.0, roughness=0.6)
     cross_h.data.materials.append(mat_cross)
     
     return cross_h
@@ -365,7 +288,7 @@ def main():
     clear_scene()
     
     # 创建蜂鸣器9042模型
-    body, pins, collection = create_buzzer_9042_model()
+    buzzer9042 = create_buzzer_9042_model()
     
     # 打印规格信息
     print("蜂鸣器9042 3D模型创建完成！")
@@ -415,7 +338,7 @@ def main():
             area.spaces[0].shading.background_type = 'VIEWPORT'
             area.spaces[0].shading.background_color = (0.9, 0.9, 0.9)
     
-    return collection
+    return buzzer9042
 
 if __name__ == "__main__":
     main()
