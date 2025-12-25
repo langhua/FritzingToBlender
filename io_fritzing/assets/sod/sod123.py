@@ -1,19 +1,8 @@
 import bpy
-import bmesh
-from mathutils import Vector, Matrix
 import math
-
-# 清理场景
-def clear_scene():
-    if bpy.context.mode != 'OBJECT':
-        bpy.ops.object.mode_set(mode='OBJECT')
-    
-    bpy.ops.object.select_all(action='SELECT')
-    bpy.ops.object.delete(use_global=False, confirm=False)
-    
-    scene = bpy.context.scene
-    scene.unit_settings.system = 'METRIC'
-    scene.unit_settings.length_unit = 'MILLIMETERS'
+from io_fritzing.assets.utils.scene import clear_scene
+from io_fritzing.assets.utils.material import create_material
+from io_fritzing.assets.utils.origin import set_origin_to_bottom
 
 # 根据设计图定义SOD-123参数（取中值）
 dimensions = {
@@ -70,10 +59,18 @@ def create_sod123_model():
     # 确保所有修改器都被应用
     apply_all_modifiers()
     
-    # 将所有对象组织到一个组合中
-    collection = create_collection_and_organize(body, pins, marker)
+    # 合并所有对象
+    bpy.ops.object.select_all(action='DESELECT')
+    for obj in [body] + pins + [marker]:
+        obj.select_set(True)
+    bpy.context.view_layer.objects.active = body
+    bpy.ops.object.join()
+    body.name = "SOD123_Package"
+
+    # 设置原点到底部
+    set_origin_to_bottom(body)
     
-    return body, pins, collection
+    return body
 
 def create_chip_body():
     """创建芯片主体"""
@@ -105,76 +102,10 @@ def create_chip_body():
     
     # 设置材质
     body.data.materials.clear()
-    mat_body = create_plastic_material("Plastic_Black")
+    mat_body = create_material(name="Plastic_Black", base_color = (0.05, 0.05, 0.05, 1.0), metallic = 0.0, roughness = 0.8)
     body.data.materials.append(mat_body)
     
     return body
-
-def create_plastic_material(name):
-    """创建塑料材质"""
-    mat = bpy.data.materials.new(name=name)
-    mat.use_nodes = True
-    mat.diffuse_color = (0.05, 0.05, 0.05, 1.0)
-    
-    nodes = mat.node_tree.nodes
-    nodes.clear()
-    
-    bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.location = (0, 0)
-    bsdf.inputs['Base Color'].default_value = (0.05, 0.05, 0.05, 1.0)
-    bsdf.inputs['Metallic'].default_value = 0.0
-    bsdf.inputs['Roughness'].default_value = 0.8
-    
-    output = nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = (400, 0)
-    
-    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
-    return mat
-
-def create_metal_material(name):
-    """创建金属材质"""
-    mat = bpy.data.materials.new(name=name)
-    mat.use_nodes = True
-    mat.diffuse_color = (0.8, 0.8, 0.85, 1.0)
-    
-    nodes = mat.node_tree.nodes
-    nodes.clear()
-    
-    bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.location = (0, 0)
-    bsdf.inputs['Base Color'].default_value = (0.8, 0.8, 0.85, 1.0)
-    bsdf.inputs['Metallic'].default_value = 1.0
-    bsdf.inputs['Roughness'].default_value = 0.2
-    
-    output = nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = (400, 0)
-    
-    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
-    return mat
-
-def create_white_material(name):
-    """创建白色标记材质"""
-    mat = bpy.data.materials.new(name=name)
-    mat.use_nodes = True
-    mat.diffuse_color = (1.0, 1.0, 1.0, 1.0)
-    
-    nodes = mat.node_tree.nodes
-    nodes.clear()
-    
-    bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.location = (0, 0)
-    bsdf.inputs['Base Color'].default_value = (1.0, 1.0, 1.0, 1.0)
-    bsdf.inputs['Metallic'].default_value = 0.0
-    bsdf.inputs['Roughness'].default_value = 0.6
-    
-    output = nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = (400, 0)
-    
-    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
-    return mat
 
 def create_pins():
     """创建2个对称引脚"""
@@ -235,7 +166,7 @@ def create_single_pin(side='left'):
     
     # 设置材质
     pin.data.materials.clear()
-    mat_pin = create_metal_material("Metal_Silver")
+    mat_pin = create_material(name="Metal_Silver", base_color = (0.8, 0.8, 0.85, 1.0), metallic = 1.0, roughness = 0.2)
     pin.data.materials.append(mat_pin)
     
     return pin
@@ -268,34 +199,10 @@ def create_marking(body):
     
     # 设置材质
     marking.data.materials.clear()
-    mat_marking = create_white_material("Marking_White")
+    mat_marking = create_material(name="Marking_White", base_color = (1.0, 1.0, 1.0, 1.0), metallic = 0.0, roughness = 0.6)
     marking.data.materials.append(mat_marking)
     
     return marking
-
-def create_collection_and_organize(body, pins, marker):
-    """将所有对象组织到一个组合中"""
-    # 创建新的组合
-    collection = bpy.data.collections.new("SOD-123_Package")
-    bpy.context.scene.collection.children.link(collection)
-    
-    # 收集所有对象
-    objects_to_move = [body]
-    objects_to_move.extend(pins)
-    objects_to_move.append(marker)
-    
-    # 从主场景移除并添加到新组合
-    for obj in objects_to_move:
-        if obj.name in bpy.context.scene.collection.objects:
-            bpy.context.scene.collection.objects.unlink(obj)
-        collection.objects.link(obj)
-    
-    # 选择所有对象
-    bpy.ops.object.select_all(action='DESELECT')
-    for obj in objects_to_move:
-        obj.select_set(True)
-    
-    return collection
 
 def main():
     """主函数"""
@@ -303,7 +210,7 @@ def main():
     clear_scene()
     
     # 创建SOD-123封装模型
-    body, pins, collection = create_sod123_model()
+    sod123 = create_sod123_model()
     
     # 打印尺寸信息
     print("SOD-123封装模型创建完成！")
@@ -318,7 +225,7 @@ def main():
         if area.type == 'VIEW_3D':
             area.spaces[0].shading.type = 'MATERIAL'
     
-    return collection
+    return sod123
 
 if __name__ == "__main__":
     main()

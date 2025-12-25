@@ -8,6 +8,7 @@ from io_fritzing.pnp.utils.parse_resistor import parse_resistance_string
 from io_fritzing.assets.switch.TS_D014 import create_ts_d014_switch
 from io_fritzing.assets.switch.PB86_A0 import create_pb86_button, pb86_a0_dimensions
 from io_fritzing.assets.resistors.smd_resistors import generate_smd_resistor, SMD_SIZES
+from io_fritzing.assets.sod.sod123 import create_sod123_model
 from io_fritzing.assets.sod.sod323 import create_sod323_model
 from io_fritzing.assets.sot.sot23_3 import create_sot23_3_model
 from io_fritzing.assets.sot.sot23_6 import create_sot23_6_model
@@ -148,15 +149,10 @@ def process_line(designator, description, package, center_x, center_y, rotation,
             component = create_sop20_model(description_parts[6])
         elif package.capitalize().startswith('Sod323'):
             print(f" **** SOD323 ****")
-            component, pins, collection = create_sod323_model()
-            bpy.ops.object.select_all(action='DESELECT')
-            if component and bpy.context:
-                for obj in collection.all_objects:
-                    obj.select_set(True)
-                bpy.context.view_layer.objects.active = component
-                bpy.ops.object.join()
+            component = create_sod323_model()
         elif package.capitalize().startswith('Sod123fl'):
             print(f" **** SOD123FL ****")
+            component = create_sod123_model()
         elif package.capitalize().startswith('Esop8'):
             print(f" **** ESOP8 ****")
             component = create_esop8_model(text=mpn)
