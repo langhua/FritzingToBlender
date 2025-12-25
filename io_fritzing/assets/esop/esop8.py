@@ -3,21 +3,9 @@ import bmesh
 from mathutils import Vector
 import math
 from io_fritzing.assets.commons.pin_0_4mm import create_pin as create_common_pin
-
-# 清理场景函数
-def clear_scene():
-    # 确保在对象模式下
-    if bpy.context.mode != 'OBJECT':
-        bpy.ops.object.mode_set(mode='OBJECT')
-    
-    # 选择所有对象并删除
-    bpy.ops.object.select_all(action='SELECT')
-    bpy.ops.object.delete(use_global=False, confirm=False)
-    
-    # 设置场景单位
-    scene = bpy.context.scene
-    scene.unit_settings.system = 'METRIC'
-    scene.unit_settings.length_unit = 'MILLIMETERS'
+from io_fritzing.assets.utils.scene import clear_scene
+from io_fritzing.assets.utils.origin import set_origin_to_bottom
+from io_fritzing.assets.utils.material import create_material
 
 # 根据图纸正确定义尺寸参数（单位：毫米）
 dimensions = {
@@ -74,7 +62,7 @@ def apply_all_modifiers():
                 # 如果无法应用，则移除修改器
                 obj.modifiers.remove(modifier)
 
-def create_esop8_package():
+def create_esop8_model(text="ESOP-8"):
     # 创建芯片主体
     body = create_chip_body()
     
@@ -85,7 +73,10 @@ def create_esop8_package():
     pins = create_pins()
     
     # 添加第一引脚标记（镶嵌在body顶部靠近pin1的角上）
-    marker = create_pin1_marker()
+    marker = create_pin1_marker(body)
+
+    # 创建文本标记（ESOP-8）
+    text_obj = create_text_marker(text)
     
     # 应用所有修改器
     apply_all_modifiers()
@@ -93,8 +84,52 @@ def create_esop8_package():
     # 清理临时对象（如布尔运算后的标记）
     if marker and marker.name in bpy.data.objects:
         bpy.data.objects.remove(marker, do_unlink=True)
+
+    # 合并所有对象
+    bpy.ops.object.select_all(action='DESELECT')
+    body.select_set(True)
+    for obj in [heatsink] + pins + [text_obj]:
+        obj.select_set(True)
+    bpy.context.view_layer.objects.active = body
+    bpy.ops.object.join()
+    body.name = "ESOP8_Package"
+
+    # 设置原点到底部
+    set_origin_to_bottom(body)
     
-    return body, heatsink, pins
+    return body
+
+def create_text_marker(text="ESOP-8"):
+    """创建ESOP8标记文字"""
+    # 在主体顶部添加ESOP8文字标记
+    text_location = (0, 0, dimensions['body_height'] + dimensions['standoff_height'] + 0.01)
+    
+    # 创建文本对象
+    bpy.ops.object.text_add(location=text_location)
+    text_obj = bpy.context.active_object
+    text_obj.name = text + "_Text"
+    
+    # 设置文本内容
+    text_obj.data.body = text
+    
+    # 设置文本大小
+    text_obj.data.size = 0.5
+    text_obj.data.align_x = 'CENTER'
+    text_obj.data.align_y = 'CENTER'
+    
+    # 转换为网格
+    bpy.ops.object.convert(target='MESH')
+    
+    # 缩放文本以适应主体
+    text_obj.scale = (0.8, 0.8, 0.1)
+    bpy.ops.object.transform_apply(scale=True)
+    
+    # 设置文本材质
+    text_obj.data.materials.clear()
+    mat_text = create_material(name="Text_White", base_color=(0.9, 0.9, 0.9, 1.0))
+    text_obj.data.materials.append(mat_text)
+    
+    return text_obj
 
 def create_chip_body():
     # 直接创建具有正确尺寸的立方体，不使用缩放
@@ -164,9 +199,7 @@ def create_chip_body():
     
     # 设置材质（黑色塑料）
     body.data.materials.clear()
-    mat_body = bpy.data.materials.new(name="Plastic_Black")
-    mat_body.use_nodes = True
-    mat_body.diffuse_color = (0.15, 0.15, 0.15, 1.0)
+    mat_body = create_material(name="Plastic_Black", base_color=(0.15, 0.15, 0.15, 1.0))
     body.data.materials.append(mat_body)
     
     return body
@@ -237,9 +270,7 @@ def create_heatsink():
     
     # 设置散热片材质（金属色）
     heatsink.data.materials.clear()
-    mat_heatsink = bpy.data.materials.new(name="Heatsink_Metal")
-    mat_heatsink.use_nodes = True
-    mat_heatsink.diffuse_color = (0.6, 0.6, 0.7, 1.0)
+    mat_heatsink = create_material(name="Heatsink_Metal", base_color=(0.6, 0.6, 0.7, 1.0))
     heatsink.data.materials.append(mat_heatsink)
     
     return heatsink
@@ -279,44 +310,34 @@ def create_pins():
     
     return pins
 
-def create_pin1_marker():
+def create_pin1_marker(body):
     # 创建第一引脚标记（镶嵌在body顶部靠近pin1的角上）
     # 根据图片提示，调整Pin1_Marker位置：
     # X方向与Pin1对齐，Y方向减少0.2mm（向下移动）
     
-    # 计算Pin1的位置（右侧最上方引脚）
-    pin1_x = (1.5 - 0) * dimensions['pin_pitch']  # 第一个引脚在右侧最上方
+    # 计算Pin1的位置（左下引脚）
+    pin1_x = -1.5 * dimensions['pin_pitch']  # 第一个引脚在左下
     
     # 标记位置在body顶部靠近pin1的角上
     # X方向与Pin1对齐，Y方向减少0.2mm（向下移动）
     marker_x = pin1_x  # X方向与Pin1对齐
-    marker_y = dimensions['body_width']/2 - 0.3 - 0.2  # Y方向减少0.2mm（向下移动）
+    marker_y = -dimensions['body_width']/2 + 0.3 + 0.2  # Y方向减少0.2mm（向下移动）
     marker_z = dimensions['body_height'] + dimensions['standoff_height'] - 0.05  # 略低于顶部表面
     
     # 创建圆柱体作为凹坑标记
     bpy.ops.mesh.primitive_cylinder_add(
         vertices=16,
-        radius=0.15,
-        depth=0.1,
+        radius=0.2,
+        depth=0.15,
         location=(marker_x, marker_y, marker_z)
     )
     marker = bpy.context.active_object
     marker.name = "Pin1_Marker"
     
-    # 设置标记材质（对比色）
-    marker.data.materials.clear()
-    mat_marker = bpy.data.materials.new(name="Marker_White")
-    mat_marker.use_nodes = True
-    mat_marker.diffuse_color = (0.9, 0.9, 0.9, 1.0)
-    marker.data.materials.append(mat_marker)
-    
     # 使用布尔运算将标记凹坑嵌入body顶部
-    body = bpy.data.objects.get("ESOP8_Body")
-    if body:
-        # 添加布尔修改器创建凹坑
-        bool_mod = body.modifiers.new(name="Pin1_Marker_Cut", type='BOOLEAN')
-        bool_mod.operation = 'DIFFERENCE'
-        bool_mod.object = marker
+    bool_mod = body.modifiers.new(name="Pin1_Marker_Cut", type='BOOLEAN')
+    bool_mod.operation = 'DIFFERENCE'
+    bool_mod.object = marker
     
     return marker
 
@@ -346,7 +367,7 @@ def main():
     clear_scene()
     
     # 创建ESOP-8封装模型
-    body, heatsink, pins = create_esop8_package()
+    esop8 = create_esop8_model()
     
     # 打印尺寸信息
     print_dimensions()
