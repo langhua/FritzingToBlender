@@ -19,6 +19,7 @@ from io_fritzing.assets.buzzer.buzzer9042 import create_buzzer_9042_model
 from io_fritzing.assets.type_c.usb_type_c_16pin import create_usb_type_c_16pin_model
 from io_fritzing.assets.pptc.pptc0603 import create_smd0603_fuse_model
 from io_fritzing.assets.esop.esop8 import create_esop8_model
+from io_fritzing.assets.msop.msop10 import create_msop10_model
 
 class PnpParseLineByLine(Operator):
     bl_idname = "fritzing.pnp_parse_line_by_line"
@@ -161,6 +162,7 @@ def process_line(designator, description, package, center_x, center_y, rotation,
             component = create_esop8_model(text=mpn)
         elif package.capitalize().startswith('Msop-10'):
             print(f" **** msop-10 ****")
+            component = create_msop10_model(text=mpn)
         elif package.capitalize().startswith('Wdfn3x3-10'):
             print(f" **** WDFN3X3-10 ****")
         elif package.capitalize().startswith('Ts-d014'):
