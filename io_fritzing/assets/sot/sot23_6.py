@@ -2,18 +2,9 @@ import bpy
 import bmesh
 from mathutils import Vector
 import math
-
-# 清理场景
-def clear_scene():
-    if bpy.context.mode != 'OBJECT':
-        bpy.ops.object.mode_set(mode='OBJECT')
-    
-    bpy.ops.object.select_all(action='SELECT')
-    bpy.ops.object.delete(use_global=False, confirm=False)
-    
-    scene = bpy.context.scene
-    scene.unit_settings.system = 'METRIC'
-    scene.unit_settings.length_unit = 'MILLIMETERS'
+from io_fritzing.assets.utils.scene import clear_scene
+from io_fritzing.assets.utils.origin import set_origin_to_bottom
+from io_fritzing.assets.utils.material import create_material
 
 # 根据图纸中的尺寸表定义参数
 dimensions = {
@@ -65,26 +56,63 @@ def apply_all_modifiers():
             except:
                 obj.modifiers.remove(modifier)
 
-def create_sot23_6_model():
+def create_sot23_6_model(text="SOT23-6"):
     """创建SOT23-6完整模型"""
     # 创建芯片主体
     body = create_chip_body()
     
     # 创建6个引脚 - 从腰线开始绘制
     pins = create_pins_from_waistline()
+
+    text_marker = create_text_marker(text)
     
     # 确保所有修改器都被应用
     apply_all_modifiers()
     
     if body is not None:
         bpy.ops.object.select_all(action='DESELECT')
-        body.select_set(True)
-        for obj in pins:
+        for obj in [body] + pins + [text_marker]:
             obj.select_set(True)
         bpy.context.view_layer.objects.active = body
         bpy.ops.object.join()
+        body.name = "SOT23-6_Package"
+
+    set_origin_to_bottom(body)
     
     return body
+
+def create_text_marker(text="SOT23-6"):
+    """创建SOT23-6标记文字"""
+    # 在主体顶部添加SOT23-6文字标记
+    text_location = (0, 0, dimensions['body_height'] + dimensions['standoff_height'] + 0.01)
+    
+    # 创建文本对象
+    bpy.ops.object.text_add(location=text_location)
+    text_obj = bpy.context.active_object
+    text_obj.name = text + "_Text"
+    
+    # 设置文本内容
+    text_obj.data.body = text
+    
+    # 设置文本大小
+    text_obj.data.size = 0.5
+    text_obj.data.align_x = 'CENTER'
+    text_obj.data.align_y = 'CENTER'
+    
+    # 转换为网格
+    bpy.ops.object.convert(target='MESH')
+    
+    # 缩放文本以适应主体
+    text_obj.scale = (0.8, 0.8, 0.1)
+    bpy.ops.object.transform_apply(scale=True)
+    
+    # 设置文本材质
+    text_obj.data.materials.clear()
+    mat_text = create_material(name="Text_White", base_color=(0.9, 0.9, 0.9, 1.0))
+    text_obj.data.materials.append(mat_text)
+    
+    return text_obj
+
 
 def create_chip_body():
     """创建芯片主体 - 使用布尔运算添加Pin1标记凹坑"""
@@ -120,68 +148,10 @@ def create_chip_body():
     
     # 设置材质 - 改进材质设置
     body.data.materials.clear()
-    mat_body = create_plastic_material("Plastic_Black")
+    mat_body = create_material(name="Plastic_Black", base_color = (0.05, 0.05, 0.05, 1.0), metallic = 0.0, roughness = 0.8)
     body.data.materials.append(mat_body)
     
     return body
-
-def create_plastic_material(name):
-    """创建塑料材质 - 改进的材质设置"""
-    mat = bpy.data.materials.new(name=name)
-    mat.use_nodes = True
-    
-    # 设置diffuse_color，在实体模式下也能区分
-    mat.diffuse_color = (0.05, 0.05, 0.05, 1.0)  # 深黑色
-    
-    # 清除默认节点
-    mat.node_tree.nodes.clear()
-    
-    # 添加原理化BSDF节点
-    bsdf = mat.node_tree.nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.location = (0, 0)
-    
-    # 设置塑料材质参数
-    bsdf.inputs['Base Color'].default_value = (0.05, 0.05, 0.05, 1.0)  # 深黑色
-    bsdf.inputs['Metallic'].default_value = 0.0  # 非金属
-    bsdf.inputs['Roughness'].default_value = 0.8  # 高粗糙度，模拟塑料
-    
-    # 添加材质输出节点
-    output = mat.node_tree.nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = (400, 0)
-    
-    # 连接节点
-    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
-    return mat
-
-def create_metal_material(name):
-    """创建金属材质 - 改进的材质设置"""
-    mat = bpy.data.materials.new(name=name)
-    mat.use_nodes = True
-    
-    # 设置diffuse_color，在实体模式下也能区分
-    mat.diffuse_color = (0.8, 0.8, 0.85, 1.0)  # 银白色
-    
-    # 清除默认节点
-    mat.node_tree.nodes.clear()
-    
-    # 添加原理化BSDF节点
-    bsdf = mat.node_tree.nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.location = (0, 0)
-    
-    # 设置金属材质参数
-    bsdf.inputs['Base Color'].default_value = (0.8, 0.8, 0.85, 1.0)  # 银白色
-    bsdf.inputs['Metallic'].default_value = 1.0  # 金属材质
-    bsdf.inputs['Roughness'].default_value = 0.2  # 低粗糙度，光滑金属
-    
-    # 添加材质输出节点
-    output = mat.node_tree.nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = (400, 0)
-    
-    # 连接节点
-    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
-    return mat
 
 def create_pin1_marker_cut(body):
     """创建Pin1标记凹坑 - 使用布尔修改器在主体上创建凹坑"""
@@ -199,7 +169,7 @@ def create_pin1_marker_cut(body):
     # 创建圆柱体作为凹坑切割工具
     bpy.ops.mesh.primitive_cylinder_add(
         vertices=16,
-        radius=0.05,
+        radius=0.15,
         depth=0.1,
         location=(marker_x, marker_y, marker_z)
     )
@@ -430,41 +400,17 @@ def create_pin_with_caps(x_pos, y_pos, pin_number, side, pin_length):
     
     # 设置材质 - 使用金属材质
     pin.data.materials.clear()
-    mat_pin = create_metal_material("Metal_Silver")
+    mat_pin = create_material(name="Metal_Silver", base_color = (0.9, 0.9, 0.9, 1.0), metallic = 0.9, roughness = 0.2)
     pin.data.materials.append(mat_pin)
     
     return pin
-
-def create_collection_and_organize(body, pins):
-    """将所有对象组织到一个组合中"""
-    # 创建新的组合
-    collection = bpy.data.collections.new("SOT23-6_Package")
-    bpy.context.scene.collection.children.link(collection)
-    
-    # 将对象从主场景中移除
-    bpy.context.scene.collection.objects.unlink(body)
-    for pin in pins:
-        bpy.context.scene.collection.objects.unlink(pin)
-    
-    # 将对象添加到新组合中
-    collection.objects.link(body)
-    for pin in pins:
-        collection.objects.link(pin)
-    
-    # 选择所有对象
-    bpy.ops.object.select_all(action='DESELECT')
-    body.select_set(True)
-    for pin in pins:
-        pin.select_set(True)
-    
-    return collection
 
 def main():
     # 清理场景
     clear_scene()
     
     # 创建SOT23-6封装模型
-    body, pins, collection = create_sot23_6_model()
+    sot236 = create_sot23_6_model()
     
     print("SOT23-6封装模型创建完成！")
     print("引脚端面已封面，符合图纸要求")

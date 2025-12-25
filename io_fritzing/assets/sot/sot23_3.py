@@ -2,19 +2,9 @@ import bpy
 import bmesh
 from mathutils import Vector
 import math
-
-# 清理场景
-def clear_scene():
-    if bpy.context.mode != 'OBJECT':
-        bpy.ops.object.mode_set(mode='OBJECT')
-    
-    bpy.ops.object.select_all(action='SELECT')
-    bpy.ops.object.delete(use_global=False, confirm=False)
-    
-    scene = bpy.context.scene
-    scene.unit_settings.system = 'METRIC'
-    scene.unit_settings.length_unit = 'MILLIMETERS'
-    scene.unit_settings.scale_length = 0.001
+from io_fritzing.assets.utils.scene import clear_scene
+from io_fritzing.assets.utils.material import create_material
+from io_fritzing.assets.utils.origin import set_origin_to_bottom
 
 # 根据图纸中的尺寸表定义SOT23-3参数
 dimensions = {
@@ -70,7 +60,7 @@ def apply_all_modifiers():
             except:
                 obj.modifiers.remove(modifier)
 
-def create_sot23_3_model():
+def create_sot23_3_model(text="SOT23-3"):
     """创建SOT23-3完整模型"""
     # 创建芯片主体
     body = create_chip_body()
@@ -78,18 +68,54 @@ def create_sot23_3_model():
     # 创建3个引脚
     pins = create_pins()
     
+    text_marker = create_text_marker(text)
+    
     # 确保所有修改器都被应用
     apply_all_modifiers()
 
     if body is not None:
         bpy.ops.object.select_all(action='DESELECT')
-        body.select_set(True)
-        for obj in pins:
+        for obj in [body] + pins + [text_marker]:
             obj.select_set(True)
         bpy.context.view_layer.objects.active = body
         bpy.ops.object.join()
+        body.name = "SOT23-3_Package"
     
+    set_origin_to_bottom(body)
+
     return body
+
+def create_text_marker(text="SOT23-3"):
+    """创建SOT23-3标记文字"""
+    # 在主体顶部添加SOT23-3文字标记
+    text_location = (0, 0, dimensions['body_height'] + dimensions['standoff_height'] + 0.01)
+    
+    # 创建文本对象
+    bpy.ops.object.text_add(location=text_location)
+    text_obj = bpy.context.active_object
+    text_obj.name = text + "_Text"
+    
+    # 设置文本内容
+    text_obj.data.body = text
+    
+    # 设置文本大小
+    text_obj.data.size = 0.5
+    text_obj.data.align_x = 'CENTER'
+    text_obj.data.align_y = 'CENTER'
+    
+    # 转换为网格
+    bpy.ops.object.convert(target='MESH')
+    
+    # 缩放文本以适应主体
+    text_obj.scale = (0.8, 0.8, 0.1)
+    bpy.ops.object.transform_apply(scale=True)
+    
+    # 设置文本材质
+    text_obj.data.materials.clear()
+    mat_text = create_material(name="Text_White", base_color=(0.9, 0.9, 0.9, 1.0))
+    text_obj.data.materials.append(mat_text)
+    
+    return text_obj
 
 def create_chip_body():
     """创建芯片主体"""
@@ -125,68 +151,10 @@ def create_chip_body():
     
     # 设置材质
     body.data.materials.clear()
-    mat_body = create_plastic_material("Plastic_Black")
+    mat_body = create_material(name="Plastic_Black", base_color=(0.05, 0.05, 0.05, 1.0), metallic=0.0, roughness=0.8)
     body.data.materials.append(mat_body)
     
     return body
-
-def create_plastic_material(name):
-    """创建塑料材质"""
-    mat = bpy.data.materials.new(name=name)
-    mat.use_nodes = True
-    
-    # 设置diffuse_color
-    mat.diffuse_color = (0.05, 0.05, 0.05, 1.0)  # 深黑色
-    
-    # 清除默认节点
-    mat.node_tree.nodes.clear()
-    
-    # 添加原理化BSDF节点
-    bsdf = mat.node_tree.nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.location = (0, 0)
-    
-    # 设置塑料材质参数
-    bsdf.inputs['Base Color'].default_value = (0.05, 0.05, 0.05, 1.0)
-    bsdf.inputs['Metallic'].default_value = 0.0
-    bsdf.inputs['Roughness'].default_value = 0.8
-    
-    # 添加材质输出节点
-    output = mat.node_tree.nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = (400, 0)
-    
-    # 连接节点
-    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
-    return mat
-
-def create_metal_material(name):
-    """创建金属材质"""
-    mat = bpy.data.materials.new(name=name)
-    mat.use_nodes = True
-    
-    # 设置diffuse_color
-    mat.diffuse_color = (0.8, 0.8, 0.85, 1.0)  # 银白色
-    
-    # 清除默认节点
-    mat.node_tree.nodes.clear()
-    
-    # 添加原理化BSDF节点
-    bsdf = mat.node_tree.nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.location = (0, 0)
-    
-    # 设置金属材质参数
-    bsdf.inputs['Base Color'].default_value = (0.8, 0.8, 0.85, 1.0)
-    bsdf.inputs['Metallic'].default_value = 1.0
-    bsdf.inputs['Roughness'].default_value = 0.2
-    
-    # 添加材质输出节点
-    output = mat.node_tree.nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = (400, 0)
-    
-    # 连接节点
-    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
-    return mat
 
 def create_pin1_marker_cut(body):
     """创建Pin1标记凹坑"""
@@ -444,7 +412,7 @@ def create_pin_with_caps(x_pos, y_pos, pin_number, side, is_top_pin=True):
     
     # 设置材质
     pin.data.materials.clear()
-    mat_pin = create_metal_material("Metal_Silver")
+    mat_pin = create_material(name="Metal_Silver", base_color = (0.8, 0.8, 0.85, 1.0), metallic = 1.0, roughness = 0.2)
     pin.data.materials.append(mat_pin)
     
     return pin
@@ -478,7 +446,7 @@ def main():
     clear_scene()
     
     # 创建SOT23-3封装模型
-    body, pins, collection = create_sot23_3_model()
+    sot23_3 = create_sot23_3_model()
     
     # 打印尺寸信息
     print("SOT23-3封装模型创建完成！")

@@ -1,32 +1,24 @@
 import bpy
 import math
 import bmesh
-from mathutils import Vector, Matrix
 from io_fritzing.assets.utils.material import create_material
+from io_fritzing.assets.utils.scene import clear_scene
+from io_fritzing.assets.utils.origin import set_origin_to_bottom
 
-def clear_scene():
-    # 清除默认场景
-    bpy.ops.object.select_all(action='SELECT')
-    bpy.ops.object.delete(use_global=False)
+# 颜色定义
+color_map = {
+    'blue': (0.1, 0.1, 1.0),           # 蓝色
+    'orange': (1.0, 0.5, 0.0),         # 橙色
+    'red': (1.0, 0.1, 0.1),            # 红色
+    'yellow': (1.0, 1.0, 0.0),         # 黄色
+    'green': (0.1, 1.0, 0.1),          # 绿色
+    'white': (1.0, 1.0, 1.0),          # 白色
+    'emerald-green': (0.1, 0.8, 0.1),  # 翠绿色
+    'yellow-green': (0.8, 1.0, 0.1),   # 黄绿色
+}
 
-    # 设置单位为毫米
-    scene = bpy.context.scene
-    scene.unit_settings.system = 'METRIC'
-    scene.unit_settings.length_unit = 'MILLIMETERS'
-    scene.unit_settings.scale_length = 0.001
-
-def create_led_with_color(color_name, color_rgb = None):
+def create_led0603_with_color(color_name, color_rgb = None):
     """创建指定颜色的0603 LED"""
-    
-    # 根据颜色名称修改集合名称
-    led_collection = bpy.data.collections.new(f"0603_{color_name}_LED")
-    bpy.context.scene.collection.children.link(led_collection)
-    
-    def add_to_collection(obj):
-        if obj.name not in led_collection.objects:
-            led_collection.objects.link(obj)
-        if obj.name in bpy.context.scene.collection.objects:
-            bpy.context.scene.collection.objects.unlink(obj)
     
     # 根据设计图设置精确尺寸
     # 主体（body）：白色塑料外壳
@@ -56,23 +48,7 @@ def create_led_with_color(color_name, color_rgb = None):
     support_width = 0.6
     support_height = 0.2
     
-    # 颜色定义
-    color_map = {
-        'blue': (0.1, 0.1, 1.0),       # 蓝色
-        'orange': (1.0, 0.5, 0.0),    # 橙色
-        'red': (1.0, 0.1, 0.1),       # 红色
-        'yellow': (1.0, 1.0, 0.0),    # 黄色
-        'green': (0.1, 1.0, 0.1),     # 绿色
-        'white': (1.0, 1.0, 1.0),     # 白色
-        'emerald-green': (0.1, 0.8, 0.1),  # 翠绿色
-        'yellow-green': (0.8, 1.0, 0.1),   # 黄绿色
-    }
-    
-    # 获取当前颜色
-    if color_rgb is not None:
-        led_color = color_map.get(color_name, color_rgb)
-    else:
-        led_color = color_map.get(color_name, (1.0, 0.1, 0.1))
+    led_color = parse_color_name(color_name, color_rgb)
         
     # 使用更亮的颜色作为发光色
     emission_color = tuple(min(c + 0.3, 1.0) for c in led_color)
@@ -86,11 +62,8 @@ def create_led_with_color(color_name, color_rgb = None):
     body.dimensions = (body_length, body_width, body_height)
     body.location = (0, 0, body_height/2)
     
-    add_to_collection(body)
-    
     # 主体材质
     body_mat = create_material(f"Body_Mat_{color_name}", (0.95, 0.95, 0.95), roughness=0.8)
-    body_mat.diffuse_color = (0.95, 0.95, 0.95, 1)
     body.data.materials.append(body_mat)
     
     bpy.ops.object.transform_apply(scale=True)
@@ -99,7 +72,6 @@ def create_led_with_color(color_name, color_rgb = None):
     # 2. 创建电极
     # ============================================
     electrode_mat = create_material(f"Electrode_Mat_{color_name}", (0.8, 0.8, 0.8), metallic=0.9, roughness=0.2)
-    electrode_mat.diffuse_color = (0.8, 0.8, 0.8, 1)
     # 左侧电极
     bpy.ops.mesh.primitive_cube_add(size=1.0)
     left_electrode = bpy.context.active_object
@@ -107,7 +79,6 @@ def create_led_with_color(color_name, color_rgb = None):
     left_electrode.dimensions = (electrode_height, electrode_length, electrode_width)
     left_electrode.location = (-body_length/2 + electrode_height/2, 0, body_height/2)
     left_electrode.data.materials.append(electrode_mat)
-    add_to_collection(left_electrode)
     
     bpy.ops.object.transform_apply(scale=True, rotation=True)
     
@@ -118,7 +89,6 @@ def create_led_with_color(color_name, color_rgb = None):
     right_electrode.dimensions = (electrode_height, electrode_length, electrode_width)
     right_electrode.location = (body_length/2 - electrode_height/2, 0, body_height/2)
     right_electrode.data.materials.append(electrode_mat)
-    add_to_collection(right_electrode)
     
     bpy.ops.object.transform_apply(scale=True, rotation=True)
     
@@ -156,13 +126,14 @@ def create_led_with_color(color_name, color_rgb = None):
         bm.to_mesh(mesh)
         bm.free()
         
-        led_collection.objects.link(lens)
         lens.location = (0, 0, body_height + lens_height/2)
         
         # 透镜材质
         lens_mat = create_material(f"Lens_Mat_{color_name}", led_color, 
                                    roughness=0.1, alpha=0.7)
         lens.data.materials.append(lens_mat)
+
+        bpy.context.scene.collection.objects.link(lens)
         
         return lens
     
@@ -183,7 +154,6 @@ def create_led_with_color(color_name, color_rgb = None):
     support_mat = create_material(f"Support_Mat_{color_name}", (0.3, 0.3, 0.3), roughness=0.6)
     support_mat.diffuse_color = (0.3, 0.3, 0.3, 1)
     support.data.materials.append(support_mat)
-    add_to_collection(support)
     bpy.ops.object.transform_apply(scale=True)
     
     # ============================================
@@ -198,7 +168,6 @@ def create_led_with_color(color_name, color_rgb = None):
     chip_mat = create_material(f"Chip_Mat_{color_name}", (1.0, 1.0, 1.0), roughness=0.2, 
                                emission_color=emission_color, emission_strength=2.0)
     chip.data.materials.append(chip_mat)
-    add_to_collection(chip)
     bpy.ops.object.transform_apply(scale=True)
     
     # ============================================
@@ -217,7 +186,6 @@ def create_led_with_color(color_name, color_rgb = None):
     bpy.ops.object.transform_apply(scale=True)
     
     tmarker_segment_1.data.materials.append(marker_mat)
-    add_to_collection(tmarker_segment_1)
 
     bpy.ops.mesh.primitive_cube_add(size=1.0)
     tmarker_segment_2 = bpy.context.active_object
@@ -229,7 +197,6 @@ def create_led_with_color(color_name, color_rgb = None):
     bpy.ops.object.transform_apply(scale=True)
     
     tmarker_segment_2.data.materials.append(marker_mat)
-    add_to_collection(tmarker_segment_2)
     
     # ============================================
     # 7. 添加圆角
@@ -246,8 +213,49 @@ def create_led_with_color(color_name, color_rgb = None):
     # 为主体和透镜添加圆角
     add_bevel(body, 0.05)
     add_bevel(lens, 0.05)
-   
-    return led_collection, body, lens
+
+    if body is not None:
+        bpy.ops.object.select_all(action='DESELECT')
+        for obj in [body, left_electrode, right_electrode, lens, support, chip]:
+            obj.select_set(True)
+        bpy.context.view_layer.objects.active = body
+        bpy.ops.object.join()
+        body.name = "LED0603_Package"
+    
+    set_origin_to_bottom(body)
+
+    return body
+
+def parse_color_name(color_name, color_rgb):
+    """解析颜色名称，返回RGB值"""
+    # 获取当前颜色
+    led_color = None
+    if color_rgb is not None:
+        led_color = color_map.get(color_name, color_rgb)
+    # print(f"正在创建 [{color_name}] 颜色LED... {led_color}")
+
+    if led_color is None:
+        if color_name.find('蓝') != -1 or color_name.lower().find('blue') != -1:
+            color_name = 'blue'
+        elif color_name.find('翠绿') != -1 or color_name.lower().find('emerald-green') != -1:
+            color_name = 'emerald-green'
+        elif color_name.find('黄绿') != -1 or color_name.lower().find('yellow-green') != -1:
+            color_name = 'yellow-green'
+        elif color_name.find('绿') != -1 or color_name.lower().find('green') != -1:
+            color_name = 'green'
+        elif color_name.find('黄') != -1 or color_name.lower().find('yellow') != -1:
+            color_name = 'yellow'
+        elif color_name.find('橙') != -1 or color_name.find('橘') != -1 or color_name.lower().find('orange') != -1:
+            color_name = 'orange'
+        elif color_name.find('白') != -1 or color_name.lower().find('white') != -1:
+            color_name = 'white'
+        else:
+            color_name = 'red'    # 默认红色
+
+        led_color = color_map.get(color_name)
+        # print(f"解析 [{color_name}] 颜色为 {led_color}")
+    return led_color
+
 
 def create_multicolor_leds():
     """创建不同颜色的LED模型"""
@@ -273,22 +281,11 @@ def create_multicolor_leds():
     start_x = -len(color_map) * spacing / 2
     x_positions = [start_x + i * spacing for i in range(len(color_map))]
     
-    all_collections = []
-    
     for idx, (color_name, color_rgb) in enumerate(color_map.items()):
-        # 创建单个LED
-        led_collection, body, lens = create_led_with_color(color_name, color_rgb)
-        
-        # 将LED添加到主集合
-        for obj in led_collection.objects:
-            main_collection.objects.link(obj)
-        
-        # 设置位置
-        for obj in led_collection.objects:
-            obj.location.x += x_positions[idx]
-            
-        all_collections.append(led_collection)
-        
+        body = create_led0603_with_color(color_name, color_rgb)
+        if body is not None:
+            body.location.x += x_positions[idx]
+            main_collection.objects.link(body)
         print(f"创建了{color_name}色LED，RGB: {color_rgb}")
     
     # 设置视图
@@ -297,7 +294,7 @@ def create_multicolor_leds():
             area.spaces[0].shading.type = 'MATERIAL'
             area.spaces[0].shading.light = 'STUDIO'
     
-    return main_collection, all_collections
+    return main_collection
 
 def main():
     """主函数入口"""
@@ -306,31 +303,29 @@ def main():
     print("=" * 50)
     
     try:
-#        main_collection, led_collections = create_multicolor_leds()
-#        
-#        print(f"\n成功创建了{len(led_collections)}种颜色的LED模型：")
-#        for i, coll in enumerate(led_collections):
-#            led_count = len([obj for obj in coll.objects if "LED_Body" in obj.name])
-#            if led_count > 0:
-#                color_name = coll.name.split("_")[1] if "_" in coll.name else f"Color_{i}"
-#                print(f"  {color_name}: {len(coll.objects)}个组件")
-#        
-#        print(f"\n在主集合'Multicolor_LEDs'中包含{len(main_collection.objects)}个对象")
-#        print("=" * 50)
-#        
-#        # 显示模型信息
-#        for coll in led_collections:
-#            for obj in coll.objects:
-#                if "LED_Body" in obj.name:
-#                    print(f"\n{obj.name} 尺寸: {obj.dimensions.x:.2f}×{obj.dimensions.y:.2f}×{obj.dimensions.z:.2f}mm")
-#                    break
-#        
-#        print("\n在Outliner中查看'Multicolor_LEDs'集合")
-#        print("每个LED都有一个颜色标签标识")
-#        print("可以使用Outliner中的集合开关来切换显示")
+       main_collection = create_multicolor_leds()
+       
+       print(f"\n成功创建了{len(main_collection.all_objects)}种颜色的LED模型：")
+       for i, coll in enumerate(main_collection.children):
+           led_count = len([obj for obj in coll.objects if "LED_Body" in obj.name])
+           if led_count > 0:
+               color_name = coll.name.split("_")[1] if "_" in coll.name else f"Color_{i}"
+               print(f"  {color_name}: {len(coll.objects)}个组件")
+       
+       print(f"\n在主集合'Multicolor_LEDs'中包含{len(main_collection.all_objects)}个对象")
+       print("=" * 50)
+       
+       # 显示模型信息
+       for coll in main_collection.children:
+           for obj in coll.objects:
+               if "LED_Body" in obj.name:
+                   print(f"\n{obj.name} 尺寸: {obj.dimensions.x:.2f}×{obj.dimensions.y:.2f}×{obj.dimensions.z:.2f}mm")
+                   break
+       
+       print("\n在Outliner中查看'Multicolor_LEDs'集合")
+       print("每个LED都有一个颜色标签标识")
+       print("可以使用Outliner中的集合开关来切换显示")
 
-        create_led_with_color('blue')
-            
     except Exception as e:
         print(f"创建模型时出错: {str(e)}")
         import traceback

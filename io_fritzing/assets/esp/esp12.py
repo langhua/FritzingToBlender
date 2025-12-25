@@ -3,7 +3,7 @@ import math
 import bmesh
 from mathutils import Vector
 from io_fritzing.assets.commons.antenna import create_esp12f_antenna
-from io_fritzing.assets.led.led0603 import create_led_with_color
+from io_fritzing.assets.led.led0603 import create_led0603_with_color
 from io_fritzing.assets.utils.material import create_material
 from io_fritzing.assets.utils.scene import clear_scene
 
@@ -132,15 +132,7 @@ def create_esp12f_model():
         segment.rotation_euler.z = math.radians(-90)
 
     # LED灯
-    led_collection, led_body, led_lens = create_led_with_color("blue")
-    bpy.ops.object.select_all(action='DESELECT')
-    led_body.select_set(True)
-    led_lens.select_set(True)
-    for obj in led_collection.objects:
-        obj.select_set(True)
-    bpy.context.view_layer.objects.active = led_body
-    bpy.ops.object.join()
-    led_body.name = 'LED_Package'
+    led_body = create_led0603_with_color("blue")
 
     led_body.location.x += pcb_length/2 - antenna_width - led_body.dimensions.y
     led_body.location.y += -pcb_width/2 + pin_length
@@ -209,7 +201,6 @@ def create_esp12f_model():
     pcb.location.z += pin_thickness/2
 
     # 删除两个collection
-    bpy.data.collections.remove(led_collection)
     bpy.data.collections.remove(antenna_collection)
     bpy.data.collections.remove(esp12f_collection)
  

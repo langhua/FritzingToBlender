@@ -21,6 +21,7 @@ from io_fritzing.assets.type_c.usb_type_c_16pin import create_usb_type_c_16pin_m
 from io_fritzing.assets.pptc.pptc0603 import create_smd0603_fuse_model
 from io_fritzing.assets.esop.esop8 import create_esop8_model
 from io_fritzing.assets.msop.msop10 import create_msop10_model
+from io_fritzing.assets.led.led0603 import create_led0603_with_color
 
 class PnpParseLineByLine(Operator):
     bl_idname = "fritzing.pnp_parse_line_by_line"
@@ -116,6 +117,7 @@ def process_line(designator, description, package, center_x, center_y, rotation,
         # 依据package类型进行导入
         component = None
         mpn = description_parts[6].strip()
+        package = package.strip()
         if package.capitalize().startswith('Pb86-a0'):
             component = create_pb86_button(dims=pb86_a0_dimensions, color=description)
         elif package.capitalize().startswith('Usb-typec'):
@@ -136,14 +138,12 @@ def process_line(designator, description, package, center_x, center_y, rotation,
             if resistance is None:
                 resistance = 0
             component = generate_yc164_resistor(resistance)
-        elif package.capitalize().startswith('Sot23-5'):
-            print(f" **** SOT-23-5 ****")
         elif package.capitalize().startswith('Sot23-3'):
             print(f" **** SOT23-3 ****")
-            component = create_sot23_3_model()
+            component = create_sot23_3_model(text=mpn)
         elif package.capitalize().startswith('Sot23-6'):
             print(f" **** SOT23-6 ****")
-            component = create_sot23_6_model()
+            component = create_sot23_6_model(text=mpn)
         elif package.capitalize().startswith('Sop20'):
             print(f" **** SOP20 ****")
             component = create_sop20_model(description_parts[6])
@@ -171,9 +171,13 @@ def process_line(designator, description, package, center_x, center_y, rotation,
             component = create_mx125_2p()
         elif package == '0603':
             if mpn != '':
+                print(f" **** 0603 mpn: {mpn}")
                 if mpn.capitalize().startswith('0.5a '):
                     component = create_smd0603_fuse_model(text='5')
                     print(f" **** PPTC 0603 ****")
+                elif mpn.capitalize().find('Led') != -1 or mpn.capitalize().find('led') != -1:
+                    component = create_led0603_with_color(color_name=mpn)
+                    print(f" **** LED 0603 ****")
                 else:
                     print(f" !!!! Unknown !!!!")
                     return False
