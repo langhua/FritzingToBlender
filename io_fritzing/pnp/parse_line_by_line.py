@@ -24,6 +24,7 @@ from io_fritzing.assets.msop.msop10 import create_msop10_model
 from io_fritzing.assets.led.led0603 import create_led0603_with_color
 from io_fritzing.assets.capacitors.smd_e_cap import create_smd_ecap_model
 from io_fritzing.assets.capacitors.smd_capacitor import create_smd_capacitor_model
+from io_fritzing.assets.inductor.smd_inductor import create_smd_inductor_model
 
 class PnpParseLineByLine(Operator):
     bl_idname = "fritzing.pnp_parse_line_by_line"
@@ -122,6 +123,8 @@ def process_line(designator, description, package, center_x, center_y, rotation,
     elif description_parts[2].strip() != '':
         # 如果description第三个分号前有内容，作为电感导入
         print(f" ** Inductor: {description_parts[2].strip()},{package},{center_x},{center_y},{rotation},{layer},{mount}")
+        component = create_smd_inductor_model(size_name=package.strip())
+        print(f" **** SMD Inductor {package.strip()} ****")
     else:
         # 依据package类型进行导入
         component = None
@@ -187,6 +190,9 @@ def process_line(designator, description, package, center_x, center_y, rotation,
                 elif mpn.capitalize().find('Led') != -1 or mpn.capitalize().find('led') != -1:
                     component = create_led0603_with_color(color_name=mpn)
                     print(f" **** LED 0603 ****")
+                elif mpn.find('μH') != -1:
+                    component = create_smd_inductor_model(size_name='0603')
+                    print(f" **** SMD Inductor 0603 ****")
                 else:
                     print(f" !!!! Unknown !!!!")
                     return False

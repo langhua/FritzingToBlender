@@ -5,8 +5,8 @@ from io_fritzing.assets.utils.scene import clear_scene, create_lighting, create_
 from io_fritzing.assets.utils.origin import set_origin_to_bottom
 from io_fritzing.assets.utils.material import create_material
 
-# 定义常见贴片电容封装尺寸（单位：毫米）- 保留所有尺寸
-CAPACITOR_SIZES = {
+# 定义常见贴片电感封装尺寸（单位：毫米）- 保留所有尺寸
+INDUCTOR_SIZES = {
     '0402': {'length': 1.0, 'width': 0.5, 'height': 0.5},
     '0603': {'length': 1.6, 'width': 0.8, 'height': 0.8},
     '0805': {'length': 2.0, 'width': 1.25, 'height': 1.0},
@@ -16,12 +16,12 @@ CAPACITOR_SIZES = {
 }
 
 
-def create_smd_capacitor_model(size_name='0603'):
-    """创建单个陶瓷贴片电容"""
-    if size_name not in CAPACITOR_SIZES:
+def create_smd_inductor_model(size_name='0603'):
+    """创建单个叠层高频电感"""
+    if size_name not in INDUCTOR_SIZES:
         size_name = '0603'
     
-    dimensions = CAPACITOR_SIZES[size_name]
+    dimensions = INDUCTOR_SIZES[size_name]
     length = dimensions['length']
     width = dimensions['width']
     height = dimensions['height']
@@ -31,33 +31,33 @@ def create_smd_capacitor_model(size_name='0603'):
     terminal_width = width
     terminal_height = height
     
-    # 陶瓷本体参数（尺寸为电容尺寸的95%）
+    # 叠层本体参数（尺寸为电容尺寸的95%）
     body_length = length - 2 * terminal_length
     body_width = width * 0.95
     body_height = height * 0.95
     
     # 创建集合
-    collection_name = f"Ceramic_Capacitor_{size_name}"
+    collection_name = f"Inductor_Layer_{size_name}"
     collection = bpy.data.collections.new(collection_name)
     bpy.context.scene.collection.children.link(collection)
     
     # 创建材质
-    ceramic_mat = create_material(name="Ceramic_Body_Dark", base_color=(0.47, 0.36, 0.28), metallic=0.0, roughness=0.2)
+    layer_mat = create_material(name="Inductor_Layer", base_color=(0.15, 0.25, 0.15), metallic=0.0, roughness=0.2)
     terminal_mat = create_material(name="Terminal_Metal", base_color=(0.9, 0.9, 0.92), metallic=0.95, roughness=0.15)
     
-    # 1. 创建陶瓷本体
+    # 1. 创建叠层本体
     bm_body = bmesh.new()
     body_size = Vector((body_length, body_width, body_height))
     bmesh.ops.create_cube(bm_body, size=1.0)
     for v in bm_body.verts:
         v.co = v.co * body_size
     
-    mesh_body = bpy.data.meshes.new("Ceramic_Body")
+    mesh_body = bpy.data.meshes.new("Inductor_Layer_Body")
     bm_body.to_mesh(mesh_body)
-    obj_body = bpy.data.objects.new("Ceramic_Body", mesh_body)
+    obj_body = bpy.data.objects.new("Inductor_Layer_Body", mesh_body)
     collection.objects.link(obj_body)
     obj_body.data.materials.clear()
-    obj_body.data.materials.append(ceramic_mat)
+    obj_body.data.materials.append(layer_mat)
     
     # 2. 创建左侧金属焊端
     bm_left_terminal = bmesh.new()
@@ -99,7 +99,7 @@ def create_smd_capacitor_model(size_name='0603'):
     obj_right_terminal.select_set(True)
     bpy.context.view_layer.objects.active = obj_body
     bpy.ops.object.join()
-    obj_body.name = f"SMD_Capacitor_{size_name}"
+    obj_body.name = f"SMD_Inductor_{size_name}"
 
     set_origin_to_bottom(obj_body)
 
@@ -109,27 +109,27 @@ def main():
     clear_scene()
 
     # 创建主集合
-    collection = bpy.data.collections.new("Electrolytic_Capacitors_Collection")
+    collection = bpy.data.collections.new("Inductor_Collection")
     bpy.context.scene.collection.children.link(collection)
     
     print("=" * 60)
-    print("创建多种陶瓷贴片电容3D模型")
-    print(f"将创建 {len(CAPACITOR_SIZES.keys())} 个陶瓷贴片电容模型")
+    print("创建多种叠层高频电感3D模型")
+    print(f"将创建 {len(INDUCTOR_SIZES.keys())} 个叠层高频电感模型")
     
-    caps = []
+    inducs = []
     y_offset = 0
     increment = 1
     
-    for key in CAPACITOR_SIZES.keys():
-        ecap = create_smd_capacitor_model(key)
-        ecap.location.y += y_offset
+    for key in INDUCTOR_SIZES.keys():
+        inductor = create_smd_inductor_model(key)
+        inductor.location.y += y_offset
         y_offset += 2 + increment
         increment += 0.5
         # 添加到集合
-        collection.objects.link(ecap)
-        caps.append(ecap)
+        collection.objects.link(inductor)
+        inducs.append(inductor)
 
-    print("陶瓷贴片电容3D模型生成完毕！")
+    print("叠层高频电感3D模型生成完毕！")
 
     # 创建照明
     print("创建照明...")
