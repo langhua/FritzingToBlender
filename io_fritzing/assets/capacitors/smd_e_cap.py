@@ -2,9 +2,9 @@ import bpy
 import bmesh
 from mathutils import Vector, Matrix
 import math
-from io_fritzing.assets.utils.scene import clear_scene
-from io_fritzing.assets.utils.origin import set_origin_to_bottom
+from io_fritzing.assets.utils.scene import clear_scene, create_lighting, create_camera
 from io_fritzing.assets.utils.material import create_material
+
 
 # 根据图片中的表格定义W值映射表（根据直径ΦD）
 W_VALUE_MAP = {
@@ -382,7 +382,6 @@ def create_smd_electrolytic_capacitor_with_horizontal_exposed(size_name='6.3x5.3
     bpy.ops.object.join()
     body.name = f"Electrolytic_Capacitor_{size_name}"
 
-    set_origin_to_bottom(body)
     body.location.z += body_height / 2 + base_height
     body.rotation_euler.z = math.pi
     
@@ -393,49 +392,17 @@ def create_smd_ecap_model(package='0605'):
     ecap = create_smd_electrolytic_capacitor_with_horizontal_exposed(size_name)
     return ecap
 
-def create_lighting():
-    """创建照明"""
-    # 主光源
-    bpy.ops.object.light_add(type='SUN', location=(10, 10, 20))
-    sun = bpy.context.active_object
-    sun.data.energy = 2.0
-    sun.name = "Main_Sun_Light"
-    
-    # 填充光
-    bpy.ops.object.light_add(type='AREA', location=(-10, -10, 15))
-    fill_light = bpy.context.active_object
-    fill_light.data.energy = 1.0
-    fill_light.data.size = 5.0
-    fill_light.name = "Fill_Light"
-    
-    return sun, fill_light
-
-def create_camera():
-    """创建相机"""
-    bpy.ops.object.camera_add(location=(15, -15, 10))
-    camera = bpy.context.active_object
-    camera.name = "Main_Camera"
-    
-    # 指向场景中心
-    camera.rotation_euler = (1.047, 0, 0.785)  # 约60度俯角，45度方位角
-    
-    # 设置活动相机
-    bpy.context.scene.camera = camera
-    
-    return camera
-
 def main():
     """主函数 - 创建多种贴片电解电容"""
     clear_scene()
 
     # 创建主集合
-    collection = bpy.data.collections.new("Pyramids_Collection")
+    collection = bpy.data.collections.new("Electrolytic_Capacitors_Collection")
     bpy.context.scene.collection.children.link(collection)
     
     print("创建多种贴片电解电容3D模型")
     print("=" * 60)
     print(f"将创建 {len(ELECTROLYTIC_SIZES.keys())} 个贴片电解电容模型")
-    print("")
     
     ecaps = []
     y_offset = 0

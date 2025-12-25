@@ -23,6 +23,7 @@ from io_fritzing.assets.esop.esop8 import create_esop8_model
 from io_fritzing.assets.msop.msop10 import create_msop10_model
 from io_fritzing.assets.led.led0603 import create_led0603_with_color
 from io_fritzing.assets.capacitors.smd_e_cap import create_smd_ecap_model
+from io_fritzing.assets.capacitors.smd_capacitor import create_smd_capacitor_model
 
 class PnpParseLineByLine(Operator):
     bl_idname = "fritzing.pnp_parse_line_by_line"
@@ -112,7 +113,12 @@ def process_line(designator, description, package, center_x, center_y, rotation,
         # 如果description第二个分号前有内容，作为电容导入
         print(f" ** Capacitor: {description_parts[1].strip()},{package},{center_x},{center_y},{rotation},{layer},{mount}")
         if package.strip() == '0605':
-            component = create_smd_ecap_model('0605')
+            component = create_smd_ecap_model(package.strip())
+        elif package.strip() == '0603' or package.strip() == '0805':
+            component = create_smd_capacitor_model(package.strip())
+        else:
+            print(f" !!!! Unknown !!!!")
+            return False
     elif description_parts[2].strip() != '':
         # 如果description第三个分号前有内容，作为电感导入
         print(f" ** Inductor: {description_parts[2].strip()},{package},{center_x},{center_y},{rotation},{layer},{mount}")
