@@ -25,6 +25,7 @@ from io_fritzing.assets.led.led0603 import create_led0603_with_color
 from io_fritzing.assets.capacitors.smd_e_cap import create_smd_ecap_model
 from io_fritzing.assets.capacitors.smd_capacitor import create_smd_capacitor_model
 from io_fritzing.assets.inductor.smd_inductor import create_smd_inductor_model
+from io_fritzing.assets.wdfn.wdfn import create_wdfn_3x3_10_model
 
 class PnpParseLineByLine(Operator):
     bl_idname = "fritzing.pnp_parse_line_by_line"
@@ -173,6 +174,7 @@ def process_line(designator, description, package, center_x, center_y, rotation,
             component = create_msop10_model(text=mpn)
         elif package.capitalize().startswith('Wdfn3x3-10'):
             print(f" **** WDFN3X3-10 ****")
+            component = create_wdfn_3x3_10_model(text=mpn)
         elif package.capitalize().startswith('Ts-d014'):
             component = create_ts_d014_switch()
         elif package.capitalize().startswith('Vqfn-hr-12'):

@@ -3,19 +3,8 @@ import bmesh
 import math
 from mathutils import Vector
 import io_fritzing.assets.commons.triangle as triangle
-
-def clear_scene():
-    context = bpy.context
-    if context is not None and hasattr(context, 'mode') and context.mode != 'OBJECT':
-        bpy.ops.object.mode_set(mode='OBJECT')
-    bpy.ops.object.select_all(action='SELECT')
-    bpy.ops.object.delete(use_global=False, confirm=False)
-    scene = getattr(context, 'scene', None)
-    if scene is not None:
-        scene.unit_settings.system = 'METRIC'
-        scene.unit_settings.length_unit = 'MILLIMETERS'
-        scene.unit_settings.scale_length = 0.001
-
+from io_fritzing.assets.utils.material import create_material
+from io_fritzing.assets.utils.scene import clear_scene
 
 wdfn_3x3_10_dimensions = {
     'body': {
@@ -42,30 +31,6 @@ wdfn_3x3_10_dimensions = {
     }
 }
     
-def create_material(name, color, roughness=0.5, metallic=0.0):
-    """创建材质"""
-    material = bpy.data.materials.new(name=name)
-    material.use_nodes = True
-    material.diffuse_color = color
-    nodes = material.node_tree.nodes
-    nodes.clear()
-    
-    # 创建PBR材质节点
-    bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.inputs['Base Color'].default_value = color
-    bsdf.inputs['Roughness'].default_value = roughness
-    bsdf.inputs['Metallic'].default_value = metallic
-
-    if metallic == 1.0:
-        bsdf.inputs['IOR'].default_value = 1.2
-    
-    output = nodes.new(type='ShaderNodeOutputMaterial')
-    
-    # 连接节点
-    material.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
-    return material
-    
 def create_chip_body(dims):
     """创建芯片主体"""
     # 创建主体网格
@@ -82,10 +47,10 @@ def create_chip_body(dims):
     
     # 添加材质
     body.data.materials.append(create_material(
-        "Chip_Body_Material",
-        (0.05, 0.05, 0.05, 1.0),  # 黑色
-        0.8,  # 粗糙度
-        0.1   # 金属度
+        name="Chip_Body_Material",
+        base_color=(0.05, 0.05, 0.05, 1.0),
+        roughness=0.8,
+        metallic=0.1
     ))
     
     return body
@@ -135,10 +100,10 @@ def create_thermal_pad(dims):
 
     # 添加材质
     thermal_pad.data.materials.append(create_material(
-        "Thermal_Pad_Material",
-        (0.85, 0.85, 0.88, 1.0),  # 银色
-        0.2,  # 粗糙度
-        1.0   # 金属度
+        name="Thermal_Pad_Material",
+        base_color=(0.85, 0.85, 0.88, 1.0),
+        roughness=0.2,
+        metallic=1.0
     ))
     
     return thermal_pad
@@ -200,10 +165,10 @@ def create_single_pin(pin_dims, name, location, rotation):
     
     # 添加材质
     pin.data.materials.append(create_material(
-        "Pin_Material",
-        (0.8, 0.8, 0.8, 1.0),  # 银色
-        0.2,  # 粗糙度
-        0.9   # 金属度
+        name="Pin_Material",
+        base_color=(0.8, 0.8, 0.8, 1.0),
+        roughness=0.2,
+        metallic=0.9
     ))
     
     return pin
@@ -231,10 +196,10 @@ def create_pin1_indicator(dims):
     
     # 添加材质（与主体相同但略浅）
     indicator.data.materials.append(create_material(
-        "Indicator_Material",
-        (0.15, 0.15, 0.15, 1.0),
-        0.8,
-        0.1
+        name="Indicator_Material",
+        base_color=(0.15, 0.15, 0.15, 1.0),
+        roughness=0.8,
+        metallic=0.1
     ))
     
     return indicator
@@ -268,18 +233,16 @@ def create_text_marking(dims):
     
     # 添加材质
     text_obj.data.materials.append(create_material(
-        "Text_Material",
-        (0.9, 0.9, 0.9, 1.0),  # 白色
-        0.7,  # 粗糙度
-        0.0   # 金属度
+        name="Text_Material",
+        base_color=(0.9, 0.9, 0.9, 1.0),
+        roughness=0.7,
+        metallic=0.0
     ))
     
     return text_obj
     
 def create_wdfn_3x3_10(dims = wdfn_3x3_10_dimensions):
     """创建完整模型"""
-    print("开始创建WDFN 3x3-10芯片模型...")
-    
     # 创建组件
     body = create_chip_body(dims['body'])
     thermal_pad = create_thermal_pad(dims)
@@ -306,24 +269,22 @@ def create_wdfn_3x3_10(dims = wdfn_3x3_10_dimensions):
     body.select_set(True)
     thermal_pad.select_set(True)
     text_marking.select_set(True)
-    
-    # 创建集合来组织对象
-    chip_collection = bpy.data.collections.new("WDFN_3x3_10_Chip")
-    bpy.context.scene.collection.children.link(chip_collection)
-    
-    # 将芯片组件移动到集合中
-    chip_objects = [body, thermal_pad, text_marking, *pins]
-    for obj in chip_objects:
-        if obj.name in bpy.context.scene.objects:
-            for coll in obj.users_collection:
-                coll.objects.unlink(obj)
-            chip_collection.objects.link(obj)
-    
-    print("芯片模型创建完成！")
-    print(f"封装尺寸: {dims['body']['length']}x{dims['body']['width']}x{dims['body']['height']} mm")
-    print(f"引脚数量: {dims['pins']['count']}")
-    
-    return chip_collection
+    for obj in pins:
+        obj.select_set(True)
+    bpy.context.view_layer.objects.active = body
+    bpy.ops.object.join()
+
+    body.rotation_euler.z = -math.pi/2
+
+    return body
+
+def create_wdfn_3x3_10_model(text = "WDFN 3x3-10"):
+    """创建WDFN 3x3-10芯片模型"""
+    dims = wdfn_3x3_10_dimensions
+    dims['markings']['text'] = text
+    wdfn = create_wdfn_3x3_10(dims)
+    wdfn.name = text
+    return wdfn
 
 # 主执行函数
 def main():
@@ -336,8 +297,14 @@ def main():
     print("WDFN 3x3-10芯片3D建模")
     print("=" * 50)
     
+    print("开始创建WDFN 3x3-10芯片模型...")
+    
     # 创建建模器实例
-    chip_collection = create_wdfn_3x3_10()
+    chip_collection = create_wdfn_3x3_10_model(text="RT6150AGQW")
+    
+    print("芯片模型创建完成！")
+    print(f"封装尺寸: {wdfn_3x3_10_dimensions['body']['length']}x{wdfn_3x3_10_dimensions['body']['width']}x{wdfn_3x3_10_dimensions['body']['height']} mm")
+    print(f"引脚数量: {wdfn_3x3_10_dimensions['pins']['count']}")
     
 # 执行
 if __name__ == "__main__":
