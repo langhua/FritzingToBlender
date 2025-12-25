@@ -17,6 +17,7 @@ from io_fritzing.assets.sop.sop20 import create_sop20_model
 from io_fritzing.assets.esp.esp12 import create_esp12f_model
 from io_fritzing.assets.buzzer.buzzer9042 import create_buzzer_9042_model
 from io_fritzing.assets.type_c.usb_type_c_16pin import create_usb_type_c_16pin_model
+from io_fritzing.assets.pptc.pptc0603 import create_smd0603_fuse_model
 
 class PnpParseLineByLine(Operator):
     bl_idname = "fritzing.pnp_parse_line_by_line"
@@ -168,8 +169,19 @@ def process_line(designator, description, package, center_x, center_y, rotation,
         elif package.lower().find('mx1.25') > 0:
             print(f" **** MX1.25 ****")
             component = create_mx125_2p()
+        elif package == '0603':
+            if mpn != '':
+                if mpn.capitalize().startswith('0.5a '):
+                    component = create_smd0603_fuse_model(text='5')
+                    print(f" **** PPTC 0603 ****")
+                else:
+                    print(f" !!!! Unknown !!!!")
+                    return False
+            else:
+                print(f" !!!! Unknown !!!!")
+                return False
         else:
-            if description_parts[6].strip() != '':
+            if mpn != '':
                 if mpn.capitalize().startswith('Esp-12'):
                     component = create_esp12f_model()
                     component.rotation_euler.z += math.pi / 2

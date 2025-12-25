@@ -2,19 +2,10 @@ import bpy
 import bmesh
 from mathutils import Vector, Matrix
 import math
+from io_fritzing.assets.utils.scene import clear_scene
+from io_fritzing.assets.utils.material import create_material
+from io_fritzing.assets.utils.origin import set_origin_to_bottom
 
-# 清理场景
-def clear_scene():
-    if bpy.context.mode != 'OBJECT':
-        bpy.ops.object.mode_set(mode='OBJECT')
-    
-    bpy.ops.object.select_all(action='SELECT')
-    bpy.ops.object.delete(use_global=False, confirm=False)
-    
-    scene = bpy.context.scene
-    scene.unit_settings.system = 'METRIC'
-    scene.unit_settings.length_unit = 'MILLIMETERS' 
-    
 #根据技术规格说明书定义PPTC0603的精确尺寸
 dimensions = {
     # 从表格中取PPTC0603的尺寸范围
@@ -55,7 +46,7 @@ def apply_all_modifiers(obj=None):
             except:
                 obj.modifiers.remove(modifier)
 
-def create_resettable_fuse_model():
+def create_smd0603_fuse_model(text = '5'):
     """创建自恢复保险丝完整模型"""
     # 创建保险丝主体
     body = create_fuse_body()
@@ -64,15 +55,26 @@ def create_resettable_fuse_model():
     terminals = create_terminals()
     
     # 创建文字标记"5"（代表500mA）
-    create_text_marking(body)
+    text_obj = create_text_marking(body, text)
     
     # 确保所有修改器都被应用
     apply_all_modifiers()
+
+    # 合并所有对象
+    bpy.ops.object.select_all(action='DESELECT')
+    body.select_set(True)
+    for terminal in terminals:
+        terminal.select_set(True)
+    text_obj.select_set(True)
+    bpy.context.view_layer.objects.active = body
+    bpy.ops.object.join()
+    body.name = 'PPTC0603_Package'
+
+    # 调整位置
+    body.location.z = body.dimensions.z/2
+    body = set_origin_to_bottom(body)
     
-    # 将所有对象组织到一个组合中
-    collection = create_collection_and_organize(body, terminals)
-    
-    return body, terminals, collection
+    return body
 
 def create_fuse_body():
     """创建保险丝主体"""
@@ -94,60 +96,10 @@ def create_fuse_body():
     
     # 设置材质
     body.data.materials.clear()
-    mat_body = create_plastic_material("Plastic_Black")
+    mat_body = create_material(name = "Plastic_Black", base_color = (0.1, 0.1, 0.1, 1.0), metallic = 0.0, roughness = 0.8)
     body.data.materials.append(mat_body)
     
     return body
-
-def create_plastic_material(name):
-    """创建黑色塑料材质"""
-    mat = bpy.data.materials.new(name=name)
-    mat.use_nodes = True
-    
-    # 设置基础颜色
-    mat.diffuse_color = (0.1, 0.1, 0.1, 1.0)  # 黑色
-    
-    nodes = mat.node_tree.nodes
-    nodes.clear()
-    
-    # 添加原理化BSDF节点
-    bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.location = (0, 0)
-    bsdf.inputs['Base Color'].default_value = (0.1, 0.1, 0.1, 1.0)
-    bsdf.inputs['Metallic'].default_value = 0.0
-    bsdf.inputs['Roughness'].default_value = 0.8
-    
-    output = nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = (400, 0)
-    
-    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
-    return mat
-
-def create_metal_material(name):
-    """创建金属材质（电极）"""
-    mat = bpy.data.materials.new(name=name)
-    mat.use_nodes = True
-    
-    # 设置金属色
-    mat.diffuse_color = (0.85, 0.85, 0.88, 1.0)  # 银色
-    
-    nodes = mat.node_tree.nodes
-    nodes.clear()
-    
-    # 添加原理化BSDF节点
-    bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.location = (0, 0)
-    bsdf.inputs['Base Color'].default_value = (0.85, 0.85, 0.88, 1.0)
-    bsdf.inputs['Metallic'].default_value = 0.9
-    bsdf.inputs['Roughness'].default_value = 0.3
-    
-    output = nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = (400, 0)
-    
-    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
-    return mat
 
 def create_terminals():
     """创建2个带半圆槽的电极"""
@@ -241,7 +193,7 @@ def create_single_terminal(side='left'):
     
     # 设置材质
     terminal.data.materials.clear()
-    mat_terminal = create_metal_material("Metal_Silver")
+    mat_terminal = create_material(name = "Metal_Silver", base_color = (0.85, 0.85, 0.88, 1.0), metallic = 0.9, roughness = 0.3)
     terminal.data.materials.append(mat_terminal)
     
     return terminal
@@ -361,55 +313,10 @@ def create_text_marking(body, marker = '5'):
     
     # 设置文字材质（白色）
     text_obj.data.materials.clear()
-    mat_text = bpy.data.materials.new(name="Text_White")
-    mat_text.use_nodes = True
-    mat_text.diffuse_color = (1.0, 1.0, 1.0, 1.0)
-    
-    nodes = mat_text.node_tree.nodes
-    nodes.clear()
-    
-    bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.location = (0, 0)
-    bsdf.inputs['Base Color'].default_value = (1.0, 1.0, 1.0, 1.0)
-    bsdf.inputs['Metallic'].default_value = 0.0
-    bsdf.inputs['Roughness'].default_value = 0.6
-    
-    output = nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = (400, 0)
-    
-    mat_text.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
+    mat_text = create_material(name = "Text_White", base_color = (1.0, 1.0, 1.0, 1.0), metallic = 0.0, roughness = 0.8)
     text_obj.data.materials.append(mat_text)
     
     return text_obj
-
-def create_collection_and_organize(body, terminals):
-    """将所有对象组织到一个组合中"""
-    # 创建新的组合
-    collection = bpy.data.collections.new("PPTC0603_Fuse")
-    bpy.context.scene.collection.children.link(collection)
-    
-    # 收集所有对象
-    objects_to_move = [body]
-    objects_to_move.extend(terminals)
-    
-    # 查找文字标记对象
-    for obj in bpy.context.scene.objects:
-        if obj.name.startswith("PPTC0603_Text"):
-            objects_to_move.append(obj)
-    
-    # 从主场景移除并添加到新组合
-    for obj in objects_to_move:
-        if obj.name in bpy.context.scene.collection.objects:
-            bpy.context.scene.collection.objects.unlink(obj)
-        collection.objects.link(obj)
-    
-    # 选择所有对象
-    bpy.ops.object.select_all(action='DESELECT')
-    for obj in objects_to_move:
-        obj.select_set(True)
-    
-    return collection
 
 def main():
     """主函数"""
@@ -417,7 +324,7 @@ def main():
     clear_scene()
     
     # 创建自恢复保险丝模型
-    body, terminals, collection = create_resettable_fuse_model()
+    pptc0603 = create_smd0603_fuse_model()
     
     # 打印规格信息
     print("自恢复保险丝 PPTC0603 3D模型创建完成！")
@@ -448,7 +355,7 @@ def main():
     print("")
     print("应用说明:")
     print("  - 自恢复保险丝，过流保护后自动恢复")
-    print("  - 最大电压: 6V")
+    print("  - 最大电压: 6V/8V 16V")
     print("  - 维持电流: 0.5A (500mA)")
     print("  - 过流保护: 通常为维持电流的2倍以上")
     print("  - 典型应用: USB端口保护、电池保护、电路板保护")
@@ -462,7 +369,7 @@ def main():
             area.spaces[0].shading.show_object_outline = True
             area.spaces[0].shading.object_outline_color = (0, 0, 0)
     
-    return collection
+    return pptc0603
 
 if __name__ == "__main__":
     main()
