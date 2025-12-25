@@ -2,7 +2,7 @@ import bpy
 import bmesh
 import math
 
-def create_rounded_rectangle(pin_number, width=4, height=2, depth=0.5, radius=0.3, segments=8, rounded_corners="top"):
+def create_rounded_rectangle(pin_number, width=4.0, height=2.0, depth=0.5, radius=0.3, segments=8, rounded_corners="top"):
     pinname = f"Pin_{pin_number}"
     mesh = bpy.data.meshes.new(pinname)
     obj = bpy.data.objects.new(pinname, mesh)

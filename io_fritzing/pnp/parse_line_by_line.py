@@ -16,12 +16,18 @@ from io_fritzing.assets.vqfn_hr.vqfn_hr_12 import create_vqfn_hr_12
 from io_fritzing.assets.sop.sop20 import create_sop20_model
 from io_fritzing.assets.esp.esp12 import create_esp12f_model
 from io_fritzing.assets.buzzer.buzzer9042 import create_buzzer_9042_model
+from io_fritzing.assets.type_c.usb_type_c_16pin import create_usb_type_c_16pin_model
 
 class PnpParseLineByLine(Operator):
     bl_idname = "fritzing.pnp_parse_line_by_line"
     bl_label = "Fritzing pnp import: parse line by line"
     
     def execute(self, context):
+        # 设置单位为毫米
+        bpy.context.scene.unit_settings.system = 'METRIC'
+        bpy.context.scene.unit_settings.length_unit = 'MILLIMETERS'
+        bpy.context.scene.unit_settings.scale_length = 0.001
+
         try:
             # 转换为绝对路径（处理Blender相对路径）
             abs_path = bpy.path.abspath(importdata.filename)
@@ -105,10 +111,22 @@ def process_line(designator, description, package, center_x, center_y, rotation,
     else:
         # 依据package类型进行导入
         component = None
+        mpn = description_parts[6].strip()
         if package.capitalize().startswith('Pb86-a0'):
             component = create_pb86_button(dims=pb86_a0_dimensions, color=description)
         elif package.capitalize().startswith('Usb-typec'):
             print(f" **** USB-TYPE-C ****")
+            if mpn.find('蓝') != -1:
+                plastic_color = 'blue'
+            elif mpn.find('绿') != -1:
+                plastic_color = 'green'
+            elif mpn.find('橙') != -1 or mpn.find('橘') != -1:
+                plastic_color = 'orange'
+            elif mpn.find('白') != -1:
+                plastic_color = 'white'
+            else:
+                plastic_color = 'black'
+            component = create_usb_type_c_16pin_model(plastic_color=plastic_color)
         elif package.capitalize().startswith('Yc164'):
             resistance, unit, resistance_str = parse_resistance_string(description)
             if resistance is None:
@@ -152,7 +170,6 @@ def process_line(designator, description, package, center_x, center_y, rotation,
             component = create_mx125_2p()
         else:
             if description_parts[6].strip() != '':
-                mpn = description_parts[6].strip()
                 if mpn.capitalize().startswith('Esp-12'):
                     component = create_esp12f_model()
                     component.rotation_euler.z += math.pi / 2
@@ -189,3 +206,6 @@ def post_parse(component, center_x, center_y, rotation, layer):
         component.location.x += center_x
     if center_y != 0.0:
         component.location.y += center_y
+
+    # 锁定缩放
+    component.lock_scale = (True, True, True)

@@ -402,9 +402,9 @@ def join_objects(body, pins, marking):
 
 def generate_yc164_resistor(value):
     """生成YC164排阻"""
-    bpy.context.scene.unit_settings.system = 'METRIC'
-    bpy.context.scene.unit_settings.length_unit = 'MILLIMETERS'
-    bpy.context.scene.unit_settings.scale_length = 0.001
+    # bpy.context.scene.unit_settings.system = 'METRIC'
+    # bpy.context.scene.unit_settings.length_unit = 'MILLIMETERS'
+    # bpy.context.scene.unit_settings.scale_length = 0.001
 
     # 创建YC164排阻模型
     body = create_resistor_body()
