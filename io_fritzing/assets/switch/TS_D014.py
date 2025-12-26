@@ -34,7 +34,7 @@ dimensions = {
     
     # 按钮尺寸
     'button_diameter': 3.5,  # 按钮直径
-    'button_height': 3.4,    # 按钮高度(从底座上表面计算)
+    'button_height': 3.8,    # 按钮高度(从底座上表面计算)
     'button_top_chamfer': 0.5,  # 按钮顶部倒角
     'button_top_radius': 1.65,  # 按钮顶部半径
     'button_bottom_radius': 1.75,  # 按钮底部半径
