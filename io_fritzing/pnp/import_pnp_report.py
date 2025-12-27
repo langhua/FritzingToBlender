@@ -26,7 +26,7 @@ importdata = PnpImportData(filename='',
                             invalid=0,
                             failed_lines=[],
                             invalid_lines=[],
-                            pcb_thickness=1.6)
+                            pcb_thickness=1.8)
 
 
 class PnpImportProgressReport(Operator):

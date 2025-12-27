@@ -491,7 +491,8 @@ def create_usb_type_c_16pin_model(plastic_color="black"):
     shell.name = 'USB_TypeC_16pin'
 
     # 8. 调整位置
-    shell.location.z += 3.16/2 + 0.1
+    shell.location.z = (3.16 + 0.9 + 0.1)/2 - 0.9 + 0.1
+    shell.location.y = 0.4
 
     return shell
 

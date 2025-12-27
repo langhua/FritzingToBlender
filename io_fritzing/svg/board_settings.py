@@ -115,10 +115,11 @@ def register():
     icons_dir = os.path.join(addon_path, '../../icons')
 
     if len(board_thickness_items) == 0:
-        board_thickness_items.append(('0.0016', '1.6mm', '', 0))
-        board_thickness_items.append(('0.0014', '1.4mm', '', 1))
-        board_thickness_items.append(('0.0012', '1.2mm', '', 2))
-        board_thickness_items.append(('0.001', '1.0mm', '', 3))
+        # 注意：这里0.2mm的差值，是留给上下覆铜层和丝印层的
+        board_thickness_items.append(('0.0014', '1.6mm', '', 0))
+        board_thickness_items.append(('0.0012', '1.4mm', '', 1))
+        board_thickness_items.append(('0.0010', '1.2mm', '', 2))
+        board_thickness_items.append(('0.0008', '1.0mm', '', 3))
         setattr(Scene, 'board_thickness_setting', EnumProperty(items=board_thickness_items))
 
     if pcoll is None:

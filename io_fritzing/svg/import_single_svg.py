@@ -1,10 +1,11 @@
 import bpy 
 from bpy.types import Operator
-from io_fritzing.svg.report import importdata
+from io_fritzing.svg.report import importdata, update as update_report
 from lxml import etree # type: ignore
 import os
 from io_curve_svg.svg_util import units, read_float
 from mathutils import Matrix
+import time
 
 fritzingPcbCollectionName = 'fritzing_pcb'
 
@@ -22,7 +23,9 @@ class ImportSingleSVG(Operator):
             layer = import_svg(layerClass=layerClass, file=filename)
             if layer is not None:
                 importdata.svgLayers[layerClass] = layer
-            
+            else:
+                print(f"Error importing {layerClass}, try again...")
+
             # remove outline in drill
             if layerClass == 'drill':
                 i = 0
@@ -49,6 +52,7 @@ class ImportSingleSVG(Operator):
             importdata.filenames.pop(layerClass)
             importdata.current = importdata.current + 1
         except Exception as e:
+            print('--ImportSingleSVG exception: ' + str(e))
             if str(e) != '':
                 print('--ImportSingleSVG exception: ' + str(e))
                 importdata.error_msg = str(e)
@@ -57,6 +61,7 @@ class ImportSingleSVG(Operator):
             # all svg imported
             if len(importdata.filenames) == 0:
                 importdata.step_name = 'POST_REMOVE_EXTRA_VERTS'
+
         return {"FINISHED"}
 
 

@@ -12,6 +12,7 @@ class PCBImportData:
     board_thinkness: float
     board_color: str
     silk_color: str
+    objects_to_keep: list
 
 # PCB colors
 # some from the original GerberToBlender code

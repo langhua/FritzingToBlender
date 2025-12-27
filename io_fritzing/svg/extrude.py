@@ -86,7 +86,7 @@ def extrudeLayers(svgLayers, boardThickness, copperThickness, solderMaskThicknes
                     bpy.context.view_layer.objects.active = obj
                     bpy.ops.object.editmode_toggle()
                     bpy.ops.mesh.select_all(action="SELECT")
-                    bpy.ops.mesh.extrude_region_move(MESH_OT_extrude_region={"use_normal_flip":False, "mirror":False}, TRANSFORM_OT_translate={"value":Vector((0, 0, boardThickness + 2e-4))})
+                    bpy.ops.mesh.extrude_region_move(MESH_OT_extrude_region={"use_normal_flip":False, "mirror":False}, TRANSFORM_OT_translate={"value":Vector((0, 0, boardThickness + 4e-4))})
                     bpy.ops.object.editmode_toggle()
-                    obj.location.z = -1e-4   # -0.1mm to 1.8mm if board thinkness is 1.6mm
+                    obj.location.z = -2e-4   # -0.1mm to 1.8mm if board thinkness is 1.6mm
 

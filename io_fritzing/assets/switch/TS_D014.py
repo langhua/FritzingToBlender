@@ -6,18 +6,8 @@ import io_fritzing.assets.commons.l_bend as l_bend
 import io_fritzing.assets.commons.trapezoid as trapezoid
 import io_fritzing.assets.commons.rounded_rect as rounded_rect
 import io_fritzing.assets.commons.z as z_pin
-
-# 清理场景
-def clear_scene():
-    if bpy.context.mode != 'OBJECT':
-        bpy.ops.object.mode_set(mode='OBJECT')
-    
-    bpy.ops.object.select_all(action='SELECT')
-    bpy.ops.object.delete(use_global=False, confirm=False)
-    
-    scene = bpy.context.scene
-    scene.unit_settings.system = 'METRIC'
-    scene.unit_settings.length_unit = 'MILLIMETERS'
+from io_fritzing.assets.utils.scene import clear_scene
+from io_fritzing.assets.utils.material import create_material
 
 # 根据设计图定义TS-D014的尺寸参数
 dimensions = {
@@ -151,6 +141,7 @@ def create_ts_d014_switch():
     # 调整到安装位置在z=0
     ts_d014.rotation_euler = (math.pi/2, 0, math.pi)
     ts_d014.location.z = 4.0
+    ts_d014.location.y -= (dimensions['button_height'] - 0.4)/2
     
     return ts_d014
 
@@ -247,7 +238,7 @@ def create_base():
 
     # 添加材质
     base.data.materials.clear()
-    mat = create_ppa_black_material()
+    mat = create_material(name="PPA_Black", base_color=(0.1, 0.1, 0.1, 1.0), metallic=0.0, roughness=0.8)
     base.data.materials.append(mat)
     
     return base
@@ -300,7 +291,7 @@ def create_button(top_radius, bottom_radius, height):
     
     # 添加材质
     button.data.materials.clear()
-    mat = create_ppa_black_material()
+    mat = create_material(name="PPA_Black", base_color=(0.1, 0.1, 0.1, 1.0), metallic=0.0, roughness=0.8)
     button.data.materials.append(mat)
     
     return button
@@ -336,7 +327,7 @@ def create_pins(base):
         
         # 添加材质
         pin.data.materials.clear()
-        mat = create_brass_silver_material()
+        mat = create_material(name="H62Y_Brass_Silver", base_color=(0.85, 0.85, 0.88, 1.0), metallic=0.9, roughness=0.2)
         pin.data.materials.append(mat)
         
         pins.append(pin)
@@ -470,7 +461,7 @@ def create_plate_with_fillet():
     
     # 添加金属材质
     plate.data.materials.clear()
-    mat = create_stainless_steel_material()
+    mat = create_material(name="Stainless_Steel", base_color=(0.8, 0.8, 0.85, 1.0), metallic=1.0, roughness=0.2)
     plate.data.materials.append(mat)
     
     return plate, mat
@@ -849,110 +840,6 @@ def create_solid_hemisphere_with_base():
     bpy.context.collection.objects.link(hemisphere)
     
     return hemisphere
-
-def create_ppa_black_material():
-    """创建PPA黑色塑料材质"""
-    mat = bpy.data.materials.new(name="PPA_Black")
-    mat.use_nodes = True
-    
-    # 设置基础颜色
-    mat.diffuse_color = (0.1, 0.1, 0.1, 1.0)
-    
-    nodes = mat.node_tree.nodes
-    nodes.clear()
-    
-    # 添加原理化BSDF节点
-    bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.location = (0, 0)
-    bsdf.inputs['Base Color'].default_value = (0.1, 0.1, 0.1, 1.0)
-    bsdf.inputs['Metallic'].default_value = 0.0
-    bsdf.inputs['Roughness'].default_value = 0.8
-    
-    # 添加材质输出节点
-    output = nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = (400, 0)
-    
-    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
-    return mat
-
-def create_brass_silver_material():
-    """创建H62Y黄铜镀银材质"""
-    mat = bpy.data.materials.new(name="H62Y_Brass_Silver")
-    mat.use_nodes = True
-    
-    # 设置金属色
-    mat.diffuse_color = (0.85, 0.85, 0.88, 1.0)
-    
-    nodes = mat.node_tree.nodes
-    nodes.clear()
-    
-    # 添加原理化BSDF节点
-    bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.location = (0, 0)
-    bsdf.inputs['Base Color'].default_value = (0.85, 0.85, 0.88, 1.0)
-    bsdf.inputs['Metallic'].default_value = 0.9
-    bsdf.inputs['Roughness'].default_value = 0.2
-    
-    # 添加材质输出节点
-    output = nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = (400, 0)
-    
-    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
-    return mat
-
-def create_stainless_steel_material():
-    """创建不锈钢/复合银材质"""
-    mat = bpy.data.materials.new(name="Stainless_Steel")
-    mat.use_nodes = True
-    
-    # 设置不锈钢颜色
-    mat.diffuse_color = (0.8, 0.8, 0.85, 1.0)
-    
-    nodes = mat.node_tree.nodes
-    nodes.clear()
-    
-    # 添加原理化BSDF节点
-    bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.location = (0, 0)
-    bsdf.inputs['Base Color'].default_value = (0.8, 0.8, 0.85, 1.0)
-    bsdf.inputs['Metallic'].default_value = 1.0
-    bsdf.inputs['Roughness'].default_value = 0.3
-    
-    # 添加材质输出节点
-    output = nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = (400, 0)
-    
-    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
-    return mat
-
-def create_copper_tin_material():
-    """创建冷轧钢带镀铜/锡材质"""
-    mat = bpy.data.materials.new(name="Copper_Tin")
-    mat.use_nodes = True
-    
-    # 设置铜锡合金颜色
-    mat.diffuse_color = (0.85, 0.7, 0.5, 1.0)
-    
-    nodes = mat.node_tree.nodes
-    nodes.clear()
-    
-    # 添加原理化BSDF节点
-    bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.location = (0, 0)
-    bsdf.inputs['Base Color'].default_value = (0.85, 0.7, 0.5, 1.0)
-    bsdf.inputs['Metallic'].default_value = 0.8
-    bsdf.inputs['Roughness'].default_value = 0.4
-    
-    # 添加材质输出节点
-    output = nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = (400, 0)
-    
-    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
-    return mat
 
 def create_collection_and_organize(objects):
     """将所有对象合并到一起"""

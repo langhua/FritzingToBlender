@@ -22,7 +22,8 @@ importdata = PCBImportData(filenames=dict(),
                             current_file='',
                             board_thinkness=1.0,
                             board_color='',
-                            silk_color='')
+                            silk_color='',
+                            objects_to_keep=[])
 
 
 class ProgressReport(Operator):
@@ -39,28 +40,35 @@ class ProgressReport(Operator):
             if importdata.step_name == 'POST_REMOVE_EXTRA_VERTS':
                 if context and hasattr(context.scene, 'progress_indicator_text'):
                     setattr(context.scene, 'progress_indicator_text', 'Removing extra verts ...')
+                    update(self, context)
                 getattr(getattr(bpy.ops, 'fritzing'), 'remove_extra_verts')("INVOKE_DEFAULT")
             elif importdata.step_name == 'POST_EXTRUDE':
                 if context and hasattr(context.scene, 'progress_indicator_text'):
                     setattr(context.scene, 'progress_indicator_text', 'Extruding ...')
+                    update(self, context)
                 getattr(getattr(bpy.ops, 'fritzing'), 'extrude')("INVOKE_DEFAULT")
             elif importdata.step_name == 'POST_CREATE_MATERIAL':
                 if context and hasattr(context.scene, 'progress_indicator_text'):
                     setattr(context.scene, 'progress_indicator_text', 'Creating materials ...')
+                    update(self, context)
                 getattr(getattr(bpy.ops, 'fritzing'), 'create_materials')("INVOKE_DEFAULT")
             elif importdata.step_name == 'POST_DRILL_HOLES':
                 if context and hasattr(context.scene, 'progress_indicator_text'):
                     setattr(context.scene, 'progress_indicator_text', 'Drilling holes ...')
+                    update(self, context)
                 getattr(getattr(bpy.ops, 'fritzing'), 'drill_holes')("INVOKE_DEFAULT")
             elif importdata.step_name == 'POST_CLEAN_DRILL':
                 if context and hasattr(context.scene, 'progress_indicator_text'):
                     setattr(context.scene, 'progress_indicator_text', 'Cleaning drilled holes ...')
+                    update(self, context)
                 getattr(getattr(bpy.ops, 'fritzing'), 'clean_drill_holes')("INVOKE_DEFAULT")
             elif importdata.step_name == 'POST_MERGE_LAYERS':
                 if context and hasattr(context.scene, 'progress_indicator_text'):
                     setattr(context.scene, 'progress_indicator_text', 'Merging layers ...')
+                    update(self, context)
                 getattr(getattr(bpy.ops, 'fritzing'), 'merge_layers')("INVOKE_DEFAULT")
         elif event.type == 'TIMER' and importdata.step_name == 'FINISHED':
+            update(self, context)
             self.ticks += 1
 
         if self.ticks > 12:
