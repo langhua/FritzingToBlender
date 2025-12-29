@@ -92,7 +92,7 @@ class PnpImportProgressReport(Operator):
 
 def register():
     # a value between [0,100] will show the slider
-    setattr(Scene, 'progress_indicator', FloatProperty(
+    setattr(Scene, 'pnp_progress_indicator', FloatProperty(
                                     default=-1,
                                     subtype='PERCENTAGE',
                                     precision=1,
@@ -103,10 +103,10 @@ def register():
                                     update=update))
 
     # the label in front of the slider can be configured
-    setattr(Scene, 'progress_indicator_text', StringProperty(
-                                    default="Starting SVG import ...",
+    setattr(Scene, 'pnp_progress_indicator_text', StringProperty(
+                                    default="Starting PNP import ...",
                                     update=update))
-
+    
     # save the original draw method of the Info header
     global info_header_draw
     info_header_draw = bpy.types.VIEW3D_HT_tool_header.draw
@@ -135,3 +135,5 @@ def register():
 def unregister():
     global info_header_draw
     bpy.types.VIEW3D_HT_tool_header.draw = info_header_draw
+    delattr(Scene, 'progress_indicator')
+    delattr(Scene, 'progress_indicator_text')

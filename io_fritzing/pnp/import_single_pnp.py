@@ -34,5 +34,6 @@ class GetPnpFile(Operator, ImportHelper):
         # 将分类后的文件名保存到importdata模块中
         importdata.filename = filename
         importdata.step_name = 'PNP_FILE_LINE_COUNT'
-        getattr(getattr(bpy.ops, 'fritzing'), 'count_pnp_lines')("INVOKE_DEFAULT")
+        # 调用PNP导入原点对话框
+        getattr(getattr(bpy.ops, 'fritzing'), 'pnp_settings_dialog')("INVOKE_DEFAULT")
         return {"FINISHED"}

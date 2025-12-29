@@ -138,3 +138,5 @@ def register():
 def unregister():
     global info_header_draw
     bpy.types.VIEW3D_HT_tool_header.draw = info_header_draw
+    delattr(Scene, 'progress_indicator_text')
+    delattr(Scene, 'progress_indicator')

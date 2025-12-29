@@ -6,7 +6,7 @@ from io_fritzing.pnp.import_pnp_report import importdata
 ##
 # 统计行数
 class CountLines(Operator):
-    bl_idname = "fritzing.count_pnp_lines"
+    bl_idname = "fritzing.pnp_count_lines"
     bl_label = "Count PNP Lines"
 
     def execute(self, context):
