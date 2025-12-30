@@ -216,7 +216,7 @@ def create_led0603_with_color(color_name, color_rgb = None):
 
     if body is not None:
         bpy.ops.object.select_all(action='DESELECT')
-        for obj in [body, left_electrode, right_electrode, lens, support, chip]:
+        for obj in [body, left_electrode, right_electrode, lens, support, chip, tmarker_segment_1, tmarker_segment_2]:
             obj.select_set(True)
         bpy.context.view_layer.objects.active = body
         bpy.ops.object.join()
