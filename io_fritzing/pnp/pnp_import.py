@@ -2,17 +2,14 @@ import bpy
 import os
 import time
 import math
-import json
 import re
 import threading
-import queue
-from bpy.types import Operator, Panel, PropertyGroup, Scene, Collection
+from bpy.types import Operator, Panel, Scene, Collection
 from bpy.props import (
     StringProperty, IntProperty, FloatProperty, 
-    BoolProperty, EnumProperty, PointerProperty
+    BoolProperty, EnumProperty
 )
 from datetime import datetime
-from collections import defaultdict
 from io_fritzing.assets.resistors.YC164 import generate_yc164_resistor
 from io_fritzing.pnp.utils.parse_resistor import parse_resistance_string
 from io_fritzing.assets.switch.TS_D014 import create_ts_d014_switch
@@ -378,17 +375,14 @@ import_state = PNPImportState()
 # ============================================================================
 def update_ui_display():
     """更新UI显示"""
+    if bpy.context is None:
+        return
     # 标记所有3D视图区域需要重绘
     for window in bpy.context.window_manager.windows:
         for area in window.screen.areas:
             if area.type == 'VIEW_3D':
                 area.tag_redraw()
     
-    # 尝试请求一次重绘
-    try:
-        bpy.ops.wm.redraw_timer(type='DRAW', iterations=1)
-    except:
-        pass
 
 # 注册更新回调
 import_state.register_update_callback(update_ui_display)
@@ -433,7 +427,8 @@ class IMPORT_OT_pnp_live_import(Operator):
     def invoke(self, context, event):
         """调用对话框"""
         if not self.filepath or not os.path.exists(self.filepath):
-            context.window_manager.fileselect_add(self)
+            if context:
+                context.window_manager.fileselect_add(self)
             return {'RUNNING_MODAL'}
         
         return self.execute(context)
@@ -473,9 +468,10 @@ class IMPORT_OT_pnp_live_import(Operator):
         self._import_thread.start()
         
         # 启动模态定时器用于监控线程
-        wm = context.window_manager
-        self._timer = wm.event_timer_add(0.1, window=context.window)
-        wm.modal_handler_add(self)
+        if context:
+            wm = context.window_manager
+            self._timer = wm.event_timer_add(0.1, window=context.window)
+            wm.modal_handler_add(self)
         
         print(f"🚀 开始导入 {len(lines)} 行数据")
         return {'RUNNING_MODAL'}
@@ -651,7 +647,8 @@ class IMPORT_OT_pnp_live_import(Operator):
                 bpy.ops.object.select_all(action='DESELECT')
                 for obj in collection.objects:
                     obj.select_set(True)
-                bpy.context.view_layer.objects.active = component
+                if bpy.context:
+                    bpy.context.view_layer.objects.active = component
                 bpy.ops.object.join()
         elif description_parts[1].strip() != '':
             # 如果description第二个分号前有内容，作为电容导入
@@ -750,7 +747,8 @@ class IMPORT_OT_pnp_live_import(Operator):
                 if mpn != '':
                     if mpn.capitalize().startswith('Esp-12'):
                         component = create_esp12f_model()
-                        component.rotation_euler.z += math.pi / 2
+                        if component is not None:
+                            component.rotation_euler.z += math.pi / 2
                     elif mpn.startswith('9*4无源蜂鸣器'):
                         component = create_buzzer_9042_model()
                     else:
@@ -787,40 +785,6 @@ class IMPORT_OT_pnp_live_import(Operator):
         if center_y != 0.0:
             component.location.y += center_y
 
-
-    def _apply_component_color(self, obj, line_num):
-        """为元件应用颜色"""
-        mat_name = f"PNP_Mat_{line_num % 10}"
-        
-        if mat_name in bpy.data.materials:
-            mat = bpy.data.materials[mat_name]
-        else:
-            mat = bpy.data.materials.new(name=mat_name)
-            mat.use_nodes = True
-            
-            # 简化材质节点
-            nodes = mat.node_tree.nodes
-            nodes.clear()
-            
-            bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-            output = nodes.new(type='ShaderNodeOutputMaterial')
-            
-            # 设置随机颜色
-            import random
-            hue = (line_num * 0.6180339887) % 1.0  # 黄金比例分布
-            bsdf.inputs[0].default_value = (hue, 0.8, 0.6, 1.0)
-            bsdf.inputs[7].default_value = 0.2  # 粗糙度
-            
-            # 连接节点
-            links = mat.node_tree.links
-            links.new(bsdf.outputs[0], output.inputs[0])
-        
-        # 应用材质
-        if obj.data.materials:
-            obj.data.materials[0] = mat
-        else:
-            obj.data.materials.append(mat)
-    
     def _cancel_import(self):
         """取消导入"""
         self._stop_event.set()
@@ -847,7 +811,8 @@ class IMPORT_OT_pnp_live_import(Operator):
         
         # 如果导入失败，自动弹出结果对话框
         if import_state.has_errors:
-            bpy.ops.fritzing.show_pnp_results_complete('INVOKE_DEFAULT')
+            getattr(getattr(bpy.ops, 'fritzing'), 'show_pnp_results_complete')('INVOKE_DEFAULT')
+            # bpy.ops.fritzing.show_pnp_results_complete('INVOKE_DEFAULT')
 
 # ============================================================================
 # 控制操作符
@@ -922,7 +887,8 @@ class IMPORT_OT_export_error_data(Operator):
             self.filepath = f"pnp_errors_{timestamp}.txt"
         
         # 弹出文件选择对话框
-        context.window_manager.fileselect_add(self)
+        if context:
+            context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
     
     def execute(self, context):
@@ -1033,10 +999,11 @@ class IMPORT_OT_import_error_data(Operator):
                 f.write(error_data)
             
             # 设置场景文件路径
-            context.scene.pnp_file_path = temp_file
+            if context:
+                setattr(context.scene, 'pnp_file_path', temp_file)
             
             # 开始导入
-            bpy.ops.fritzing.pnp_live_import('INVOKE_DEFAULT')
+            getattr(getattr(bpy.ops, 'fritzing'), 'pnp_live_import')('INVOKE_DEFAULT')
             
             # 统计失败行数
             failed_lines = error_data.strip().split('\n')
@@ -1058,27 +1025,28 @@ class IMPORT_OT_clear_import_results(Operator):
     bl_label = "清除结果"
     
     def execute(self, context):
-        scene = context.scene
+        if context is not None:
+            scene = context.scene
+            
+            # 重置状态管理器
+            import_state.reset()
+            
+            # 清除场景属性
+            setattr(scene, 'pnp_import_status', 'IDLE')
+            setattr(scene, 'pnp_import_progress', 0.0)
+            setattr(scene, 'pnp_current_line', 0)
+            setattr(scene, 'pnp_total_lines', 0)
+            setattr(scene, 'pnp_success_count', 0)
+            setattr(scene, 'pnp_failed_count', 0)
+            setattr(scene, 'pnp_skipped_count', 0)
+            setattr(scene, 'pnp_current_component', "")
+            setattr(scene, 'pnp_current_action', "")
+            
+            # 清除结果
+            if 'pnp_import_results' in scene:
+                del scene['pnp_import_results']
         
-        # 重置状态管理器
-        import_state.reset()
-        
-        # 清除场景属性
-        scene.pnp_import_status = 'IDLE'
-        scene.pnp_import_progress = 0.0
-        scene.pnp_current_line = 0
-        scene.pnp_total_lines = 0
-        scene.pnp_success_count = 0
-        scene.pnp_failed_count = 0
-        scene.pnp_skipped_count = 0
-        scene.pnp_current_component = ""
-        scene.pnp_current_action = ""
-        
-        # 清除结果
-        if 'pnp_import_results' in scene:
-            del scene['pnp_import_results']
-        
-        self.report({'INFO'}, "已清除导入结果")
+            self.report({'INFO'}, "已清除导入结果")
         return {'FINISHED'}
 
 class IMPORT_OT_clear_successful_components(Operator):
@@ -1086,9 +1054,15 @@ class IMPORT_OT_clear_successful_components(Operator):
     bl_idname = "fritzing.clear_successful_components"
     bl_label = "清除成功元件"
     
-    confirm: BoolProperty(default=False)
+    confirm: BoolProperty(
+        name="Confirm",
+        description="确认删除操作",
+        default=False
+    ) # type: ignore
     
     def invoke(self, context, event):
+        if context is None:
+            return
         return context.window_manager.invoke_props_dialog(self, width=300)
     
     def draw(self, context):
@@ -1131,6 +1105,8 @@ class VIEW3D_PT_pnp_settings(Panel):
     
     def draw(self, context):
         layout = self.layout
+        if context is None:
+            return
         scene = context.scene
         
         # 文件选择
@@ -1144,9 +1120,10 @@ class VIEW3D_PT_pnp_settings(Panel):
                     icon='FILEBROWSER')
         
         # 文件信息
-        if scene.pnp_file_path and os.path.exists(scene.pnp_file_path):
+        pnp_file_path = getattr(scene, 'pnp_file_path')
+        if pnp_file_path and os.path.exists(pnp_file_path):
             try:
-                with open(scene.pnp_file_path, 'r') as f:
+                with open(pnp_file_path, 'r') as f:
                     lines = [line.strip() for line in f if line.strip()]
                 box.label(text=f"行数: {len(lines)} 个", icon='LINENUMBERS_ON')
             except:
@@ -1243,27 +1220,6 @@ class VIEW3D_PT_pnp_settings(Panel):
         row = box.row(align=True)
         row.prop(scene, "pnp_pcb_thickness", text="厚度")
 
-        # # 原点设置
-        # layout.separator()
-        # box = layout.box()
-        # box.label(text="原点设置", icon='PIVOT_CURSOR')
-        
-        # col = box.column(align=True)
-        # col.prop(scene, "pnp_origin_x", text="X")
-        # col.prop(scene, "pnp_origin_y", text="Y")
-        # col.prop(scene, "pnp_origin_z", text="Z")
-        
-        # # 快速设置按钮
-        # row = box.row(align=True)
-        # row.operator("fritzing.set_origin_to_cursor", 
-        #             text="设为光标", 
-        #             icon='CURSOR')
-        
-        # if context.selected_objects:
-        #     row.operator("fritzing.set_origin_to_selected", 
-        #                 text="设为选中", 
-        #                 icon='OBJECT_DATA')
-        
         # 导入设置
         layout.separator()
         box = layout.box()
@@ -1276,13 +1232,13 @@ class VIEW3D_PT_pnp_settings(Panel):
         layout.separator()
         col = layout.column(align=True)
         
-        if scene.pnp_file_path and os.path.exists(scene.pnp_file_path):
+        if pnp_file_path and os.path.exists(pnp_file_path):
             op = col.operator("fritzing.pnp_live_import", 
                              text="开始实时导入", 
                              icon='PLAY')
-            op.filepath = scene.pnp_file_path
-            op.batch_size = scene.pnp_batch_size
-            op.delay_time = scene.pnp_delay_time
+            setattr(op, 'filepath', pnp_file_path)
+            setattr(op, 'batch_size', getattr(scene, 'pnp_batch_size'))
+            setattr(op, 'delay_time', getattr(scene, 'pnp_delay_time'))
         else:
             col.label(text="请先选择PNP文件", icon='ERROR')
 
@@ -1304,7 +1260,7 @@ class VIEW3D_PT_pnp_progress(Panel):
         # 获取当前状态
         summary = import_state.get_summary()
         
-        if not summary['is_importing'] and not hasattr(context.scene, 'pnp_import_results'):
+        if not summary['is_importing'] and context is not None and not hasattr(context.scene, 'pnp_import_results'):
             # 没有导入活动
             box = layout.box()
             box.label(text="当前没有导入活动", icon='INFO')
@@ -1327,7 +1283,7 @@ class VIEW3D_PT_pnp_progress(Panel):
             row.label(text="状态: 已完成")
         
         # 进度条
-        if summary['is_importing'] and not summary['is_paused']:
+        if summary['is_importing'] and not summary['is_paused'] and context is not None:
             progress = summary['progress']
             row = box.row()
             row.prop(context.scene, "pnp_import_progress", 
@@ -1440,7 +1396,7 @@ class VIEW3D_PT_pnp_progress(Panel):
         
         else:
             # 已完成：显示清除和重新导入
-            if hasattr(bpy.context.scene, 'pnp_file_path') and bpy.context.scene.pnp_file_path:
+            if bpy.context and hasattr(bpy.context.scene, 'pnp_file_path'):
                 row = col.row(align=True)
                 row.operator("fritzing.clear_import_results", 
                             text="清除结果", 
@@ -1449,7 +1405,7 @@ class VIEW3D_PT_pnp_progress(Panel):
                 op = row.operator("fritzing.pnp_live_import", 
                                 text="重新导入", 
                                 icon='FILE_REFRESH')
-                op.filepath = bpy.context.scene.pnp_file_path
+                op.filepath = getattr(bpy.context.scene, 'pnp_file_path')
     
     def _format_time(self, seconds):
         """格式化时间显示"""
@@ -1476,6 +1432,8 @@ class VIEW3D_PT_pnp_tools(Panel):
     
     def draw(self, context):
         layout = self.layout
+        if context is None:
+            return
         scene = context.scene
         
         # 错误处理工具
@@ -1515,7 +1473,7 @@ class VIEW3D_PT_pnp_tools(Panel):
             layout.separator()
             box = layout.box()
             box.label(text="最新导入", icon='TIME')
-            box.label(text=f"时间: {scene.pnp_last_import_time}")
+            box.label(text=f"时间: {getattr(scene, 'pnp_last_import_time')}")
             
             if 'pnp_import_results' in scene:
                 results = scene['pnp_import_results']
@@ -1532,7 +1490,12 @@ class IMPORT_OT_show_pnp_results_complete(Operator):
     bl_label = "PNP导入结果"
     bl_options = {'REGISTER', 'UNDO'}
     
-    width: IntProperty(default=600)
+    width: IntProperty(
+        name="Width",
+        description="Dialog width",
+        default=600
+    ) # type: ignore
+
     show_tab: EnumProperty(
         name="显示标签",
         items=[
@@ -1542,9 +1505,11 @@ class IMPORT_OT_show_pnp_results_complete(Operator):
             ('SKIPPED', "跳过", "显示跳过的行"),
         ],
         default='SUMMARY'
-    )
+    ) # type: ignore
     
     def invoke(self, context, event):
+        if context is None:
+            return
         return context.window_manager.invoke_props_dialog(self, width=self.width)
     
     def execute(self, context):
@@ -1552,6 +1517,8 @@ class IMPORT_OT_show_pnp_results_complete(Operator):
     
     def draw(self, context):
         layout = self.layout
+        if context is None:
+            return
         scene = context.scene
         
         # 获取结果
@@ -1731,16 +1698,27 @@ class IMPORT_OT_browse_pnp_file(Operator):
     bl_idname = "fritzing.browse_pnp_file"
     bl_label = "浏览"
     
-    filepath: StringProperty(subtype='FILE_PATH')
-    filter_glob: StringProperty(default="*_pnp.xy", options={'HIDDEN'})
+    filepath: bpy.props.StringProperty(
+        name="File Path",
+        description="Select PNP file",
+        subtype='FILE_PATH'
+    ) # type: ignore
+    filter_glob: bpy.props.StringProperty(
+        name="Filter Glob",
+        description="File filter",
+        default="*_pnp.xy",
+        options={'HIDDEN'}
+    ) # type: ignore
     
     def invoke(self, context, event):
+        if context is None:
+            return {'CANCELLED'}
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
     
     def execute(self, context):
-        if self.filepath:
-            context.scene.pnp_file_path = self.filepath
+        if context and self.filepath:
+            setattr(context.scene, 'pnp_file_path', self.filepath)
         return {'FINISHED'}
 
 class IMPORT_OT_set_origin_to_cursor(Operator):
@@ -1749,12 +1727,14 @@ class IMPORT_OT_set_origin_to_cursor(Operator):
     bl_label = "设为光标位置"
     
     def execute(self, context):
+        if context is None:
+            return
         scene = context.scene
         cursor = context.scene.cursor.location
         
-        scene.pnp_origin_x = cursor.x
-        scene.pnp_origin_y = cursor.y
-        scene.pnp_origin_z = cursor.z
+        setattr(scene, 'pnp_origin_x', cursor.x)
+        setattr(scene, 'pnp_origin_y', cursor.y)
+        setattr(scene, 'pnp_origin_z', cursor.z)
         
         return {'FINISHED'}
 
@@ -1764,16 +1744,17 @@ class IMPORT_OT_set_origin_to_selected(Operator):
     bl_label = "设为选中对象位置"
     
     def execute(self, context):
-        if not context.selected_objects:
+        if context and not context.selected_objects:
             return {'CANCELLED'}
         
-        scene = context.scene
-        obj = context.active_object
-        
-        if obj:
-            scene.pnp_origin_x = obj.location.x
-            scene.pnp_origin_y = obj.location.y
-            scene.pnp_origin_z = obj.location.z
+        if context:
+            scene = context.scene
+            obj = context.active_object
+            
+            if obj:
+                setattr(scene, 'pnp_origin_x', obj.location.x)
+                setattr(scene, 'pnp_origin_y', obj.location.y)
+                setattr(scene, 'pnp_origin_z', obj.location.z)
         
         return {'FINISHED'}
 
@@ -1947,56 +1928,56 @@ def register():
         bpy.utils.register_class(cls)
     
     # 注册场景属性
-    Scene.pnp_file_path = StringProperty(
+    setattr(Scene, 'pnp_file_path', StringProperty(
         name="PNP File",
         description="PNP文件路径",
         subtype='FILE_PATH',
         default=""
-    )
+    ))
     
-    Scene.pnp_origin_x = FloatProperty(
+    setattr(Scene, 'pnp_origin_x', FloatProperty(
         name="Origin X",
         description="PNP导入原点的X坐标",
         default=0.0
-    )
+    ))
     
-    Scene.pnp_origin_y = FloatProperty(
+    setattr(Scene, 'pnp_origin_y', FloatProperty(
         name="Origin Y", 
         description="PNP导入原点的Y坐标",
         default=0.0
-    )
+    ))
     
-    Scene.pnp_origin_z = FloatProperty(
+    setattr(Scene, 'pnp_origin_z', FloatProperty(
         name="Origin Z",
         description="PNP导入原点的Z坐标", 
         default=0.0
-    )
+    ))
     
-    Scene.pnp_batch_size = IntProperty(
+    setattr(Scene, 'pnp_batch_size', IntProperty(
         name="Batch Size",
         description="每批导入的行数",
         default=1,
         min=1,
         max=10
-    )
+    ))
     
-    Scene.pnp_delay_time = FloatProperty(
+    setattr(Scene, 'pnp_delay_time', FloatProperty(
         name="Delay Time",
         description="元件间的延迟时间",
         default=0.05,
         min=0.01,
         max=1.0
-    )
+    ))
     
-    Scene.pnp_import_progress = FloatProperty(
+    setattr(Scene, 'pnp_import_progress', FloatProperty(
         name="Import Progress",
         description="导入进度",
         default=0.0,
         min=0.0,
         max=100.0
-    )
+    ))
     
-    Scene.pnp_import_status = EnumProperty(
+    setattr(Scene, 'pnp_import_status', EnumProperty(
         name="Import Status",
         items=[
             ('IDLE', "空闲", "未在导入"),
@@ -2006,47 +1987,47 @@ def register():
             ('CANCELLED', "已取消", "导入已取消"),
         ],
         default='IDLE'
-    )
+    ))
     
-    Scene.pnp_current_line = IntProperty(
+    setattr(Scene, 'pnp_current_line', IntProperty(
         name="Current Line",
         default=0
-    )
+    ))
     
-    Scene.pnp_total_lines = IntProperty(
+    setattr(Scene, 'pnp_total_lines', IntProperty(
         name="Total Lines",
         default=0
-    )
+    ))
     
-    Scene.pnp_success_count = IntProperty(
+    setattr(Scene, 'pnp_success_count', IntProperty(
         name="Success Count",
         default=0
-    )
+    ))
     
-    Scene.pnp_failed_count = IntProperty(
+    setattr(Scene, 'pnp_failed_count', IntProperty(
         name="Failed Count",
         default=0
-    )
+    ))
     
-    Scene.pnp_skipped_count = IntProperty(
+    setattr(Scene, 'pnp_skipped_count', IntProperty(
         name="Skipped Count",
         default=0
-    )
+    ))
     
-    Scene.pnp_current_component = StringProperty(
+    setattr(Scene, 'pnp_current_component', StringProperty(
         name="Current Component",
         default=""
-    )
+    ))
     
-    Scene.pnp_current_action = StringProperty(
+    setattr(Scene, 'pnp_current_action', StringProperty(
         name="Current Action",
         default=""
-    )
+    ))
     
-    Scene.pnp_last_import_time = StringProperty(
+    setattr(Scene, 'pnp_last_import_time', StringProperty(
         name="Last Import Time",
         default=""
-    )
+    ))
     
     setattr(Scene, "pnp_origin_mode", EnumProperty(
         name="Origin Mode",
@@ -2061,12 +2042,17 @@ def register():
         update=update_origin_from_mode
     ))
     
-    pcb_thickness_items = []
-    pcb_thickness_items.append(('1.6', '1.6mm', '', 0))
-    pcb_thickness_items.append(('1.4', '1.4mm', '', 1))
-    pcb_thickness_items.append(('1.2', '1.2mm', '', 2))
-    pcb_thickness_items.append(('1.0', '1.0mm', '', 3))
-    setattr(Scene, 'pnp_pcb_thickness', EnumProperty(items=pcb_thickness_items))
+    setattr(Scene, 'pnp_pcb_thickness', EnumProperty(
+        name="PCB Thickness",
+        description="选择PCB厚度",
+        items=[
+            ('1.6', '1.6mm', ''),
+            ('1.4', '1.4mm', ''),
+            ('1.2', '1.2mm', ''),
+            ('1.0', '1.0mm', ''),
+        ],
+        default='1.6',
+    ))
     
     print("✅ PNP完整导入插件已注册")
 
