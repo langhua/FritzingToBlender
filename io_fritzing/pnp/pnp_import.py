@@ -113,7 +113,6 @@ class PNPImportState:
         self.success_count = 0
         self.failed_count = 0
         self.skipped_count = 0
-        self.invalid_count = 0
         
         # 当前处理信息
         self.current_file = ""
@@ -129,7 +128,6 @@ class PNPImportState:
         self.success_lines = []
         self.failed_lines = []
         self.skipped_lines = []
-        self.invalid_lines = []
         
         # 原始行数据缓存
         self.original_lines = []  # 存储所有原始行
@@ -210,23 +208,6 @@ class PNPImportState:
             'error': message
         })
     
-    def add_invalid(self, line_number, message, raw_line=""):
-        """添加无效记录"""
-        self.invalid_count += 1
-        self.invalid_lines.append({
-            'line': line_number,
-            'message': message,
-            'raw_line': raw_line,
-            'time': datetime.now().strftime("%H:%M:%S")
-        })
-        # 同时保存到错误行数据
-        self.error_lines_data.append({
-            'type': 'skipped',
-            'line': line_number,
-            'raw': raw_line,
-            'error': message
-        })
-    
     def pause(self):
         """暂停导入"""
         self.is_paused = True
@@ -258,7 +239,6 @@ class PNPImportState:
             'success_items': self.success_lines,
             'failed_items': self.failed_lines,
             'skipped_items': self.skipped_lines,
-            'invalid_items': self.invalid_lines,
             'file_name': os.path.basename(self.current_file) if self.current_file else "",
             'file_path': self.current_file,
             'has_errors': self.has_errors,
@@ -313,12 +293,10 @@ class PNPImportState:
             export_lines.append(f"# 原始文件: {os.path.basename(self.current_file) if self.current_file else '未知'}")
             export_lines.append(f"# 错误总数: {self.failed_count}")
             export_lines.append(f"# 跳过总数: {self.skipped_count}")
-            export_lines.append(f"# 无效总数: {self.invalid_count}")
             export_lines.append(f"#")
             export_lines.append(f"# 格式说明:")
             export_lines.append(f"#   [失败] - 解析或创建失败的元件")
             export_lines.append(f"#   [跳过] - 被跳过的行（空行、注释、不需导入的元素等）")
-            export_lines.append(f"#   [无效] - 无效的行（格式错误）")
             export_lines.append(f"#")
             
             # 按行号排序
@@ -344,6 +322,7 @@ class PNPImportState:
             sorted_data = sorted(self.error_lines_data, key=lambda x: x['line'])
             
             for item in sorted_data:
+                print(f"{item['type']}[{item['line']}]: {item['raw']}")
                 if item['type'] == 'failed':
                     export_lines.append(item['raw'])
         
@@ -665,8 +644,8 @@ class IMPORT_OT_pnp_live_import(Operator):
             elif package.strip() == '0603' or package.strip() == '0805':
                 component = create_smd_capacitor_model(package.strip())
             else:
-                print(f" !!!! Unknown !!!!")
-                import_state.add_failed(line_number, line, "Unknown")
+                print(f" !!!! No model method !!!!")
+                import_state.add_failed(line_number, line, "No model method", line)
                 return None
         elif description_parts[2].strip() != '':
             # 如果description第三个分号前有内容，作为电感导入
@@ -743,12 +722,12 @@ class IMPORT_OT_pnp_live_import(Operator):
                         component = create_smd_inductor_model(size_name='0603')
                         print(f" **** SMD Inductor 0603 ****")
                     else:
-                        print(f" !!!! Unknown !!!!")
-                        import_state.add_failed(line_number, line, "Unknown")
-                    return None
+                        print(f" !!!! No model method !!!!")
+                        import_state.add_failed(line_number, line, "No model method", line)
+                        return None
                 else:
-                    print(f" !!!! Unknown !!!!")
-                    import_state.add_failed(line_number, line, "Unknown")
+                    print(f" !!!! No model method !!!!")
+                    import_state.add_failed(line_number, line, "No model method", line)
                     return None
             else:
                 if mpn != '':
@@ -759,12 +738,12 @@ class IMPORT_OT_pnp_live_import(Operator):
                     elif mpn.startswith('9*4无源蜂鸣器'):
                         component = create_buzzer_9042_model()
                     else:
-                        print(f" !!!! Unknown !!!!")
-                        import_state.add_failed(line_number, line, "Unknown")
+                        print(f" !!!! No model method !!!!")
+                        import_state.add_failed(line_number, line, "No model method", line)
                         return None
                 else:
-                    print(f" !!!! Unknown !!!!")
-                    import_state.add_failed(line_number, line, "Unknown")
+                    print(f" !!!! No model method !!!!")
+                    import_state.add_failed(line_number, line, "No model method", line)
                     return None
 
         # 调整元件位置
@@ -867,18 +846,18 @@ class IMPORT_OT_export_error_data(Operator):
         name="保存路径",
         description="选择保存错误数据的文件",
         subtype='FILE_PATH',
-        default="pnp_errors.txt"
+        default="errors_pnp.xy"
     ) # type: ignore
     
     export_format: EnumProperty(
         name="导出格式",
         description="选择导出数据的格式",
         items=[
-            ('WITH_COMMENTS', "带注释", "在每行前添加错误原因注释"),
-            ('RAW_ONLY', "仅原始行", "只导出原始行数据，适合直接修改后导入"),
             ('FAILED_ONLY', "仅失败行", "只导出导入失败的行，跳过注释行"),
+            ('RAW_ONLY', "仅原始行", "只导出原始行数据，适合直接修改后导入"),
+            ('WITH_COMMENTS', "带注释", "在每行前添加错误原因注释"),
         ],
-        default='WITH_COMMENTS'
+        default='FAILED_ONLY'
     ) # type: ignore
     
     include_skipped: BoolProperty(
@@ -889,9 +868,9 @@ class IMPORT_OT_export_error_data(Operator):
     
     def invoke(self, context, event):
         # 设置默认文件名
-        if not self.filepath:
+        if self.filepath:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            self.filepath = f"pnp_errors_{timestamp}.txt"
+            self.filepath = f"errors_{timestamp}_pnp.xy"
         
         # 弹出文件选择对话框
         if context:
@@ -1132,7 +1111,7 @@ class VIEW3D_PT_pnp_settings(Panel):
             try:
                 with open(pnp_file_path, 'r') as f:
                     lines = [line.strip() for line in f if line.strip()]
-                box.label(text=f"行数: {len(lines)} 个", icon='LINENUMBERS_ON')
+                box.label(text=f"行数: {len(lines)} 行", icon='LINENUMBERS_ON')
             except:
                 pass
         
@@ -1614,21 +1593,13 @@ class IMPORT_OT_show_pnp_results_complete(Operator):
             layout.label(text="没有成功项", icon='INFO')
             return
         
-        layout.label(text=f"成功导入 {len(success_items)} 项:", icon='CHECKMARK')
+        layout.label(text=f"成功导入 {len(success_items)} 行:", icon='CHECKMARK')
         
         box = layout.box()
         for i, item in enumerate(success_items[:20]):  # 最多显示20个
             row = box.row(align=True)
             row.label(text="", icon='CHECKMARK')
-            row.label(text=f"行{item['line']}: {item.get('component', '未知')}")
-            
-            if 'message' in item:
-                subrow = box.row(align=True)
-                subrow.label(text="", icon='BLANK1')
-                subrow.label(text=item['message'])
-            
-            if i < len(success_items[:20]) - 1:
-                box.separator(factor=0.5)
+            row.label(text=f"行{item['line']}: {item.get('raw_line', '未知')}")
         
         if len(success_items) > 20:
             box.label(text=f"... 还有 {len(success_items) - 20} 个成功项")
@@ -1654,11 +1625,6 @@ class IMPORT_OT_show_pnp_results_complete(Operator):
                 subrow.label(text="", icon='BLANK1')
                 subrow.label(text=item['message'], icon='ERROR')
             
-            if 'raw_line' in item and item['raw_line']:
-                subrow = box.row(align=True)
-                subrow.label(text="", icon='BLANK1')
-                subrow.label(text=f"原始行: {item['raw_line']}")
-            
             if i < len(failed_items[:20]) - 1:
                 box.separator(factor=0.5)
         
@@ -1678,22 +1644,8 @@ class IMPORT_OT_show_pnp_results_complete(Operator):
         box = layout.box()
         for i, item in enumerate(skipped_items[:20]):
             row = box.row(align=True)
-            row.label(text="", icon='BLANK1')
-            row.label(text=f"行{item['line']}")
+            row.label(text=f"行{item['line']}: {item.get('raw_line', '未知')}", icon='THREE_DOTS')
             
-            if 'message' in item:
-                subrow = box.row(align=True)
-                subrow.label(text="", icon='BLANK1')
-                subrow.label(text=item['message'], icon='INFO')
-            
-            if 'raw_line' in item and item['raw_line']:
-                subrow = box.row(align=True)
-                subrow.label(text="", icon='BLANK1')
-                subrow.label(text=f"原始行: {item['raw_line']}")
-            
-            if i < len(skipped_items[:20]) - 1:
-                box.separator(factor=0.5)
-        
         if len(skipped_items) > 20:
             box.label(text=f"... 还有 {len(skipped_items) - 20} 个跳过项")
 
