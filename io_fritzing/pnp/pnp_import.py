@@ -140,7 +140,7 @@ class PNPImportState:
         
         # 回调函数列表
         self.update_callbacks = []
-    
+
     def reset(self):
         """重置状态"""
         self._init()
@@ -458,6 +458,12 @@ class IMPORT_OT_pnp_live_import(Operator):
         
         # 重置停止事件
         self._stop_event.clear()
+
+        # 设置单位为毫米，注意：没有恢复单位到导入前的设置
+        if context:
+            context.scene.unit_settings.system = 'METRIC'
+            context.scene.unit_settings.length_unit = 'MILLIMETERS'
+            context.scene.unit_settings.scale_length = 0.001
         
         # 启动导入线程
         self._import_thread = threading.Thread(
@@ -558,6 +564,7 @@ class IMPORT_OT_pnp_live_import(Operator):
         except Exception as e:
             print(f"导入线程错误: {e}")
             import_state.add_failed(0, "", f"导入过程错误: {str(e)}", "")
+
     
     def _process_line(self, line, line_num, origin, context):
         """处理单行数据"""
