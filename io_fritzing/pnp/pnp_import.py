@@ -47,9 +47,9 @@ def update_origin_preview(self, context):
     if preview_name in bpy.data.objects:
         preview_obj = bpy.data.objects[preview_name]
         preview_obj.location = (
-            scene.pnp_origin_x,
-            scene.pnp_origin_y,
-            scene.pnp_origin_z
+            import_state.origin_x,
+            import_state.origin_y,
+            import_state.origin_z
         )
     
     # 强制UI更新
@@ -64,25 +64,30 @@ def update_origin_from_mode(self, context):
     
     if scene.pnp_origin_mode == 'CURSOR':
         cursor_loc = context.scene.cursor.location
-        scene.pnp_origin_x = cursor_loc.x
-        scene.pnp_origin_y = cursor_loc.y
-        scene.pnp_origin_z = cursor_loc.z
-    
+        try:
+            import_state.origin_x = cursor_loc.x
+            import_state.origin_y = cursor_loc.y
+            import_state.origin_z = cursor_loc.z
+        except AttributeError:
+            import_state.origin_x = cursor_loc.x
+            import_state.origin_y = cursor_loc.y
+            import_state.origin_z = cursor_loc.z
+            pass
     elif scene.pnp_origin_mode == 'SELECTED':
         if context.selected_objects and context.active_object:
             obj = context.active_object
-            scene.pnp_origin_x = obj.location.x
-            scene.pnp_origin_y = obj.location.y
-            scene.pnp_origin_z = obj.location.z
+            import_state.origin_x = obj.location.x
+            import_state.origin_y = obj.location.y
+            import_state.origin_z = obj.location.z
         else:
-            scene.pnp_origin_x = 0.0
-            scene.pnp_origin_y = 0.0
-            scene.pnp_origin_z = 0.0
+            import_state.origin_x = 0.0
+            import_state.origin_y = 0.0
+            import_state.origin_z = 0.0
     
     elif scene.pnp_origin_mode == 'WORLD':
-        scene.pnp_origin_x = 0.0
-        scene.pnp_origin_y = 0.0
-        scene.pnp_origin_z = 0.0
+        import_state.origin_x = 0.0
+        import_state.origin_y = 0.0
+        import_state.origin_z = 0.0
     
     update_origin_preview(self, context)
 
@@ -138,6 +143,11 @@ class PNPImportState:
         
         # 回调函数列表
         self.update_callbacks = []
+
+        # 导入原点
+        self.origin_x = 0.0
+        self.origin_y = 0.0
+        self.origin_z = 0.0
 
     def reset(self):
         """重置状态"""
@@ -495,9 +505,9 @@ class IMPORT_OT_pnp_live_import(Operator):
             # 获取原点
             scene = context.scene
             origin = (
-                getattr(scene, 'pnp_origin_x', 0.0),
-                getattr(scene, 'pnp_origin_y', 0.0),
-                getattr(scene, 'pnp_origin_z', 0.0)
+                import_state.origin_x,
+                import_state.origin_y,
+                import_state.origin_z
             )
             
             # 开始导入
@@ -601,7 +611,7 @@ class IMPORT_OT_pnp_live_import(Operator):
             # 在主线程中创建元件
             bpy.app.timers.register(
                 lambda: self._create_component_in_main_thread(
-                    context, line_num, line, designator, description, package, center_x, center_y, rotation, layer, mount
+                    context, line_num, line, designator, description, package, center_x, center_y, rotation, layer, mount, origin
                 ),
                 first_interval=0.0
             )
@@ -613,7 +623,7 @@ class IMPORT_OT_pnp_live_import(Operator):
         except Exception as e:
             return 'failed', f"解析错误: {e}"
     
-    def _create_component_in_main_thread(self, context, line_number, line, designator, description, package, center_x, center_y, rotation, layer, mount):
+    def _create_component_in_main_thread(self, context, line_number, line, designator, description, package, center_x, center_y, rotation, layer, mount, origin):
         component = None
         # 处理每一行数据的逻辑
         # 这里可以添加将数据添加到Blender场景中的代码
@@ -749,14 +759,14 @@ class IMPORT_OT_pnp_live_import(Operator):
         # 调整元件位置
         if component is not None:
             if isinstance(component, object):
-                self.post_parse(context, component=component, center_x=center_x, center_y=center_y, rotation=rotation, layer=layer)
+                self.post_parse(context, component=component, center_x=center_x, center_y=center_y, rotation=rotation, layer=layer, origin=origin)
             elif isinstance(component, Collection):
                 for obj in component.objects:
-                    self.post_parse(context, component=obj, center_x=center_x, center_y=center_y, rotation=rotation, layer=layer)
+                    self.post_parse(context, component=obj, center_x=center_x, center_y=center_y, rotation=rotation, layer=layer, origin=origin)
 
         return None
     
-    def post_parse(self, context, component, center_x, center_y, rotation, layer):
+    def post_parse(self, context, component, center_x, center_y, rotation, layer, origin):
         # 先旋转
         if float(rotation) != 0.0:
             print(f"   -> 旋转：{rotation}")
@@ -770,6 +780,13 @@ class IMPORT_OT_pnp_live_import(Operator):
             component.location.x += center_x
         if center_y != 0.0:
             component.location.y += center_y
+        # 应用导入原点
+        if origin[0] != 0.0:
+            component.location.x += origin[0]
+        if origin[1] != 0.0:
+            component.location.y += origin[1]
+        if origin[2] != 0.0:
+            component.location.z += origin[2]
 
     def _cancel_import(self):
         """取消导入"""
@@ -1126,22 +1143,30 @@ class VIEW3D_PT_pnp_settings(Panel):
         cursor_loc = context.scene.cursor.location
         if getattr(scene, 'pnp_origin_mode') == 'CURSOR':
             box.label(text=f"3D光标:")
-            box.label(text=f"  X: {cursor_loc.x:.3f}  Y: {cursor_loc.y:.3f}  Z: {cursor_loc.z:.3f}")
+            if import_state.is_importing:
+                box.label(text=f"  X: {import_state.origin_x:.3f}  Y: {import_state.origin_y:.3f}  Z: {import_state.origin_z:.3f}")
+            else:
+                update_origin_from_mode(self, context)
+                box.label(text=f"  X: {cursor_loc.x:.3f}  Y: {cursor_loc.y:.3f}  Z: {cursor_loc.z:.3f}")
         elif getattr(scene, 'pnp_origin_mode') == 'SELECTED':        
             # 选中对象位置
             if context.selected_objects and context.active_object:
                 obj = context.active_object
                 obj_loc = obj.location
                 box.label(text=f"选中对象 ({obj.name}):")
-                box.label(text=f"  X: {obj_loc.x:.3f}  Y: {obj_loc.y:.3f}  Z: {obj_loc.z:.3f}")
+                if import_state.is_importing:
+                    box.label(text=f"  X: {import_state.origin_x:.3f}  Y: {import_state.origin_y:.3f}  Z: {import_state.origin_z:.3f}")
+                else:
+                    update_origin_from_mode(self, context)
+                    box.label(text=f"  X: {obj_loc.x:.3f}  Y: {obj_loc.y:.3f}  Z: {obj_loc.z:.3f}")
             else:
                 box.label(text="选中对象: 无")
         elif getattr(scene, 'pnp_origin_mode') == 'WORLD':
             box.label(text="世界原点: ")
-            box.label(text=f"  X: {getattr(scene, 'pnp_origin_x'):.3f}  Y: {getattr(scene, 'pnp_origin_y'):.3f}  Z: {getattr(scene, 'pnp_origin_z'):.3f}")
+            box.label(text=f"  X: {import_state.origin_x:.3f}  Y: {import_state.origin_y:.3f}  Z: {import_state.origin_z:.3f}")
         elif getattr(scene, 'pnp_origin_mode') == 'MANUAL':
             box.label(text="手动坐标: ")
-            box.label(text=f"  X: {getattr(scene, 'pnp_origin_x'):.3f}  Y: {getattr(scene, 'pnp_origin_y'):.3f}  Z: {getattr(scene, 'pnp_origin_z'):.3f}")
+            box.label(text=f"  X: {import_state.origin_x:.3f}  Y: {import_state.origin_y:.3f}  Z: {import_state.origin_z:.3f}")
 
         # 分隔线
         layout.separator()
@@ -1178,14 +1203,14 @@ class VIEW3D_PT_pnp_settings(Panel):
         # 在CURSOR模式下，手动坐标框应该显示为不可编辑
         if getattr(scene, 'pnp_origin_mode') == 'CURSOR':
             # 显示为只读标签
-            row.label(text=f"X: {getattr(scene, 'pnp_origin_x'):.3f}")
-            row.label(text=f"Y: {getattr(scene, 'pnp_origin_y'):.3f}")
-            row.label(text=f"Z: {getattr(scene, 'pnp_origin_z'):.3f}")
+            row.label(text=f"X: {import_state.origin_x:.3f}")
+            row.label(text=f"Y: {import_state.origin_y:.3f}")
+            row.label(text=f"Z: {import_state.origin_z:.3f}")
         else:
             # 手动模式下可编辑
-            row.prop(scene, "pnp_origin_x", text="X")
-            row.prop(scene, "pnp_origin_y", text="Y")
-            row.prop(scene, "pnp_origin_z", text="Z")
+            row.prop(import_state, "origin_x", text="X")
+            row.prop(import_state, "origin_y", text="Y")
+            row.prop(import_state, "origin_z", text="Z")
         
         # 同步按钮
         row = box.row(align=True)
@@ -1691,9 +1716,9 @@ class IMPORT_OT_set_origin_to_cursor(Operator):
         scene = context.scene
         cursor = context.scene.cursor.location
         
-        setattr(scene, 'pnp_origin_x', cursor.x)
-        setattr(scene, 'pnp_origin_y', cursor.y)
-        setattr(scene, 'pnp_origin_z', cursor.z)
+        import_state.origin_x = cursor.x
+        import_state.origin_y = cursor.y
+        import_state.origin_z = cursor.z
         
         return {'FINISHED'}
 
@@ -1711,9 +1736,9 @@ class IMPORT_OT_set_origin_to_selected(Operator):
             obj = context.active_object
             
             if obj:
-                setattr(scene, 'pnp_origin_x', obj.location.x)
-                setattr(scene, 'pnp_origin_y', obj.location.y)
-                setattr(scene, 'pnp_origin_z', obj.location.z)
+                import_state.origin_x = obj.location.x
+                import_state.origin_y = obj.location.y
+                import_state.origin_z = obj.location.z
         
         return {'FINISHED'}
 
@@ -1731,9 +1756,9 @@ class IMPORT_OT_use_world_as_origin(Operator):
         setattr(scene, 'pnp_origin_mode', 'WORLD')
 
         # 更新坐标
-        setattr(scene, 'pnp_origin_x', 0.0)
-        setattr(scene, 'pnp_origin_y', 0.0)
-        setattr(scene, 'pnp_origin_z', 0.0)
+        import_state.origin_x = 0.0
+        import_state.origin_y = 0.0
+        import_state.origin_z = 0.0
         
         self.report({'INFO'}, "已设为世界原点模式 (0, 0, 0)")
         return {'FINISHED'}
@@ -1750,9 +1775,9 @@ class IMPORT_OT_update_from_cursor_scene(Operator):
             cursor_loc = context.scene.cursor.location
         
             # 更新场景属性
-            setattr(scene, "pnp_origin_x", cursor_loc.x)
-            setattr(scene, "pnp_origin_y", cursor_loc.y)
-            setattr(scene, "pnp_origin_z", cursor_loc.z)
+            import_state.origin_x = cursor_loc.x
+            import_state.origin_y = cursor_loc.y
+            import_state.origin_z = cursor_loc.z
             
             # 设置模式为手动
             setattr(scene, "pnp_origin_mode", 'MANUAL')
@@ -1775,9 +1800,9 @@ class IMPORT_OT_use_cursor_as_origin(Operator):
         
         # 立即更新一次坐标
         cursor_loc = context.scene.cursor.location
-        setattr(scene, "pnp_origin_x", cursor_loc.x)
-        setattr(scene, "pnp_origin_y", cursor_loc.y)
-        setattr(scene, "pnp_origin_z", cursor_loc.z)
+        import_state.origin_x = cursor_loc.x
+        import_state.origin_y = cursor_loc.y
+        import_state.origin_z = cursor_loc.z
         
         self.report({'INFO'}, "已启用光标模式，原点将实时跟随光标")
         return {'FINISHED'}
@@ -1803,9 +1828,9 @@ class IMPORT_OT_update_from_selected_scene(Operator):
         scene = context.scene
         
         # 更新场景属性
-        setattr(scene, "pnp_origin_x", obj.location.x)
-        setattr(scene, "pnp_origin_y", obj.location.y)
-        setattr(scene, "pnp_origin_z", obj.location.z)
+        import_state.origin_x = obj.location.x
+        import_state.origin_y = obj.location.y
+        import_state.origin_z = obj.location.z
         
         # 设置模式为手动
         setattr(scene, "pnp_origin_mode", 'MANUAL')
@@ -1834,9 +1859,9 @@ class IMPORT_OT_use_selected_as_origin(Operator):
         # 立即更新一次坐标
         obj = context.active_object
         if obj:
-            setattr(scene, 'pnp_origin_x', obj.location.x)
-            setattr(scene, 'pnp_origin_y', obj.location.y)
-            setattr(scene, 'pnp_origin_z', obj.location.z)
+            import_state.origin_x = obj.location.x
+            import_state.origin_y = obj.location.y
+            import_state.origin_z = obj.location.z
         
         self.report({'INFO'}, "已设为选中对象模式")
         return {'FINISHED'}
@@ -1890,26 +1915,7 @@ def register():
     setattr(Scene, 'pnp_file_path', StringProperty(
         name="PNP File",
         description="PNP文件路径",
-        subtype='FILE_PATH',
         default=""
-    ))
-    
-    setattr(Scene, 'pnp_origin_x', FloatProperty(
-        name="Origin X",
-        description="PNP导入原点的X坐标",
-        default=0.0
-    ))
-    
-    setattr(Scene, 'pnp_origin_y', FloatProperty(
-        name="Origin Y", 
-        description="PNP导入原点的Y坐标",
-        default=0.0
-    ))
-    
-    setattr(Scene, 'pnp_origin_z', FloatProperty(
-        name="Origin Z",
-        description="PNP导入原点的Z坐标", 
-        default=0.0
     ))
     
     setattr(Scene, 'pnp_batch_size', IntProperty(

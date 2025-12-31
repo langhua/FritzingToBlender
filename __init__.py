@@ -18,14 +18,18 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 from io_fritzing import svg
 from io_fritzing import pnp
 from io_fritzing import assets
+from io_fritzing import gerber
+
 
 def register():
     svg.register()
     pnp.register()
     assets.register()
+    gerber.register()
 
 def unregister():
     svg.unregister()
     pnp.unregister()
     assets.unregister()
+    gerber.unregister()
 
