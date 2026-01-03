@@ -1354,9 +1354,11 @@ class IMPORT_OT_gerber_fixed(Operator):
 
         # 在两个端点创建两个直径为线宽的圆
         circle_verts, circle_faces = self._create_line_terminal_circle_mesh(x1, y1, x2, y2, width/2)
+        vert_offset = len(verts)
+        for face in circle_faces:
+            faces.append([v_idx + vert_offset for v_idx in face])
         verts.extend(circle_verts)
-        faces.extend(circle_faces)
-        
+
         if self.debug_mode and index < 5:
             print(f"    创建线段网格: 起点=({x1:.6f}, {y1:.6f}), 终点=({x2:.6f}, {y2:.6f}), 宽度={width:.6f}")
         
