@@ -1,61 +1,14 @@
 import bpy
 import os
-import sys
 import math
 import time
 import traceback
 from bpy.types import Operator, Panel, Scene
-from bpy.props import (
-    StringProperty, IntProperty, FloatProperty, 
-    BoolProperty, EnumProperty, PointerProperty
-)
+from bpy.props import (StringProperty, BoolProperty, IntProperty)
 import gc
-from mathutils import Vector, Matrix
 from pcb_tools.primitives import Line as Rs274x_Line
-
-def setup_pcb_tools_path():
-    """设置pcb_tools路径"""
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(current_dir)
-    pcb_tools_path = os.path.join(project_root, "pcb_tools")
-    
-    if os.path.exists(pcb_tools_path) and pcb_tools_path not in sys.path:
-        sys.path.insert(0, pcb_tools_path)
-        print("✅ 已将pcb_tools添加到Python路径")
-        return True
-    
-    try:
-        import pcb_tools
-        print("✅ 已从系统路径导入pcb_tools")
-        return True
-    except ImportError:
-        print("❌ 未找到pcb_tools，请确保已下载pcb_tools源代码")
-        return False
-
-# 设置路径
-PCB_TOOLS_AVAILABLE = setup_pcb_tools_path()
-
-# 导入检测
-GERBER_LIB_AVAILABLE = False
-EXCELLON_LIB_AVAILABLE = False
-
-if PCB_TOOLS_AVAILABLE:
-    try:
-        from pcb_tools import read
-        print("✅ pcb_tools库导入成功")
-        GERBER_LIB_AVAILABLE = True
-    except ImportError as e:
-        print(f"❌ pcb_tools库导入失败: {e}")
-    
-    try:
-        from pcb_tools.excellon import read as read_excellon
-        print("✅ pcb_tools.excellon库导入成功")
-        EXCELLON_LIB_AVAILABLE = True
-    except ImportError as e:
-        print(f"❌ pcb_tools.excellon库导入失败: {e}")
-
-# 计算总库可用性
-ALL_LIB_AVAILABLE = GERBER_LIB_AVAILABLE or EXCELLON_LIB_AVAILABLE
+from pcb_tools import read
+from io_fritzing.assets.utils.material import create_material
 
 
 # ============================================================================
@@ -63,7 +16,6 @@ ALL_LIB_AVAILABLE = GERBER_LIB_AVAILABLE or EXCELLON_LIB_AVAILABLE
 # ============================================================================
 class PerformanceOptimizer:
     """性能优化工具类"""
-    
     @staticmethod
     def batch_process(primitives, batch_size=50):
         """批量处理图元，提高性能"""
@@ -99,24 +51,16 @@ class PerformanceOptimizer:
             return False
 
 # ============================================================================
-# 修复的Gerber解析器
+# Gerber解析器
 # ============================================================================
-class FixedGerberParser:
-    """修复的Gerber解析器"""
+class GerberParser:
+    """Gerber解析器"""
     
     def __init__(self):
         self.primitives = []
         self.file_info = {}
     
-    def parse_gerber_fixed(self, filepath, debug=False):
-        """解析Gerber文件 - 修复版"""
-        if not GERBER_LIB_AVAILABLE:
-            return {
-                'success': False, 
-                'error': '缺少python-gerber库',
-                'install_hint': '请确保pcb_tools已正确安装'
-            }
-        
+    def parse_gerber(self, filepath, debug=False):
         try:
             print(f"🔍 开始解析Gerber文件: {os.path.basename(filepath)}")
             start_time = time.time()
@@ -133,8 +77,6 @@ class FixedGerberParser:
             print(f"📄 Gerber文件信息: {self.file_info}")
             
             # 提取图元
-            # self.primitives = self._extract_primitives_fixed(gerber, debug)
-
             if hasattr(gerber, 'primitives'):
                 for i, prim in enumerate(gerber.primitives):
                     prim_data = self._extract_primitive_data(prim, i, units)
@@ -393,8 +335,8 @@ class FixedGerberParser:
             print(f"提取椭圆形数据失败: {e}")
             return None
     
-    def _extract_primitives_fixed(self, gerber, debug=False):
-        """提取图元 - 修复版"""
+    def _extract_primitives(self, gerber, debug=False):
+        """提取图元"""
         primitives = []
         
         try:
@@ -402,7 +344,7 @@ class FixedGerberParser:
                 print(f"🔍 从primitives属性提取图元: {len(gerber.primitives)} 个")
                 
                 for i, primitive in enumerate(gerber.primitives):
-                    primitive_data = self._parse_primitive_fixed(primitive, i, debug and i < 5)
+                    primitive_data = self._parse_primitive(primitive, i, debug and i < 5)
                     if primitive_data:
                         primitives.append(primitive_data)
                 
@@ -415,8 +357,8 @@ class FixedGerberParser:
             traceback.print_exc()
             return []
     
-    def _parse_primitive_fixed(self, primitive, index, debug=False):
-        """解析单个图元 - 修复版"""
+    def _parse_primitive(self, primitive, index, debug=False):
+        """解析单个图元"""
         try:
             class_name = primitive.__class__.__name__
             
@@ -424,24 +366,24 @@ class FixedGerberParser:
                 print(f"  🔍 解析图元 {index}: {class_name}")
             
             if class_name == 'Line':
-                return self._parse_line_fixed(primitive, index, debug)
+                return self._parse_line(primitive, index, debug)
             elif class_name == 'Circle':
-                return self._parse_circle_fixed(primitive, index, debug)
+                return self._parse_circle(primitive, index, debug)
             elif class_name == 'Rectangle':
-                return self._parse_rectangle_fixed(primitive, index, debug)
+                return self._parse_rectangle(primitive, index, debug)
             elif class_name == 'Obround':
-                return self._parse_obround_fixed(primitive, index, debug)
+                return self._parse_obround(primitive, index, debug)
             elif class_name == 'Region':
-                return self._parse_region_fixed(primitive, index, debug)
+                return self._parse_region(primitive, index, debug)
             else:
-                return self._parse_unknown_fixed(primitive, index, debug)
+                return self._parse_unknown(primitive, index, debug)
                 
         except Exception as e:
             print(f"❌ 解析图元 {index} 失败: {e}")
             return None
     
-    def _parse_line_fixed(self, line, index, debug=False):
-        """解析线段 - 修复版"""
+    def _parse_line(self, line, index, debug=False):
+        """解析线段"""
         try:
             start = getattr(line, 'start', (0, 0))
             end = getattr(line, 'end', (0, 0))
@@ -486,8 +428,8 @@ class FixedGerberParser:
             print(f"解析线段失败: {e}")
             return None
     
-    def _parse_circle_fixed(self, circle, index, debug=False):
-        """解析圆形 - 修复版"""
+    def _parse_circle(self, circle, index, debug=False):
+        """解析圆形"""
         try:
             position = getattr(circle, 'position', (0, 0))
             if hasattr(position, '__len__') and len(position) >= 2:
@@ -513,8 +455,8 @@ class FixedGerberParser:
             print(f"解析圆形失败: {e}")
             return None
     
-    def _parse_rectangle_fixed(self, rectangle, index, debug=False):
-        """解析矩形 - 修复版"""
+    def _parse_rectangle(self, rectangle, index, debug=False):
+        """解析矩形"""
         try:
             position = getattr(rectangle, 'position', (0, 0))
             if hasattr(position, '__len__') and len(position) >= 2:
@@ -542,8 +484,8 @@ class FixedGerberParser:
             print(f"解析矩形失败: {e}")
             return None
     
-    def _parse_obround_fixed(self, obround, index, debug=False):
-        """解析椭圆形 - 修复版"""
+    def _parse_obround(self, obround, index, debug=False):
+        """解析椭圆形"""
         try:
             position = getattr(obround, 'position', (0, 0))
             if hasattr(position, '__len__') and len(position) >= 2:
@@ -571,8 +513,8 @@ class FixedGerberParser:
             print(f"解析椭圆形失败: {e}")
             return None
     
-    def _parse_region_fixed(self, region, index, debug=False):
-        """解析区域 - 修复版"""
+    def _parse_region(self, region, index, debug=False):
+        """解析区域"""
         try:
             bounding_box = getattr(region, 'bounding_box', ((0, 0), (0, 0)))
             
@@ -612,8 +554,8 @@ class FixedGerberParser:
             print(f"解析区域失败: {e}")
             return None
     
-    def _parse_unknown_fixed(self, primitive, index, debug=False):
-        """解析未知图元 - 修复版"""
+    def _parse_unknown(self, primitive, index, debug=False):
+        """解析未知图元"""
         try:
             return {
                 'id': index,
@@ -634,18 +576,18 @@ class FixedGerberParser:
         return type_stats
 
 # ============================================================================
-# 修复的Gerber几何生成器
+# Gerber几何生成器
 # ============================================================================
-class FixedGerberGenerator:
-    """修复的Gerber几何生成器"""
+class GerberGenerator:
+    """Gerber几何生成器"""
     
     def __init__(self):
         self.collection = None
         self.created_objects = []
         self.optimizer = PerformanceOptimizer()
     
-    def create_gerber_geometry_fixed(self, primitives, file_info, debug=False, optimize=True):
-        """创建Gerber几何体 - 修复版"""
+    def create_gerber_geometry(self, primitives, file_info, debug=False, optimize=True):
+        """创建Gerber几何体"""
         if not primitives:
             print("⚠️ 没有图元数据")
             return {
@@ -664,7 +606,7 @@ class FixedGerberGenerator:
             print(f"📏 单位系统: {units}, 转换因子: {unit_factor}")
             
             # 生成唯一集合名称
-            base_name = f"Gerber_Fixed_{os.path.basename(file_info['filename']).replace('.', '_')}"
+            base_name = f"Gerber_{os.path.basename(file_info['filename']).replace('.', '_')}"
             timestamp = int(time.time())
             final_name = f"{base_name}_{timestamp}"
             
@@ -713,29 +655,30 @@ class FixedGerberGenerator:
         try:
             # 创建新集合
             self.collection = bpy.data.collections.new(name)
-            bpy.context.scene.collection.children.link(self.collection)
-            bpy.context.view_layer.active_layer_collection = bpy.context.view_layer.layer_collection.children[name]
-            print(f"📁 创建集合: {name}")
+            if bpy.context:
+                bpy.context.scene.collection.children.link(self.collection)
+                bpy.context.view_layer.active_layer_collection = bpy.context.view_layer.layer_collection.children[name]
+                print(f"📁 创建集合: {name}")
         except Exception as e:
             print(f"创建集合失败: {e}")
     
     def _create_primitive(self, primitive, index, unit_factor, debug=False):
-        """创建修复的图元"""
+        """创建图元"""
         primitive_type = primitive.get('type', 'unknown')
         
         try:
             if primitive_type == 'line':
                 return self._create_line_connected(primitive, index, unit_factor, debug)
             elif primitive_type == 'circle':
-                return self._create_circle_fixed(primitive, index, unit_factor, debug)
+                return self._create_circle(primitive, index, unit_factor, debug)
             elif primitive_type == 'rectangle':
-                return self._create_rectangle_fixed(primitive, index, unit_factor, debug)
+                return self._create_rectangle(primitive, index, unit_factor, debug)
             elif primitive_type == 'obround':
-                return self._create_obround_fixed(primitive, index, unit_factor, debug)
+                return self._create_obround(primitive, index, unit_factor, debug)
             elif primitive_type == 'region':
-                return self._create_region_fixed(primitive, index, unit_factor, True)
+                return self._create_region(primitive, index, unit_factor, True)
             else:
-                return self._create_point_fixed(primitive, index, unit_factor, debug)
+                return self._create_point(primitive, index, unit_factor, debug)
         except Exception as e:
             print(f"创建图元 {index} 失败: {e}")
             return False
@@ -802,19 +745,12 @@ class FixedGerberGenerator:
             # 创建对象
             line_obj = bpy.data.objects.new(f"Gerber_Line_Conn_{index:05d}", mesh)
             
-            # 创建材质
-            mat = bpy.data.materials.new(name="Gerber_Line_Mat")
-            mat.diffuse_color = (0.2, 0.2, 0.8, 1.0)  # 蓝色
-            
-            if line_obj.data.materials:
-                line_obj.data.materials[0] = mat
-            else:
-                line_obj.data.materials.append(mat)
-            
             try:
-                self.collection.objects.link(line_obj)
+                if self.collection:
+                    self.collection.objects.link(line_obj)
             except:
                 pass
+
             self.created_objects.append(line_obj)
             return True
             
@@ -822,8 +758,11 @@ class FixedGerberGenerator:
             print(f"创建连接线段失败: {e}")
             return False
     
-    def _create_circle_fixed(self, primitive, index, unit_factor, debug=False):
-        """创建圆形 - 修复版"""
+    def _create_circle(self, primitive, index, unit_factor, debug=False):
+        """创建圆形"""
+        if bpy.context is None:
+            return False
+
         try:
             x = primitive.get('x', 0) * unit_factor
             y = primitive.get('y', 0) * unit_factor
@@ -848,22 +787,15 @@ class FixedGerberGenerator:
                 location=(x, y, 0)
             )
             circle = bpy.context.active_object
-            circle.name = f"Gerber_Circle_{index:05d}"
-            
-            # 创建材质
-            mat = bpy.data.materials.new(name="Gerber_Circle_Mat")
-            mat.diffuse_color = (0.8, 0.2, 0.2, 1.0)  # 红色
-            
-            if circle.data.materials:
-                circle.data.materials[0] = mat
-            else:
-                circle.data.materials.append(mat)
+            if circle:
+                circle.name = f"Gerber_Circle_{index:05d}"
             
             # 链接到集合
-            self.collection.objects.link(circle)
+            if circle and self.collection:
+                self.collection.objects.link(circle)
             
             # 从场景集合中移除
-            if circle.name in bpy.context.scene.collection.objects:
+            if circle and circle.name in bpy.context.scene.collection.objects:
                 bpy.context.scene.collection.objects.unlink(circle)
             
             self.created_objects.append(circle)
@@ -873,8 +805,11 @@ class FixedGerberGenerator:
             print(f"创建圆形失败: {e}")
             return False
     
-    def _create_rectangle_fixed(self, primitive, index, unit_factor, debug=False):
-        """创建矩形 - 修复版"""
+    def _create_rectangle(self, primitive, index, unit_factor, debug=False):
+        """创建矩形"""
+        if bpy.context is None:
+            return False
+
         try:
             x = primitive.get('x', 0) * unit_factor
             y = primitive.get('y', 0) * unit_factor
@@ -898,23 +833,15 @@ class FixedGerberGenerator:
                 location=(x, y, 0)
             )
             plane = bpy.context.active_object
-            plane.name = f"Gerber_Rect_{index:05d}"
+            if plane:
+                plane.name = f"Gerber_Rect_{index:05d}"
             
-            # 旋转
-            if rotation != 0:
-                plane.rotation_euler.z = math.radians(rotation)
-            
-            # 缩放
-            plane.scale = (width, height, 1)
-            
-            # 创建材质
-            mat = bpy.data.materials.new(name="Gerber_Rect_Mat")
-            mat.diffuse_color = (0.2, 0.8, 0.2, 1.0)  # 绿色
-            
-            if plane.data.materials:
-                plane.data.materials[0] = mat
-            else:
-                plane.data.materials.append(mat)
+                # 旋转
+                if rotation != 0:
+                    plane.rotation_euler.z = math.radians(rotation)
+                
+                # 缩放
+                plane.scale = (width, height, 1)
             
             self.created_objects.append(plane)
             return True
@@ -923,8 +850,11 @@ class FixedGerberGenerator:
             print(f"创建矩形失败: {e}")
             return False
     
-    def _create_obround_fixed(self, primitive, index, unit_factor, debug=False):
-        """创建椭圆形 - 修复版"""
+    def _create_obround(self, primitive, index, unit_factor, debug=False):
+        """创建椭圆形"""
+        if bpy.context is None:
+            return False
+
         try:
             x = primitive.get('x', 0) * unit_factor
             y = primitive.get('y', 0) * unit_factor
@@ -951,24 +881,14 @@ class FixedGerberGenerator:
                 location=(x, y, 0)
             )
             circle = bpy.context.active_object
-            circle.name = f"Gerber_Obround_{index:05d}"
-            
-            # 旋转
-            if rotation != 0:
-                circle.rotation_euler.z = math.radians(rotation)
-            
-            # 缩放为椭圆形
-            if width != height:
-                circle.scale = (width/height, 1, 1)
-            
-            # 创建材质
-            mat = bpy.data.materials.new(name="Gerber_Obround_Mat")
-            mat.diffuse_color = (0.8, 0.5, 0.2, 1.0)  # 橙色
-            
-            if circle.data.materials:
-                circle.data.materials[0] = mat
-            else:
-                circle.data.materials.append(mat)
+            if circle:
+                circle.name = f"Gerber_Obround_{index:05d}"
+                # 旋转
+                if rotation != 0:
+                    circle.rotation_euler.z = math.radians(rotation)
+                # 缩放为椭圆形
+                if width != height:
+                    circle.scale = (width/height, 1, 1)
             
             self.created_objects.append(circle)
             return True
@@ -977,8 +897,11 @@ class FixedGerberGenerator:
             print(f"创建椭圆形失败: {e}")
             return False
     
-    def _create_region_fixed(self, primitive, index, unit_factor, debug=False):
-        """创建区域 - 修复版"""
+    def _create_region(self, primitive, index, unit_factor, debug=False):
+        """创建区域"""
+        if bpy.context is None:
+            return False
+
         try:
             x = primitive.get('x', 0) * unit_factor
             y = primitive.get('y', 0) * unit_factor
@@ -1007,19 +930,10 @@ class FixedGerberGenerator:
                 location=(x, y, 0)
             )
             plane = bpy.context.active_object
-            plane.name = f"Gerber_Region_Fixed_{index:05d}"
-            
-            # 缩放
-            plane.scale = (scaled_width, scaled_height, 1)
-            
-            # 创建材质
-            mat = bpy.data.materials.new(name="Gerber_Region_Fixed_Mat")
-            mat.diffuse_color = (0.2, 0.8, 0.8, 0.3)  # 青色，更透明
-            
-            if plane.data.materials:
-                plane.data.materials[0] = mat
-            else:
-                plane.data.materials.append(mat)
+            if plane:
+                plane.name = f"Gerber_Region_{index:05d}"
+                # 缩放
+                plane.scale = (scaled_width, scaled_height, 1)
             
             self.created_objects.append(plane)
             return True
@@ -1028,8 +942,8 @@ class FixedGerberGenerator:
             print(f"创建区域失败: {e}")
             return False
     
-    def _create_point_fixed(self, primitive, index, unit_factor, debug=False):
-        """创建点 - 修复版"""
+    def _create_point(self, primitive, index, unit_factor, debug=False):
+        """创建点"""
         try:
             x = primitive.get('x', 0) * unit_factor
             y = primitive.get('y', 0) * unit_factor
@@ -1043,15 +957,6 @@ class FixedGerberGenerator:
                 return False
             cube = bpy.context.active_object
             setattr(cube, 'name', f"Gerber_Point_{index:05d}")
-            
-            # 创建材质
-            mat = bpy.data.materials.new(name="Gerber_Point_Mat")
-            mat.diffuse_color = (0.8, 0.8, 0.2, 1.0)  # 黄色
-            
-            if cube and cube.data and hasattr(cube.data, 'materials'):
-                getattr(cube.data, 'materials')[0] = mat
-            elif cube and cube.data:
-                getattr(cube.data, 'materials').append(mat)
             
             self.created_objects.append(cube)
             return True
@@ -1123,11 +1028,11 @@ class IMPORT_OT_clear_all_objects(Operator):
 # ============================================================================
 # 主导入操作符
 # ============================================================================
-class IMPORT_OT_gerber_fixed(Operator):
-    """修复的Gerber导入"""
+class IMPORT_OT_gerber(Operator):
+    """Gerber导入"""
     bl_idname = "io_fritzing.import_gerber_file"
     bl_label = "导入Gerber文件"
-    bl_description = "修复线段断开、Region尺寸和性能问题的导入"
+    bl_description = "线段断开、Region尺寸和性能问题的导入"
     bl_options = {'REGISTER', 'UNDO'}
     
     filepath: StringProperty(
@@ -1162,14 +1067,13 @@ class IMPORT_OT_gerber_fixed(Operator):
             self.report({'ERROR'}, "请选择有效的Gerber文件")
             return {'CANCELLED'}
         
-        if not GERBER_LIB_AVAILABLE:
-            self.report({'ERROR'}, "python-gerber库不可用")
+        if bpy.context is None:
             return {'CANCELLED'}
-        
+
         try:
             # 解析Gerber文件
-            parser = FixedGerberParser()
-            result = parser.parse_gerber_fixed(self.filepath, debug=self.debug_mode)
+            parser = GerberParser()
+            result = parser.parse_gerber(self.filepath, debug=self.debug_mode)
             
             if not result.get('success', False):
                 self.report({'ERROR'}, f"解析失败: {result.get('error', '未知错误')}")
@@ -1210,12 +1114,12 @@ class IMPORT_OT_gerber_fixed(Operator):
             'total_faces': 0,
             'meshes_created': 0
         }
+        if bpy.context is None:
+            print("警告: 必须在Blender里运行")
+            return stats
         
         print(f"开始创建Gerber网格: {len(primitives)} 个图元")
         print(f"单位转换比例: {unit_factor}")
-        
-        # 创建铜箔材质
-        # copper_material = self._create_copper_material()
         
         # 将所有图元合并到一个网格中
         all_verts = []
@@ -1252,12 +1156,11 @@ class IMPORT_OT_gerber_fixed(Operator):
         
         # 创建网格对象
         mesh_obj = bpy.data.objects.new(mesh_name, mesh_data)
-        # mesh_obj.data.materials.append(copper_material)
         
         # 确保对象是2D平面（Z坐标为0）
         mesh_obj.location.z = 0
         
-        # # 添加到集合
+        # 添加到集合
         collection.objects.link(mesh_obj)
         
         # 设置为活动对象
@@ -1266,9 +1169,6 @@ class IMPORT_OT_gerber_fixed(Operator):
         
         # 更新场景
         bpy.context.view_layer.update()
-        
-        # 视图调整
-        # self._adjust_viewport(mesh_obj)
         
         stats['meshes_created'] = 1
         
@@ -1520,13 +1420,16 @@ class IMPORT_OT_gerber_fixed(Operator):
 # ============================================================================
 # 设置面板
 # ============================================================================
-class VIEW3D_PT_gerber_fixed(Panel):
-    """Gerber导入设置面板 - 修复版"""
+class VIEW3D_PT_gerber(Panel):
+    """Gerber导入设置面板"""
     bl_label = "Gerber导入"
-    bl_idname = "VIEW3D_PT_gerber_fixed"
+    bl_idname = "VIEW3D_PT_gerber"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = "Fritzing工具"
+
+    stats = {}
+    processing_times = {}
     
     def draw(self, context):
         layout = self.layout
@@ -1559,16 +1462,41 @@ class VIEW3D_PT_gerber_fixed(Panel):
             except:
                 pass
         
-        # 修复功能
-        layout.separator()
-        box = layout.box()
-        box.label(text="修复功能", icon='TOOL_SETTINGS')
-        
-        col = box.column(align=True)
-        col.label(text="✅ 线段: 连续连接", icon='SHADING_SOLID')
-        col.label(text="✅ Region: 正确尺寸", icon='MESH_PLANE')
-        col.label(text="✅ 性能: 批量处理", icon='SORTTIME')
-        col.label(text="✅ 内存: 自动清理", icon='TRASH')
+            if filepath not in self.stats:
+                try:
+                    self.get_gerber_stats(filepath)
+                except:
+                    pass
+            
+            if filepath in self.stats:
+                # 图元统计
+                layout.separator()
+                box = layout.box()
+                box.label(text="图元统计", icon='INFO')
+                filestats = self.stats[filepath]
+                if filestats:
+                    if 'circles' in filestats:
+                        row = box.row()
+                        row.label(text=f"圆形: {filestats['circles']} 个", icon='MESH_CIRCLE')
+                    if 'rects' in filestats:
+                        row = box.row()
+                        row.label(text=f"矩形:  {filestats['rects']} 个", icon='MATPLANE')
+                    if 'lines' in filestats:
+                        row = box.row()
+                        row.label(text=f"直线: {filestats['lines']} 个", icon='IPO_LINEAR')
+                    if 'regions' in filestats:
+                        row = box.row()
+                        row.label(text=f"多边形: {filestats['regions']} 个", icon='PMARKER')
+                    if 'obrounds' in filestats:
+                        row = box.row()
+                        row.label(text=f"椭圆形: {filestats['obrounds']} 个", icon='META_ELLIPSOID')
+                    if 'total' in filestats:
+                        row = box.row()
+                        row.label(text=f"总数: {filestats['total']} 个", icon='SHADERFX')
+                    if filepath in self.processing_times:
+                        row = box.row()
+                        row.label(text=f"统计耗时: {self.processing_times[filepath]:.2f} 秒", icon='PREVIEW_RANGE')
+
         
         # 导入选项
         layout.separator()
@@ -1577,29 +1505,9 @@ class VIEW3D_PT_gerber_fixed(Panel):
         box.prop(scene, "gerber_debug_mode", text="启用调试模式")
         box.prop(scene, "gerber_optimize_performance", text="启用性能优化")
         
-        # 工具状态
-        layout.separator()
-        box = layout.box()
-        box.label(text="工具状态", icon='INFO')
-        
-        if GERBER_LIB_AVAILABLE:
-            box.label(text="✅ python-gerber: 可用", icon='CHECKMARK')
-        else:
-            box.label(text="❌ python-gerber: 不可用", icon='ERROR')
-        
-        if EXCELLON_LIB_AVAILABLE:
-            box.label(text="✅ python-excellon: 可用", icon='CHECKMARK')
-        else:
-            box.label(text="❌ python-excellon: 不可用", icon='ERROR')
-        
         # 导入按钮
         layout.separator()
         col = layout.column(align=True)
-        
-        if not GERBER_LIB_AVAILABLE:
-            col.label(text="无法导入，缺少Gerber库", icon='ERROR')
-            col.label(text="请确保pcb_tools已正确安装", icon='INFO')
-            return
         
         filepath = getattr(scene, 'gerber_filepath', None)
         if filepath and os.path.exists(filepath):
@@ -1616,6 +1524,51 @@ class VIEW3D_PT_gerber_fixed(Panel):
                         icon='TRASH')
         else:
             col.label(text="请先选择Gerber文件", icon='ERROR')
+
+    def get_gerber_stats(self, filepath):
+        start_time = time.time()
+        try:
+            gerber = read(filepath)
+            # 提取图元
+            lines = 0
+            circles = 0
+            regions = 0
+            rects = 0
+            obrounds = 0
+            if gerber.primitives and len(gerber.primitives) > 0:
+                total = len(gerber.primitives)
+                for i, prim in enumerate(gerber.primitives):
+                    prim_type = prim.__class__.__name__.lower()
+                    if prim_type == 'line':
+                        lines += 1
+                    elif prim_type == 'circle':
+                        circles += 1
+                    elif prim_type == 'region':
+                        regions += 1
+                    elif prim_type == 'rectangle':
+                        rects += 1
+                    elif prim_type == 'obround':
+                        obrounds += 1
+                    else:
+                        return None
+
+                stats = {'total': total}
+                if lines > 0:
+                    stats.__setitem__('lines', lines)
+                if circles > 0:
+                    stats.__setitem__('circles', circles)
+                if regions > 0:
+                    stats.__setitem__('regions', regions)
+                if rects > 0:
+                    stats.__setitem__('rects', rects)
+                if obrounds > 0:
+                    stats.__setitem__('obrounds', obrounds)
+                processing_time = time.time() - start_time
+                self.processing_times.__setitem__(filepath, processing_time)
+                self.stats.__setitem__(filepath, stats)
+        except:
+            pass
+
 
 # ============================================================================
 # 辅助操作符
@@ -1649,15 +1602,15 @@ class IMPORT_OT_browse_gerber_files(Operator):
 # 注册
 # ============================================================================
 classes = [
-    IMPORT_OT_gerber_fixed,
+    IMPORT_OT_gerber,
     IMPORT_OT_browse_gerber_files,
     IMPORT_OT_clear_all_objects,
-    VIEW3D_PT_gerber_fixed,
+    VIEW3D_PT_gerber,
 ]
 
 def register():
     """注册插件"""
-    print("注册Gerber修复导入插件...")
+    print("注册Gerber导入插件...")
     
     for cls in classes:
         try:
@@ -1685,12 +1638,12 @@ def register():
         description="启用性能优化",
         default=True
     ))
-    
-    print("✅ Gerber修复导入插件注册完成")
+
+    print("✅ Gerber导入插件注册完成")
 
 def unregister():
     """注销插件"""
-    print("注销Gerber修复导入插件...")
+    print("注销Gerber导入插件...")
     
     for cls in reversed(classes):
         try:
@@ -1698,6 +1651,10 @@ def unregister():
             print(f"✅ 注销类: {cls.__name__}")
         except:
             pass
+
+    delattr(Scene, 'gerber_filepath')
+    delattr(Scene, 'gerber_debug_mode')
+    delattr(Scene, 'gerber_optimize_performance')
 
 if __name__ == "__main__":
     register()
