@@ -11,6 +11,7 @@ from bpy.props import (
 )
 import gc
 from mathutils import Vector, Matrix
+from pcb_tools.primitives import Line as Rs274x_Line
 
 def setup_pcb_tools_path():
     """设置pcb_tools路径"""
@@ -218,7 +219,6 @@ class FixedGerberParser:
             elif prim_type == 'obround':
                 return self._extract_obround_data(primitive, index)
             else:
-                print(f"未知图元类型: {prim_type}")
                 return None
                 
         except Exception as e:
@@ -265,32 +265,16 @@ class FixedGerberParser:
     def _extract_region_data(self, region, index):
         """提取Region数据"""
         try:
-            # 获取边界框
-            bbox = getattr(region, 'bounding_box', None)
-            
-            if bbox and len(bbox) >= 2:
-                min_x, min_y = bbox[0]
-                max_x, max_y = bbox[1]
-                
-                width = max_x - min_x
-                height = max_y - min_y
-                
-                # 计算中心
-                center_x = (min_x + max_x) / 2
-                center_y = (min_y + max_y) / 2
-            else:
-                # 尝试从属性获取
-                center_x = getattr(region, 'x', 0)
-                center_y = getattr(region, 'y', 0)
-                width = getattr(region, 'width', 0.001)
-                height = getattr(region, 'height', 0.001)
-            
+            # 获取顶点
+            primitives = region.primitives
+            vertices = []
+            for primitive in primitives:
+                if isinstance(primitive, Rs274x_Line):
+                    vertices.append(primitive.start)
+
             return {
                 'type': 'region',
-                'x': center_x,
-                'y': center_y,
-                'width': width,
-                'height': height
+                'vertices': vertices
             }
         except Exception as e:
             print(f"提取Region数据失败: {e}")
@@ -1273,7 +1257,7 @@ class IMPORT_OT_gerber_fixed(Operator):
         # 确保对象是2D平面（Z坐标为0）
         mesh_obj.location.z = 0
         
-        # 添加到集合
+        # # 添加到集合
         collection.objects.link(mesh_obj)
         
         # 设置为活动对象
@@ -1309,10 +1293,11 @@ class IMPORT_OT_gerber_fixed(Operator):
             elif prim_type == 'region':
                 return self._create_region_mesh(prim, index, unit_factor)
             else:
-                return None
+                print(f"未知的图元类型{prim_type}: {prim}")
+                return [], []
         except Exception as e:
             print(f"创建样条线 {index} 失败: {e}")
-            return None
+            return [], []
     
     def _create_line_mesh(self, line_data, index, unit_factor):
         """创建线段网格（有宽度的矩形）"""
@@ -1514,34 +1499,20 @@ class IMPORT_OT_gerber_fixed(Operator):
         return verts, faces
     
     def _create_region_mesh(self, region_data, index, unit_factor):
-        """创建区域网格（简单矩形区域）"""
-        x = region_data.get('x', 0) * unit_factor
-        y = region_data.get('y', 0) * unit_factor
-        width = region_data.get('width', 0.1) * unit_factor
-        height = region_data.get('height', 0.1) * unit_factor
-        
-        if width < 0.000001 or height < 0.000001:  # 忽略过小的区域
-            if self.debug_mode:
-                print(f"    忽略过小区域: 宽度={width}, 高度={height}")
+        points_2d = region_data.get('vertices')
+        if len(points_2d) < 3:
+            print(f"错误: 至少需要3个点")
             return [], []
         
-        # 计算矩形半宽高
-        half_width = width * 0.5
-        half_height = height * 0.5
+        # 转换为3D顶点
+        verts = [(x * unit_factor, y * unit_factor, 0.0) for x, y in points_2d]
         
-        # 创建矩形顶点
-        verts = [
-            (x - half_width, y - half_height, 0.0),  # 左下
-            (x + half_width, y - half_height, 0.0),  # 右下
-            (x + half_width, y + half_height, 0.0),  # 右上
-            (x - half_width, y + half_height, 0.0)   # 左上
-        ]
-        
-        # 创建两个三角形面
-        faces = [[0, 1, 2], [0, 2, 3]]
-        
+        # 创建面 - 使用凸多边形三角剖分
+        faces = []
+        for j in range(1, len(verts) - 1):
+            faces.append([0, j, j + 1])
         if self.debug_mode and index < 5:
-            print(f"    创建区域网格: 中心=({x:.6f}, {y:.6f}), 大小={width:.6f}x{height:.6f}")
+            print(f"    创建区域网格: {len(verts)}个顶点，{len(faces)}个面，顶点={verts}")
         
         return verts, faces
 

@@ -1,18 +1,15 @@
-# from io_fritzing.gerber.importer import register as register_gerber, unregister as unregister_gerber
-# from io_fritzing.gerber.files_import import register as register_files_import, unregister as unregister_files_import
-# from io_fritzing.gerber.gerber_import import register as register_gerber_regions, unregister as unregister_gerber_regions
-from io_fritzing.gerber.drill_import import register as register_drill_fixed, unregister as unregister_drill_fixed
+from io_fritzing.gerber.excellon_parser import register as register_excellon_parser, unregister as unregister_excellon_parser
+from io_fritzing.gerber.gerber_rs274x_parser import register as register_gerber_parser, unregister as unregister_gerber_parser
 
 def register():
     """注册Gerber模块"""
     print("✅ 注册Gerber导入模块...")
-    # register_gerber_regions()
-    # register_files_import()
-    register_drill_fixed()
+    register_gerber_parser()
+    register_excellon_parser()
+
 
 def unregister():
     """注销Gerber模块"""
     print("注销Gerber导入模块...")
-    # unregister_gerber_regions()
-    # unregister_files_import()
-    unregister_drill_fixed()
+    unregister_gerber_parser()
+    unregister_excellon_parser()
