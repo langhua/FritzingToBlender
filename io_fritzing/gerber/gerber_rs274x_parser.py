@@ -2,14 +2,19 @@ import bpy
 import os
 import math
 import time
+import glob
 import traceback
 from bpy.types import Operator, Panel, Scene
-from bpy.props import (StringProperty, BoolProperty, IntProperty)
+from bpy.props import (StringProperty, BoolProperty, FloatProperty)
+from bpy_extras.io_utils import ImportHelper
 import gc
 from pcb_tools.primitives import Line as Rs274x_Line
 from pcb_tools import read
 from io_fritzing.assets.utils.material import create_material
+from io_fritzing.gerber.excellon_parser import DrillParser, DrillGenerator
 
+global gerber_fileinfo
+gerber_fileinfo = dict()
 
 # ============================================================================
 # 性能优化工具
@@ -1035,12 +1040,6 @@ class IMPORT_OT_gerber(Operator):
     bl_description = "线段断开、Region尺寸和性能问题的导入"
     bl_options = {'REGISTER', 'UNDO'}
     
-    filepath: StringProperty(
-        name="Gerber文件",
-        subtype='FILE_PATH',
-        default=""
-    ) # type: ignore
-    
     debug_mode: BoolProperty(
         name="调试模式",
         description="显示详细的调试信息",
@@ -1055,7 +1054,8 @@ class IMPORT_OT_gerber(Operator):
     
     def invoke(self, context, event):
         """调用对话框"""
-        if not self.filepath or not os.path.exists(self.filepath):
+        global gerber_fileinfo
+        if not gerber_fileinfo or len(gerber_fileinfo) == 0:
             if context:
                 context.window_manager.fileselect_add(self)
             return {'RUNNING_MODAL'}
@@ -1063,48 +1063,83 @@ class IMPORT_OT_gerber(Operator):
     
     def execute(self, context):
         """执行导入"""
-        if not self.filepath or not os.path.exists(self.filepath):
-            self.report({'ERROR'}, "请选择有效的Gerber文件")
-            return {'CANCELLED'}
-        
-        if bpy.context is None:
-            return {'CANCELLED'}
+        global gerber_fileinfo
 
-        try:
-            # 解析Gerber文件
-            parser = GerberParser()
-            result = parser.parse_gerber(self.filepath, debug=self.debug_mode)
-            
-            if not result.get('success', False):
-                self.report({'ERROR'}, f"解析失败: {result.get('error', '未知错误')}")
-                return {'CANCELLED'}
-            
-            # 创建主集合
-            collection_name = os.path.basename(self.filepath).replace('.', '_')
-            if collection_name.endswith('_'):
-                collection_name = collection_name[:-1]
-            collection_name = f"Gerber_{collection_name[:20]}"
-            
-            main_collection = bpy.data.collections.new(collection_name)
-            bpy.context.scene.collection.children.link(main_collection)
+        main_collection = None
+        for layer_name, file_info in gerber_fileinfo.items():
+            filepath = file_info['filepath']
+            if not filepath or not os.path.exists(filepath):
+                continue
+            if bpy.context is None:
+                continue
 
-            result_stats = self._create_gerber_mesh_filled(
-                result.get('primitives', []), 
-                main_collection,
-                result.get('unit_factor', 0.001)
-            )
-            
-            # 报告结果
-            message = f"导入完成: {result_stats['total_prims']}个图元, {result_stats['total_verts']}个顶点, {result_stats['total_faces']}个面"
-            self.report({'INFO'}, message)
-            print(f"导入结果: {message}")
-            print(f"集合名称: {collection_name}")
-            return {'FINISHED'}
-            
-        except Exception as e:
-            error_msg = f"导入过程错误: {str(e)}"
-            self.report({'ERROR'}, error_msg)
-            return {'CANCELLED'}
+            if main_collection is None:
+                # 创建主集合
+                cut = filepath.rindex(os.path.sep[0])
+                directory = filepath[0:cut]
+                collection_name = os.path.basename(directory).replace('.', '_')
+                if collection_name.endswith('_'):
+                    collection_name = collection_name[:-1]
+                collection_name = f"Gerber_{collection_name[:20]}"
+                
+                main_collection = bpy.data.collections.new(collection_name)
+                bpy.context.scene.collection.children.link(main_collection)
+                bpy.context.view_layer.active_layer_collection = bpy.context.view_layer.layer_collection.children[collection_name]
+
+            try:
+                if layer_name == 'drill':
+                    parser = DrillParser()  # 使用之前定义好的解析器
+                    result = parser.parse_drill_file(filepath, debug=self.debug_mode)
+                    
+                    if not result.get('success', False):
+                        self.report({'ERROR'}, f"解析失败: {result.get('error', '未知错误')}")
+                        return {'CANCELLED'}
+                    
+                    # 创建几何体
+                    generator = DrillGenerator()
+                    primitives = result.get('primitives', [])
+                    file_info = result.get('file_info', {})
+                    
+                    create_result = generator.create_drill_geometry(
+                        primitives, 
+                        file_info,
+                        height=0.0018,
+                        debug=self.debug_mode
+                    )
+                    
+                    if not create_result.get('success', False):
+                        self.report({'ERROR'}, f"创建几何体失败: {create_result.get('error', '未知错误')}")
+                        return {'CANCELLED'}
+                    
+                    message = f"导入完成: {create_result.get('object_count', 0)} 个钻孔"
+                    self.report({'INFO'}, message)
+
+                else:
+                    # 解析Gerber RS-274X文件
+                    parser = GerberParser()
+                    result = parser.parse_gerber(filepath, debug=self.debug_mode)
+                    
+                    if not result.get('success', False):
+                        self.report({'ERROR'}, f"解析失败: {result.get('error', '未知错误')}")
+                        return {'CANCELLED'}
+                    
+                    result_stats = self._create_gerber_mesh_filled(
+                        result.get('primitives', []), 
+                        main_collection,
+                        result.get('unit_factor', 0.001)
+                    )
+                    
+                    # 报告结果
+                    message = f"导入完成: {result_stats['total_prims']}个图元, {result_stats['total_verts']}个顶点, {result_stats['total_faces']}个面"
+                    self.report({'INFO'}, message)
+                    print(f"导入结果: {message}")
+                    print(f"集合名称: {collection_name}")
+                
+            except Exception as e:
+                error_msg = f"导入过程错误: {str(e)}"
+                self.report({'ERROR'}, error_msg)
+
+        return {'FINISHED'}
 
     def _create_gerber_mesh_filled(self, primitives, collection, unit_factor):
         """创建Gerber网格 - 2D填充模式核心函数"""
@@ -1432,6 +1467,7 @@ class VIEW3D_PT_gerber(Panel):
     processing_times = {}
     
     def draw(self, context):
+        global gerber_fileinfo
         layout = self.layout
         if context is None:
             return
@@ -1450,71 +1486,48 @@ class VIEW3D_PT_gerber(Panel):
         
         # 文件信息
         filepath = getattr(scene, "gerber_filepath")
-        if filepath and os.path.exists(filepath):
+        can_process = False
+        if filepath and os.path.exists(filepath) and len(gerber_fileinfo) > 0:
             try:
-                file_size = os.path.getsize(filepath)
-                filename = os.path.basename(filepath)
-                
                 col = box.column(align=True)
-                col.label(text=f"文件大小: {file_size/1024:.1f} KB", icon='INFO')
-                col.label(text=f"文件名: {filename}", icon='FILE')
-                col.label(text=f"文件类型: Gerber文件", icon='MESH_GRID')
-            except:
+                col.label(text=f"有{len(gerber_fileinfo)}个文件：", icon='INFO')
+                for layer_name, file_info in gerber_fileinfo.items():
+                    postfix = os.path.splitext(file_info['filepath'])[1]
+                    total = file_info['total_prims']
+                    if total >= 0:
+                        can_process = True
+                        row = box.row()
+                        col = row.column()
+                        col.label(text=f"{layer_name}({postfix})：", icon='CHECKMARK')
+                        col = row.column()
+                        col.label(text=f"{total}个图元")
+                    else:
+                        row = box.row()
+                        col = row.column()
+                        col.label(text=f"{postfix}：解析失败", icon='X')
+                if can_process:
+                    row = box.row()
+                    col = row.column()
+                    col.label(text=f"解析耗时：{getattr(context.scene, 'fetch_gerber_prims_time_consumed'): .2f}秒", icon='PREVIEW_RANGE')
+            except Exception as e:
+                print(f'发生意外：{e}')
                 pass
-        
-            if filepath not in self.stats:
-                try:
-                    self.get_gerber_stats(filepath)
-                except:
-                    pass
-            
-            if filepath in self.stats:
-                # 图元统计
-                layout.separator()
-                box = layout.box()
-                box.label(text="图元统计", icon='INFO')
-                filestats = self.stats[filepath]
-                if filestats:
-                    if 'circles' in filestats:
-                        row = box.row()
-                        row.label(text=f"圆形: {filestats['circles']} 个", icon='MESH_CIRCLE')
-                    if 'rects' in filestats:
-                        row = box.row()
-                        row.label(text=f"矩形:  {filestats['rects']} 个", icon='MATPLANE')
-                    if 'lines' in filestats:
-                        row = box.row()
-                        row.label(text=f"直线: {filestats['lines']} 个", icon='IPO_LINEAR')
-                    if 'regions' in filestats:
-                        row = box.row()
-                        row.label(text=f"多边形: {filestats['regions']} 个", icon='PMARKER')
-                    if 'obrounds' in filestats:
-                        row = box.row()
-                        row.label(text=f"椭圆形: {filestats['obrounds']} 个", icon='META_ELLIPSOID')
-                    if 'total' in filestats:
-                        row = box.row()
-                        row.label(text=f"总数: {filestats['total']} 个", icon='SHADERFX')
-                    if filepath in self.processing_times:
-                        row = box.row()
-                        row.label(text=f"统计耗时: {self.processing_times[filepath]:.2f} 秒", icon='PREVIEW_RANGE')
 
-        
         # 导入选项
-        layout.separator()
-        box = layout.box()
-        box.label(text="导入选项", icon='SETTINGS')
-        box.prop(scene, "gerber_debug_mode", text="启用调试模式")
-        box.prop(scene, "gerber_optimize_performance", text="启用性能优化")
+        # layout.separator()
+        # box = layout.box()
+        # box.label(text="导入选项", icon='SETTINGS')
+        # box.prop(scene, "gerber_debug_mode", text="启用调试模式")
+        # box.prop(scene, "gerber_optimize_performance", text="启用性能优化")
         
         # 导入按钮
         layout.separator()
         col = layout.column(align=True)
         
-        filepath = getattr(scene, 'gerber_filepath', None)
-        if filepath and os.path.exists(filepath):
+        if can_process:
             op = col.operator("io_fritzing.import_gerber_file", 
                              text="导入Gerber文件", 
                              icon='IMPORT')
-            setattr(op, 'filepath', filepath)
             setattr(op, 'debug_mode', getattr(scene, 'gerber_debug_mode', False))
             setattr(op, 'optimize_performance', getattr(scene, 'gerber_optimize_performance'))
             
@@ -1573,18 +1586,15 @@ class VIEW3D_PT_gerber(Panel):
 # ============================================================================
 # 辅助操作符
 # ============================================================================
-class IMPORT_OT_browse_gerber_files(Operator):
+class IMPORT_OT_browse_gerber_files(Operator, ImportHelper):
     """浏览Gerber文件"""
     bl_idname = "io_fritzing.browse_gerber_files"
-    bl_label = "浏览"
+    bl_label = "导入Gerber文件夹"
     
-    filepath: StringProperty(name="Gerber文件",
-        subtype='FILE_PATH',
-        default=""
-    ) # type: ignore
+    use_filter_folder = True
 
     filter_glob: StringProperty(
-        default="*.gbr;*.ger;*.gbx;*.gtl;*.gbl;*.gto;*.gts;*.gtp;*.gm1;*.gko",
+        default="*.gm1;*.gbl;*.gtl;*drill.txt;*.gbo;*.gto;",
         options={'HIDDEN'}
     ) # type: ignore
     
@@ -1594,9 +1604,53 @@ class IMPORT_OT_browse_gerber_files(Operator):
         return {'RUNNING_MODAL'}
     
     def execute(self, context):
-        if self.filepath and context:
-            setattr(context.scene, 'gerber_filepath', self.filepath)
+        if context is None:
+            return
+        time_start = time.time()
+        global gerber_fileinfo
+        # 设置等待光标
+        context.window.cursor_modal_set('WAIT')
+        directory = self.properties['filepath']
+        cut = directory.rindex(os.path.sep[0])
+        directory = directory[0:cut]
+        gerber_fileinfo = dict()
+        tmp_filenames = glob.glob(os.path.join(directory, '*.*'))
+        # get filenames dictionary contains outline, bottom, top, bottomsilk, topsilk, drill
+        for filename in tmp_filenames:
+            layer_name = None
+            if filename.endswith('.gm1'):
+                layer_name = 'outline'
+            elif filename.endswith('.gbl'):
+                layer_name = 'bottom'
+            elif filename.endswith('.gtl'):
+                layer_name = 'top'
+            elif filename.endswith('_drill.txt'):
+                layer_name = 'drill'
+            elif filename.endswith('.gbo'):
+                layer_name = 'bottomsilk'
+            elif filename.endswith('.gto'):
+                layer_name = 'topsilk'
+            if layer_name:
+                self.count_gerber_prims(layer_name, filename)
+        if os.path.exists(directory):
+            setattr(context.scene, 'gerber_filepath', directory)
+        setattr(context.scene, 'fetch_gerber_prims_time_consumed', time.time() - time_start)
+
+        # 恢复光标
+        context.window.cursor_modal_set('DEFAULT')
         return {'FINISHED'}
+
+    def count_gerber_prims(self, layer_name, filename):
+        global gerber_fileinfo
+        total = 0
+        try:
+            gerber = read(filename)
+            total = len(gerber.primitives)
+        except:
+            total = -1   # 解析gerber失败
+            pass
+        gerber_fileinfo[layer_name] = {'filepath': filename, 'total_prims': total}
+
 
 # ============================================================================
 # 注册
@@ -1623,7 +1677,6 @@ def register():
     setattr(Scene, 'gerber_filepath', StringProperty(
         name="Gerber File",
         description="Gerber文件路径",
-        subtype='FILE_PATH',
         default=""
     ))
     
@@ -1639,6 +1692,11 @@ def register():
         default=True
     ))
 
+    setattr(Scene, 'fetch_gerber_prims_time_consumed', FloatProperty(
+        name="获取Gerber文件图元耗时",
+        description="获取一批Gerber文件图元的耗时",
+    ))
+    
     print("✅ Gerber导入插件注册完成")
 
 def unregister():
@@ -1655,6 +1713,7 @@ def unregister():
     delattr(Scene, 'gerber_filepath')
     delattr(Scene, 'gerber_debug_mode')
     delattr(Scene, 'gerber_optimize_performance')
+    delattr(Scene, 'fetch_gerber_prims_time_consumed')
 
 if __name__ == "__main__":
     register()

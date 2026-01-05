@@ -1,61 +1,17 @@
 import bpy
 import os
-import sys
 import time
 import traceback
 from bpy.types import Operator, Panel, Scene
 from bpy.props import StringProperty, BoolProperty
 from io_fritzing.assets.utils.material import create_material
-
-def setup_pcb_tools_path():
-    """设置pcb_tools路径"""
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(current_dir)
-    pcb_tools_path = os.path.join(project_root, "pcb_tools")
-    
-    if os.path.exists(pcb_tools_path) and pcb_tools_path not in sys.path:
-        sys.path.insert(0, pcb_tools_path)
-        print("✅ 已将pcb_tools添加到Python路径")
-        return True
-    
-    try:
-        import pcb_tools
-        print("✅ 已从系统路径导入pcb_tools")
-        return True
-    except ImportError:
-        print("❌ 未找到pcb_tools，请确保已下载pcb_tools源代码")
-        return False
-
-# 设置路径
-PCB_TOOLS_AVAILABLE = setup_pcb_tools_path()
-
-# 导入检测
-GERBER_LIB_AVAILABLE = False
-EXCELLON_LIB_AVAILABLE = False
-
-if PCB_TOOLS_AVAILABLE:
-    try:
-        from pcb_tools import read
-        print("✅ pcb_tools库导入成功")
-        GERBER_LIB_AVAILABLE = True
-    except ImportError as e:
-        print(f"❌ pcb_tools库导入失败: {e}")
-    
-    try:
-        from pcb_tools.excellon import read as read_excellon
-        print("✅ pcb_tools.excellon库导入成功")
-        EXCELLON_LIB_AVAILABLE = True
-    except ImportError as e:
-        print(f"❌ pcb_tools.excellon库导入失败: {e}")
-
-# 计算总库可用性
-ALL_LIB_AVAILABLE = GERBER_LIB_AVAILABLE or EXCELLON_LIB_AVAILABLE
+from pcb_tools.excellon import read as read_excellon
 
 # ============================================================================
-# 增强的Drill文件解析器
+# Drill文件解析器
 # ============================================================================
-class EnhancedDrillParser:
-    """增强的Drill文件解析器"""
+class DrillParser:
+    """Drill文件解析器"""
     
     def __init__(self):
         self.primitives = []
@@ -63,13 +19,6 @@ class EnhancedDrillParser:
     
     def parse_drill_file(self, filepath, debug=False):
         """解析Drill文件"""
-        if not EXCELLON_LIB_AVAILABLE:
-            return {
-                'success': False, 
-                'error': '缺少python-excellon库',
-                'install_hint': '请确保pcb_tools已正确安装'
-            }
-        
         try:
             print(f"🔍 开始解析Drill文件: {os.path.basename(filepath)}")
             start_time = time.time()
@@ -82,7 +31,7 @@ class EnhancedDrillParser:
             print(f"📄 Drill文件信息: {self.file_info}")
             
             # 提取钻孔
-            self.primitives = self._extract_all_holes_enhanced(drill, debug)
+            self.primitives = self._extract_all_holes(drill, debug)
             
             processing_time = time.time() - start_time
             
@@ -184,8 +133,8 @@ class EnhancedDrillParser:
             print(f"计算边界框失败: {e}")
             return None
     
-    def _extract_all_holes_enhanced(self, drill, debug=False):
-        """提取所有钻孔 - 增强版"""
+    def _extract_all_holes(self, drill, debug=False):
+        """提取所有钻孔"""
         holes = []
         
         try:
@@ -206,7 +155,7 @@ class EnhancedDrillParser:
                 print(f"🔍 从holes属性提取钻孔: {len(drill.holes)} 个")
                 
                 for i, hole in enumerate(drill.holes):
-                    hole_data = self._parse_hole_enhanced(hole, i, drill, debug and i < 5)
+                    hole_data = self._parse_hole(hole, i, drill, debug and i < 5)
                     if hole_data:
                         holes.append(hole_data)
                 
@@ -215,7 +164,7 @@ class EnhancedDrillParser:
             
             # 方法2: 从statements提取
             if hasattr(drill, 'statements'):
-                holes_from_statements = self._extract_holes_from_statements_enhanced(drill, debug)
+                holes_from_statements = self._extract_holes_from_statements(drill, debug)
                 if holes_from_statements:
                     holes.extend(holes_from_statements)
                     return holes
@@ -225,7 +174,7 @@ class EnhancedDrillParser:
                 print(f"🔍 从drills属性提取钻孔: {len(drill.drills)} 个")
                 
                 for i, hole in enumerate(drill.drills):
-                    hole_data = self._parse_hole_enhanced(hole, i, drill, debug and i < 5)
+                    hole_data = self._parse_hole(hole, i, drill, debug and i < 5)
                     if hole_data:
                         holes.append(hole_data)
                 
@@ -240,8 +189,8 @@ class EnhancedDrillParser:
             traceback.print_exc()
             return []
     
-    def _extract_holes_from_statements_enhanced(self, drill, debug=False):
-        """从statements提取钻孔 - 增强版"""
+    def _extract_holes_from_statements(self, drill, debug=False):
+        """从statements提取钻孔"""
         holes = []
         
         try:
@@ -321,7 +270,7 @@ class EnhancedDrillParser:
             traceback.print_exc()
             return []
     
-    def _parse_hole_enhanced(self, hole, index, drill, debug=False):
+    def _parse_hole(self, hole, index, drill, debug=False):
         """增强解析钻孔"""
         try:
             # 获取位置
@@ -405,7 +354,7 @@ class EnhancedDrillParser:
 # ============================================================================
 # 修复钻孔方向的Drill几何生成器
 # ============================================================================
-class FixedOrientationDrillGenerator:
+class DrillGenerator:
     """修复钻孔方向的Drill几何生成器"""
     
     def __init__(self):
@@ -720,13 +669,9 @@ class IMPORT_OT_drill_z_axis(Operator):
             self.report({'ERROR'}, "请选择有效的Drill文件")
             return {'CANCELLED'}
         
-        if not EXCELLON_LIB_AVAILABLE:
-            self.report({'ERROR'}, "python-excellon库不可用")
-            return {'CANCELLED'}
-        
         try:
             # 使用之前的解析器
-            parser = EnhancedDrillParser()  # 使用之前定义好的解析器
+            parser = DrillParser()  # 使用之前定义好的解析器
             result = parser.parse_drill_file(self.filepath, debug=self.debug_mode)
             
             if not result.get('success', False):
@@ -734,7 +679,7 @@ class IMPORT_OT_drill_z_axis(Operator):
                 return {'CANCELLED'}
             
             # 创建几何体
-            generator = FixedOrientationDrillGenerator()
+            generator = DrillGenerator()
             primitives = result.get('primitives', [])
             file_info = result.get('file_info', {})
             
@@ -818,16 +763,6 @@ class VIEW3D_PT_drill_z_axis(Panel):
         box = layout.box()
         box.label(text="工具状态", icon='INFO')
         
-        if GERBER_LIB_AVAILABLE:
-            box.label(text="✅ python-gerber: 可用", icon='CHECKMARK')
-        else:
-            box.label(text="❌ python-gerber: 不可用", icon='ERROR')
-        
-        if EXCELLON_LIB_AVAILABLE:
-            box.label(text="✅ python-excellon: 可用", icon='CHECKMARK')
-        else:
-            box.label(text="❌ python-excellon: 不可用", icon='ERROR')
-        
         # 支持的格式
         layout.separator()
         box = layout.box()
@@ -842,19 +777,7 @@ class VIEW3D_PT_drill_z_axis(Panel):
         layout.separator()
         col = layout.column(align=True)
         
-        if not EXCELLON_LIB_AVAILABLE:
-            col.label(text="无法导入，缺少Excellon库", icon='ERROR')
-            col.label(text="请确保pcb_tools已正确安装", icon='INFO')
-            return
-        
-        if scene.drill_file_z_axis and os.path.exists(scene.drill_file_z_axis):
-            op = col.operator("io_fritzing.import_drill_z_axis", 
-                             text="导入Drill文件（Z轴方向）", 
-                             icon='IMPORT')
-            op.filepath = scene.drill_file_z_axis
-            op.debug_mode = scene.drill_debug_mode_z_axis
-        else:
-            col.label(text="请先选择Drill文件", icon='ERROR')
+        col.label(text="请先选择Drill文件", icon='ERROR')
 
 # ============================================================================
 # 辅助操作符
