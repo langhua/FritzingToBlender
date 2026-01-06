@@ -16,6 +16,9 @@ from io_fritzing.gerber.excellon_parser import DrillParser, DrillGenerator
 global gerber_fileinfo
 gerber_fileinfo = dict()
 
+global gerber_import_info
+gerber_import_info = dict()
+
 # ============================================================================
 # 性能优化工具
 # ============================================================================
@@ -1037,8 +1040,9 @@ class IMPORT_OT_gerber(Operator):
     """Gerber导入"""
     bl_idname = "io_fritzing.import_gerber_file"
     bl_label = "导入Gerber文件"
-    bl_description = "线段断开、Region尺寸和性能问题的导入"
+    bl_description = "导入Gerber文件"
     bl_options = {'REGISTER', 'UNDO'}
+    bl_order = 1
     
     debug_mode: BoolProperty(
         name="调试模式",
@@ -1100,7 +1104,8 @@ class IMPORT_OT_gerber(Operator):
                     primitives = result.get('primitives', [])
                     file_info = result.get('file_info', {})
                     
-                    create_result = generator.create_drill_geometry(
+                    create_result = generator.create_drill_geometry(layer_name,
+                        main_collection,
                         primitives, 
                         file_info,
                         height=0.0018,
@@ -1123,7 +1128,7 @@ class IMPORT_OT_gerber(Operator):
                         self.report({'ERROR'}, f"解析失败: {result.get('error', '未知错误')}")
                         return {'CANCELLED'}
                     
-                    result_stats = self._create_gerber_mesh_filled(
+                    result_stats = self._create_gerber_mesh_filled(layer_name,
                         result.get('primitives', []), 
                         main_collection,
                         result.get('unit_factor', 0.001)
@@ -1141,7 +1146,7 @@ class IMPORT_OT_gerber(Operator):
 
         return {'FINISHED'}
 
-    def _create_gerber_mesh_filled(self, primitives, collection, unit_factor):
+    def _create_gerber_mesh_filled(self, layer_name, primitives, collection, unit_factor):
         """创建Gerber网格 - 2D填充模式核心函数"""
         stats = {
             'total_prims': len(primitives),
@@ -1184,13 +1189,12 @@ class IMPORT_OT_gerber(Operator):
             return stats
         
         # 创建合并后的网格
-        mesh_name = f"Copper_Layer"
-        mesh_data = bpy.data.meshes.new(mesh_name)
+        mesh_data = bpy.data.meshes.new(layer_name)
         mesh_data.from_pydata(all_verts, [], all_faces)
         mesh_data.update()
         
         # 创建网格对象
-        mesh_obj = bpy.data.objects.new(mesh_name, mesh_data)
+        mesh_obj = bpy.data.objects.new(layer_name, mesh_data)
         
         # 确保对象是2D平面（Z坐标为0）
         mesh_obj.location.z = 0
@@ -1513,13 +1517,6 @@ class VIEW3D_PT_gerber(Panel):
                 print(f'发生意外：{e}')
                 pass
 
-        # 导入选项
-        # layout.separator()
-        # box = layout.box()
-        # box.label(text="导入选项", icon='SETTINGS')
-        # box.prop(scene, "gerber_debug_mode", text="启用调试模式")
-        # box.prop(scene, "gerber_optimize_performance", text="启用性能优化")
-        
         # 导入按钮
         layout.separator()
         col = layout.column(align=True)

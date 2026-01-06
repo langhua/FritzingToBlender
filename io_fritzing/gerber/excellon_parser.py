@@ -109,6 +109,9 @@ class DrillParser:
                 'height': max_y - min_y,
             })
         
+        if hasattr(drill, 'primitives'):
+            info['total_prims'] = len(drill.primitives)
+
         return info
     
     def _calculate_bounds_from_statements(self, drill):
@@ -361,7 +364,7 @@ class DrillGenerator:
         self.collection = None
         self.created_objects = []
     
-    def create_drill_geometry(self, primitives, file_info, height=0.0018, debug=False):
+    def create_drill_geometry(self, layer_name, collection, primitives, file_info, height=0.0018, debug=False):
         """创建钻孔几何体"""
         if not primitives:
             print("⚠️ 没有钻孔数据，创建边界框")
@@ -378,11 +381,22 @@ class DrillGenerator:
             # 生成唯一集合名称
             base_name = f"Drill_{os.path.basename(file_info['filename']).replace('.', '_')}"
             timestamp = int(time.time())
-            final_name = f"{base_name}_{timestamp}"
+            if layer_name:
+                final_name = layer_name
+            else:
+                final_name = f"{base_name}_{timestamp}"
             
             # 创建集合
             self._create_collection_safe(final_name)
-            
+            if self.collection:
+                if collection:
+                    collection.children.link(self.collection)
+                    if bpy.context:
+                        bpy.context.view_layer.active_layer_collection = bpy.context.view_layer.layer_collection.children[collection.name].children[final_name]
+                elif bpy.context:
+                    bpy.context.scene.collection.children.link(self.collection)
+                    bpy.context.view_layer.active_layer_collection = bpy.context.view_layer.layer_collection.children[final_name]
+
             # 创建钻孔
             created_count = 0
             tool_stats = {}
@@ -425,27 +439,31 @@ class DrillGenerator:
             }
             
             print(f"\n✅ 几何创建完成: {result['message']}")
-            return result
             
         except Exception as e:
             error_msg = f"创建几何体失败: {str(e)}"
             print(f"❌ {error_msg}")
             traceback.print_exc()
-            return {'success': False, 'error': error_msg}
+            result = {'success': False, 'error': error_msg}
+        
+        if collection and bpy.context:
+            bpy.context.view_layer.active_layer_collection = bpy.context.view_layer.layer_collection.children[collection.name]
+
+        return result
     
     def _create_collection_safe(self, name):
         """安全创建集合"""
         try:
             # 创建新集合
             self.collection = bpy.data.collections.new(name)
-            bpy.context.scene.collection.children.link(self.collection)
-            bpy.context.view_layer.active_layer_collection = bpy.context.view_layer.layer_collection.children[name]
             print(f"📁 创建集合: {name}")
         except Exception as e:
             print(f"创建集合失败: {e}")
     
     def _create_drill_hole_z_axis(self, hole, index, unit_factor, height=0.0018, debug=False):
         """创建沿Z轴方向的钻孔"""
+        if bpy.context is None:
+            return False
         try:
             x = hole.get('x', 0)
             y = hole.get('y', 0)
@@ -491,17 +509,18 @@ class DrillGenerator:
                 location=(x_m, y_m, 0)  # 在Z=0平面上
             )
             cylinder = bpy.context.active_object
-            cylinder.name = f"Drill_{tool_id}_{index:05d}"
+            setattr(cylinder, 'name', f"Drill_{tool_id}_{index:05d}")
             
             # 根据工具ID设置不同的颜色
             color = self._get_tool_color(tool_id)
             
             # 为圆柱体创建材质
             mat_cylinder = create_material(name=f"Drill_Cylinder_{tool_id}_Mat", base_color=color)
-            if cylinder.data.materials:
-                cylinder.data.materials[0] = mat_cylinder
-            else:
-                cylinder.data.materials.append(mat_cylinder)
+            if cylinder:
+                if getattr(cylinder.data, 'materials'):
+                    getattr(cylinder.data, 'materials')[0] = mat_cylinder
+                else:
+                    getattr(cylinder.data, 'materials').append(mat_cylinder)
             
             self.created_objects.append(cylinder)
             return True
@@ -513,6 +532,8 @@ class DrillGenerator:
     
     def _create_drill_hole_simple_z_axis(self, hole, index, unit_factor, debug=False):
         """简化的沿Z轴方向钻孔创建"""
+        if bpy.context is None:
+            return False
         try:
             x = hole.get('x', 0)
             y = hole.get('y', 0)
@@ -543,22 +564,23 @@ class DrillGenerator:
                 location=(x_m, y_m, 0.001)  # 在Z轴方向
             )
             cylinder = bpy.context.active_object
-            cylinder.name = f"Drill_{tool_id}_{index:05d}"
+            setattr(cylinder, 'name', f"Drill_{tool_id}_{index:05d}")
             
             # 创建材质
             color = self._get_tool_color(tool_id)
-            mat = bpy.data.materials.new(name=f"Drill_{tool_id}_Mat")
-            mat.diffuse_color = color
+            mat = create_material(name=f"Drill_{tool_id}_Mat", base_color=color)
             
-            if cylinder.data.materials:
-                cylinder.data.materials[0] = mat
-            else:
-                cylinder.data.materials.append(mat)
+            if cylinder:
+                if getattr(cylinder.data, 'materials'):
+                    getattr(cylinder.data, 'materials')[0] = mat
+                else:
+                    getattr(cylinder.data, 'materials').append(mat)
             
             # 链接到集合
-            self.collection.objects.link(cylinder)
+            if cylinder and self.collection:
+                self.collection.objects.link(cylinder)
             
-            if cylinder.name in bpy.context.scene.collection.objects:
+            if cylinder and cylinder.name in bpy.context.scene.collection.objects:
                 bpy.context.scene.collection.objects.unlink(cylinder)
             
             self.created_objects.append(cylinder)
@@ -599,6 +621,8 @@ class DrillGenerator:
     
     def _create_bounding_box_only(self, file_info, collection_name):
         """只创建边界框"""
+        if bpy.context is None:
+            return {'success': False, 'error': '必须在Blender中运行'}
         try:
             if collection_name in bpy.data.collections:
                 collection = bpy.data.collections[collection_name]
@@ -608,18 +632,18 @@ class DrillGenerator:
             
             bpy.ops.mesh.primitive_cube_add(size=0.05)
             cube = bpy.context.active_object
-            cube.name = f"{collection_name}_Bounds"
-            cube.location = (0, 0, 0)
+            setattr(cube, 'name', f"{collection_name}_Bounds")
+            setattr(cube, 'location', (0, 0, 0))
             
-            mat = bpy.data.materials.new(name="Drill_Bounds_Mat")
-            mat.diffuse_color = (0.5, 0.5, 0.5, 0.3)
+            mat = create_material(name="Drill_Bounds_Mat", base_color=(0.5, 0.5, 0.5, 0.3))
             
-            if cube.data.materials:
-                cube.data.materials[0] = mat
-            else:
-                cube.data.materials.append(mat)
+            if cube:
+                if getattr(cube.data, 'materials'):
+                    getattr(cube.data, 'materials')[0] = mat
+                else:
+                    getattr(cube.data, 'materials').append(mat)
             
-            collection.objects.link(cube)
+                collection.objects.link(cube)
             
             self.created_objects.append(cube)
             
@@ -658,20 +682,28 @@ class IMPORT_OT_drill_z_axis(Operator):
     
     def invoke(self, context, event):
         """调用对话框"""
+        if context is None:
+            return {'CANCELLED'}
         if not self.filepath or not os.path.exists(self.filepath):
             context.window_manager.fileselect_add(self)
             return {'RUNNING_MODAL'}
         return self.execute(context)
     
     def execute(self, context):
+        if context is None:
+            return {'CANCELLED'}
+
         """执行导入"""
         if not self.filepath or not os.path.exists(self.filepath):
             self.report({'ERROR'}, "请选择有效的Drill文件")
             return {'CANCELLED'}
         
         try:
+            # 设置等待光标
+            context.window.cursor_modal_set('WAIT')
+
             # 使用之前的解析器
-            parser = DrillParser()  # 使用之前定义好的解析器
+            parser = DrillParser()
             result = parser.parse_drill_file(self.filepath, debug=self.debug_mode)
             
             if not result.get('success', False):
@@ -684,6 +716,8 @@ class IMPORT_OT_drill_z_axis(Operator):
             file_info = result.get('file_info', {})
             
             create_result = generator.create_drill_geometry(
+                None,
+                None,
                 primitives, 
                 file_info,
                 height=0.0018,
@@ -692,15 +726,21 @@ class IMPORT_OT_drill_z_axis(Operator):
             
             if not create_result.get('success', False):
                 self.report({'ERROR'}, f"创建几何体失败: {create_result.get('error', '未知错误')}")
+                # 恢复光标
+                context.window.cursor_modal_set('DEFAULT')
                 return {'CANCELLED'}
             
             message = f"导入完成: {create_result.get('object_count', 0)} 个钻孔"
             self.report({'INFO'}, message)
+            # 恢复光标
+            context.window.cursor_modal_set('DEFAULT')
             return {'FINISHED'}
             
         except Exception as e:
             error_msg = f"导入过程错误: {str(e)}"
             self.report({'ERROR'}, error_msg)
+            # 恢复光标
+            context.window.cursor_modal_set('DEFAULT')
             return {'CANCELLED'}
 
 # ============================================================================
@@ -713,8 +753,15 @@ class VIEW3D_PT_drill_z_axis(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = "Fritzing工具"
+    bl_order = 2
+    bl_options = {'DEFAULT_CLOSED'}
+
+    filepath = ''
     
     def draw(self, context):
+        if context is None:
+            return
+        
         layout = self.layout
         scene = context.scene
         
@@ -730,16 +777,27 @@ class VIEW3D_PT_drill_z_axis(Panel):
                     icon='FILEBROWSER')
         
         # 文件信息
-        if scene.drill_file_z_axis and os.path.exists(scene.drill_file_z_axis):
+        filepath = getattr(scene, 'drill_file_z_axis')
+        if filepath and os.path.exists(filepath) and self.filepath != filepath:
+            self.filepath = filepath
             try:
-                file_size = os.path.getsize(scene.drill_file_z_axis)
-                filename = os.path.basename(scene.drill_file_z_axis)
+                file_size = os.path.getsize(filepath)
+                filename = os.path.basename(filepath)
                 
                 col = box.column(align=True)
                 col.label(text=f"文件大小: {file_size/1024:.1f} KB", icon='INFO')
                 col.label(text=f"文件名: {filename}", icon='FILE')
                 col.label(text=f"文件类型: 钻孔文件", icon='MESH_GRID')
                 col.label(text=f"方向: 沿Z轴（垂直方向）", icon='ORIENTATION_GIMBAL')
+
+                # 获取文件信息
+                parser = DrillParser()
+                # 读取Excellon文件
+                drill = read_excellon(filepath)
+                file_info = parser._get_drill_info(drill, filepath)
+                if file_info and file_info['total_prims']:
+                    col.label(text=f"图元: {file_info['total_prims']}个", icon='FILE_VOLUME')
+                    
             except:
                 pass
         
@@ -777,7 +835,14 @@ class VIEW3D_PT_drill_z_axis(Panel):
         layout.separator()
         col = layout.column(align=True)
         
-        col.label(text="请先选择Drill文件", icon='ERROR')
+        if filepath and os.path.exists(filepath):
+            op = col.operator("io_fritzing.import_drill_z_axis", 
+                             text="导入Drill文件（Z轴方向）", 
+                             icon='IMPORT')
+            setattr(op, 'filepath', filepath)
+            setattr(op, 'debug_mode', getattr(scene, 'drill_debug_mode_z_axis'))
+        else:
+            col.label(text="请先选择Drill文件", icon='ERROR')
 
 # ============================================================================
 # 辅助操作符
@@ -787,19 +852,28 @@ class IMPORT_OT_browse_drill_z_axis(Operator):
     bl_idname = "io_fritzing.browse_drill_z_axis"
     bl_label = "浏览"
     
-    filepath: StringProperty(subtype='FILE_PATH')
+    filepath: StringProperty(
+        name="Drill文件",
+        subtype='FILE_PATH',
+        default=""
+    ) # type: ignore
+
     filter_glob: StringProperty(
         default="*.drl;*.txt;*.drill;*.xln;*.xlnx;*.drd",
         options={'HIDDEN'}
-    )
+    ) # type: ignore
     
     def invoke(self, context, event):
+        if context is None:
+            return {'CANCELLED'}
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
     
     def execute(self, context):
+        if context is None:
+            return {'CANCELLED'}
         if self.filepath:
-            context.scene.drill_file_z_axis = self.filepath
+            setattr(context.scene, 'drill_file_z_axis', self.filepath)
         return {'FINISHED'}
 
 # ============================================================================
@@ -823,18 +897,17 @@ def register():
             print(f"❌ 注册类 {cls.__name__} 失败: {e}")
     
     # 注册场景属性
-    Scene.drill_file_z_axis = StringProperty(
+    setattr(Scene, 'drill_file_z_axis', StringProperty(
         name="Drill File",
         description="Drill文件路径",
-        subtype='FILE_PATH',
         default=""
-    )
+    ))
     
-    Scene.drill_debug_mode_z_axis = BoolProperty(
+    setattr(Scene, 'drill_debug_mode_z_axis', BoolProperty(
         name="Drill Debug Mode",
         description="启用调试模式显示详细信息",
         default=False
-    )
+    ))
     
     print("✅ Drill Z轴方向导入插件注册完成")
 
