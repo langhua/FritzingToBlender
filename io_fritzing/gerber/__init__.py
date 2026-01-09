@@ -6,7 +6,7 @@ import bpy
 from io_fritzing.gerber.excellon_parser import register as register_excellon_parser, unregister as unregister_excellon_parser
 from io_fritzing.gerber.gerber_rs274x_parser import register as register_gerber_parser, unregister as unregister_gerber_parser
 from io_fritzing.gerber.get_files import GerberGetFiles
-from io_fritzing.gerber.board_settings import GerberBoardSettings
+from io_fritzing.gerber.board_settings import register as register_board_settings, unregister as unregister_board_settings
 from io_fritzing.gerber.report import register as register_report, unregister as unregister_report
 from io_fritzing.gerber.ui_labels import langs
 from io_fritzing.gerber.extrude import GerberExtrude
@@ -23,7 +23,6 @@ def menu_import(self, _):
 
 classes = (
     GerberGetFiles,
-    GerberBoardSettings,
     GerberExtrude,
     GerberMergeLayers,
     GerberCreateMaterials,
@@ -55,6 +54,7 @@ def register():
     register_report()
     register_gerber_parser()
     register_excellon_parser()
+    register_board_settings()
 
 
 def unregister():
@@ -74,6 +74,7 @@ def unregister():
     unregister_report()
     unregister_gerber_parser()
     unregister_excellon_parser()
+    unregister_board_settings()
 
 # Allow the add-on to be ran directly without installation.
 if __name__ == "__main__":

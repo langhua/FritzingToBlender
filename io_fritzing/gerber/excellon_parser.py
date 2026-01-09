@@ -507,13 +507,15 @@ class DrillGenerator:
             
             # 创建圆柱体表示钻孔 - 沿Z轴方向
             bpy.ops.mesh.primitive_cylinder_add(
-                vertices=12,
+                vertices=24,
                 radius=radius_m,
                 depth=height,
                 location=(x_m, y_m, 0)
             )
             cylinder = bpy.context.active_object
-            setattr(cylinder, 'name', f"Drill_Cylinder_{tool_id}")
+            if cylinder is not None:
+                setattr(cylinder, 'name', f"Drill_Cylinder_{tool_id}")
+                cylinder.scale = (1, 1, 1)
             
             # 根据工具ID设置不同的颜色
             color = self._get_tool_color(tool_id)

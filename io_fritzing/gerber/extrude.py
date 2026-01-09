@@ -13,9 +13,9 @@ class GerberExtrude(Operator):
         try:
             svgLayers = importdata.svgLayers
             boardThickness = None
-            if context and hasattr(context.scene, 'board_thickness_setting'):
+            if context and hasattr(context.scene, 'gerber_board_thickness_setting'):
                 try:
-                    boardThickness = float(getattr(context.scene, 'board_thickness_setting'))
+                    boardThickness = float(getattr(context.scene, 'gerber_board_thickness_setting'))
                 except:
                     pass
             extrudeLayers(svgLayers, boardThickness, None, None, None)

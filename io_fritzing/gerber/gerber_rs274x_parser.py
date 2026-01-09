@@ -1123,7 +1123,7 @@ class IMPORT_OT_gerber(Operator):
                     self.report({'INFO'}, message)
                     import_success += 1
 
-                elif layer_name == 'outline':
+                else:
                     # 解析Gerber RS-274X文件
                     parser = GerberParser()
                     result = parser.parse_gerber(filepath, debug=self.debug_mode)

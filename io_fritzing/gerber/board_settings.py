@@ -31,7 +31,7 @@ class GerberBoardSettings(Operator):
         col2 = row.column()
         col2.scale_x = 0.6
         if context:
-            col2.prop(context.scene, text='', property='board_thickness_setting')
+            col2.prop(context.scene, text='', property='gerber_board_thickness_setting')
 
         # board color
         box = layout.box()
@@ -42,7 +42,7 @@ class GerberBoardSettings(Operator):
         col1.label(text='Board Color:')
         col2 = row.column()
         if context:
-            col2.template_icon_view(context.scene, 'board_color_setting', scale=2)
+            col2.template_icon_view(context.scene, 'gerber_board_color_setting', scale=2)
 
         # copper color
         box = layout.box()
@@ -53,7 +53,7 @@ class GerberBoardSettings(Operator):
         col1.label(text='Copper Color:')
         col2 = row.column()
         if context:
-            col2.template_icon_view(context.scene, 'copper_color_setting', scale=2)
+            col2.template_icon_view(context.scene, 'gerber_copper_color_setting', scale=2)
 
         # silk color
         box = layout.box()
@@ -64,7 +64,7 @@ class GerberBoardSettings(Operator):
         col1.label(text='Silk Color:')
         col2 = row.column()
         if context:
-            col2.template_icon_view(context.scene, 'silk_color_setting', scale=2)
+            col2.template_icon_view(context.scene, 'gerber_silk_color_setting', scale=2)
 
         # drill cylinder filter
         box = layout.box()
@@ -75,7 +75,7 @@ class GerberBoardSettings(Operator):
         col2 = row.column()
         col2.scale_x = 0.6
         if context:
-            col2.prop(context.scene, text='', property='cylinder_filter_setting')
+            col2.prop(context.scene, text='', property='gerber_cylinder_filter_setting')
 
         # drill algorithm
         box = layout.box()
@@ -86,16 +86,17 @@ class GerberBoardSettings(Operator):
         col2 = row.column()
         col2.scale_x = 0.6
         if context:
-            col2.prop(context.scene, text='', property='drill_algorithm_setting')
+            col2.prop(context.scene, text='', property='gerber_drill_algorithm_setting')
 
         # bottom margin
         row = layout.row()
 
 
     def execute(self, context):
-        importdata.silk_color = context.scene.silk_color_setting
-        importdata.board_color = context.scene.board_color_setting
-        importdata.board_thickness = float(context.scene.board_thickness_setting)
+        if context:
+            importdata.silk_color = getattr(context.scene, 'gerber_silk_color_setting')
+            importdata.board_color = getattr(context.scene, 'gerber_board_color_setting')
+            importdata.board_thickness = float(getattr(context.scene, 'gerber_board_thickness_setting'))
         getattr(getattr(bpy.ops, 'fritzing'), 'gerber_progress_report')("INVOKE_DEFAULT")
         return {"FINISHED"}
     
@@ -132,18 +133,17 @@ def register():
     addon_path = os.path.dirname(__file__)
     icons_dir = os.path.join(addon_path, '../../icons')
 
+    bpy.utils.register_class(GerberBoardSettings)
+
     if len(board_thickness_items) == 0:
-        board_thickness_configs = [
+        board_thickness_items.extend([
             ('0.00154', '1.6mm', '', 0),
             ('0.00134', '1.4mm', '', 1),
             ('0.00114', '1.2mm', '', 2),
             ('0.00094', '1.0mm', '', 3),
-        ]
+        ])
 
-        for config in board_thickness_configs:
-            board_thickness_items.append(config)
-
-        setattr(Scene, 'board_thickness_setting', EnumProperty(
+        setattr(Scene, 'gerber_board_thickness_setting', EnumProperty(
             items=board_thickness_items,
             default='0.00154'  # 设置默认值为1.6mm，这是最常见的PCB厚度
         ))
@@ -166,7 +166,7 @@ def register():
             icon = pcoll.load(config['name'], os.path.join(icons_dir, config['icon']), 'IMAGE')
             board_color_items.append((config['name'], config['name'], '', icon.icon_id, index))
 
-        setattr(Scene, 'board_color_setting', EnumProperty(
+        setattr(Scene, 'gerber_board_color_setting', EnumProperty(
             items=board_color_items,
             default=Board_Green['name']  # 设置默认值为绿色
         ))
@@ -181,7 +181,7 @@ def register():
             icon = pcoll.load(config['name'], os.path.join(icons_dir, config['icon']), 'IMAGE')
             copper_color_items.append((config['name'], config['name'], '', icon.icon_id, index))
 
-        setattr(Scene, 'copper_color_setting', EnumProperty(
+        setattr(Scene, 'gerber_copper_color_setting', EnumProperty(
             items=copper_color_items,
             default=Copper['name']  # 设置默认值为第一种铜色
         ))
@@ -197,57 +197,54 @@ def register():
             icon = pcoll.load(config['name'], os.path.join(icons_dir, config['icon']), 'IMAGE')
             silk_color_items.append((config['name'], config['name'], '', icon.icon_id, index))
 
-        setattr(Scene, 'silk_color_setting', EnumProperty(
+        setattr(Scene, 'gerber_silk_color_setting', EnumProperty(
             items=silk_color_items,
             default=Silk_White['name']  # 设置默认值为白色
         ))
   
     if len(drill_algorithm_items) == 0:
-        drill_algorithm_configs = [
+        drill_algorithm_items.extend([
             ('BooleanModifier', 'Boolean Modifier', '', 0),
             ('AutoBoolean', 'Auto Boolean', '', 1)
-        ]
+        ])
 
-        for config in drill_algorithm_configs:
-            drill_algorithm_items.append(config)
-
-        setattr(Scene, 'drill_algorithm_setting', EnumProperty(
+        setattr(Scene, 'gerber_drill_algorithm_setting', EnumProperty(
             items=drill_algorithm_items,
             default='BooleanModifier'  # 设置默认值为Boolean Modifier
         ))
 
     if len(cylinder_filter_items) == 0:
-        cylinder_filter_configs = [
+        cylinder_filter_items.extend([
             ('0.0015', '>=1.5mm', '', 0),
             ('0.0012', '>=1.2mm', '', 1),
             ('0.0009', '>=0.9mm', '', 2),
             ('0.0005', '>=0.5mm', '', 3),
-            ('0.0', '>0mm', '', 4)
-        ]
+            ('0.0', 'No Filter', '', 4)
+        ])
 
-        for config in cylinder_filter_configs:
-            cylinder_filter_items.append(config)
-
-        setattr(Scene, 'cylinder_filter_setting', EnumProperty(
+        setattr(Scene, 'gerber_cylinder_filter_setting', EnumProperty(
             items=cylinder_filter_items,
             default='0.0015'  # 设置默认值为1.5mm，钻孔孔径大于等于1.5mm的圆柱体会进行钻孔（布尔运算）
         ))
 
 def unregister():
+    bpy.utils.unregister_class(GerberBoardSettings)
+
     global pcoll
     if pcoll is not None:
         previews.remove(pcoll)
         pcoll = None
 
-    delattr(Scene, 'board_color_setting')
-    delattr(Scene, 'copper_color_setting')
-    delattr(Scene, 'silk_color_setting')
-    delattr(Scene, 'board_thickness_setting')
-    delattr(Scene, 'drill_algorithm_setting')
-    delattr(Scene, 'cylinder_filter_setting')
+    delattr(Scene, 'gerber_board_color_setting')
+    delattr(Scene, 'gerber_copper_color_setting')
+    delattr(Scene, 'gerber_silk_color_setting')
+    delattr(Scene, 'gerber_board_thickness_setting')
+    delattr(Scene, 'gerber_drill_algorithm_setting')
+    delattr(Scene, 'gerber_cylinder_filter_setting')
 
     board_color_items.clear()
     copper_color_items.clear()
     silk_color_items.clear()
     board_thickness_items.clear()
     drill_algorithm_items.clear()
+    cylinder_filter_items.clear()

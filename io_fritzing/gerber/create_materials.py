@@ -11,25 +11,25 @@ class GerberCreateMaterials(Operator):
     def execute(self, context):
         try:
             board_color = (0, 0.435, 0.282, 0.99)
-            if context and hasattr(context.scene, 'board_color_setting'):
+            if context and hasattr(context.scene, 'gerber_board_color_setting'):
                 board_colors = [Board_Black, Board_Blue, Board_Green, Board_Purple, Board_Red, Board_White, Board_Yellow]
-                board_color_setting = str(getattr(context.scene, 'board_color_setting'))
+                board_color_setting = str(getattr(context.scene, 'gerber_board_color_setting'))
                 for color in board_colors:
                     if board_color_setting == color['name']:
                         board_color = color['rgba']
 
             silk_color = (0.918, 0.965, 0.961, 1.0)
-            if context and hasattr(context.scene, 'silk_color_setting'):
+            if context and hasattr(context.scene, 'gerber_silk_color_setting'):
                 silk_colors = [Silk_Black, Silk_White, Silk_White2]
-                silk_color_setting = str(getattr(context.scene, 'silk_color_setting'))
+                silk_color_setting = str(getattr(context.scene, 'gerber_silk_color_setting'))
                 for color in silk_colors:
                     if silk_color_setting == color['name']:
                         silk_color = color["rgba"]
 
             copper_color = (1, 0.706, 0, 1.0)
-            if context and hasattr(context.scene, 'copper_color_setting'):
+            if context and hasattr(context.scene, 'gerber_copper_color_setting'):
                 copper_colors = [Copper, Copper2]
-                copper_color_setting = str(getattr(context.scene, 'copper_color_setting'))
+                copper_color_setting = str(getattr(context.scene, 'gerber_copper_color_setting'))
                 for color in copper_colors:
                     if copper_color_setting == color['name']:
                         copper_color = color["rgba"]
