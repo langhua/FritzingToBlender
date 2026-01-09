@@ -20,7 +20,7 @@ importdata = PCBImportData(filenames=dict(),
                             step_name = 'IMPORTING_SVG_FILES',
                             error_msg=None,
                             current_file='',
-                            board_thinkness=1.0,
+                            board_thickness=1.0,
                             board_color='',
                             silk_color='',
                             objects_to_keep=[])

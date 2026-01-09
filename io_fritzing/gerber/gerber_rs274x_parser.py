@@ -12,6 +12,7 @@ from pcb_tools.primitives import Line as Rs274x_Line
 from pcb_tools import read
 from io_fritzing.assets.utils.material import create_material
 from io_fritzing.gerber.excellon_parser import DrillParser, DrillGenerator
+from io_fritzing.gerber.report import importdata, update as update_report
 
 global gerber_fileinfo
 gerber_fileinfo = dict()
@@ -1070,6 +1071,7 @@ class IMPORT_OT_gerber(Operator):
         global gerber_fileinfo
 
         main_collection = None
+        import_success = 0
         for layer_name, file_info in gerber_fileinfo.items():
             filepath = file_info['filepath']
             if not filepath or not os.path.exists(filepath):
@@ -1103,12 +1105,13 @@ class IMPORT_OT_gerber(Operator):
                     generator = DrillGenerator()
                     primitives = result.get('primitives', [])
                     file_info = result.get('file_info', {})
+                    height = importdata.board_thickness + 0.0002
                     
                     create_result = generator.create_drill_geometry(layer_name,
                         main_collection,
                         primitives, 
                         file_info,
-                        height=0.0018,
+                        height=height,
                         debug=self.debug_mode
                     )
                     
@@ -1118,8 +1121,9 @@ class IMPORT_OT_gerber(Operator):
                     
                     message = f"导入完成: {create_result.get('object_count', 0)} 个钻孔"
                     self.report({'INFO'}, message)
+                    import_success += 1
 
-                else:
+                elif layer_name == 'outline':
                     # 解析Gerber RS-274X文件
                     parser = GerberParser()
                     result = parser.parse_gerber(filepath, debug=self.debug_mode)
@@ -1128,7 +1132,7 @@ class IMPORT_OT_gerber(Operator):
                         self.report({'ERROR'}, f"解析失败: {result.get('error', '未知错误')}")
                         return {'CANCELLED'}
                     
-                    result_stats = self._create_gerber_mesh_filled(layer_name,
+                    result_stats = _create_gerber_mesh_filled(layer_name,
                         result.get('primitives', []), 
                         main_collection,
                         result.get('unit_factor', 0.001)
@@ -1139,321 +1143,333 @@ class IMPORT_OT_gerber(Operator):
                     self.report({'INFO'}, message)
                     print(f"导入结果: {message}")
                     print(f"集合名称: {collection_name}")
+                    if result_stats.get('success', False):
+                        import_success += 1
                 
             except Exception as e:
                 error_msg = f"导入过程错误: {str(e)}"
                 self.report({'ERROR'}, error_msg)
 
+        if import_success == len(gerber_fileinfo.items()) and context:
+            setattr(context.scene, 'gerber_import_issuccess', True)
+
         return {'FINISHED'}
 
-    def _create_gerber_mesh_filled(self, layer_name, primitives, collection, unit_factor):
-        """创建Gerber网格 - 2D填充模式核心函数"""
-        stats = {
-            'total_prims': len(primitives),
-            'total_verts': 0,
-            'total_faces': 0,
-            'meshes_created': 0
-        }
-        if bpy.context is None:
-            print("警告: 必须在Blender里运行")
-            return stats
-        
-        print(f"开始创建Gerber网格: {len(primitives)} 个图元")
-        print(f"单位转换比例: {unit_factor}")
-        
-        # 将所有图元合并到一个网格中
-        all_verts = []
-        all_faces = []
-        
-        # 处理每个图元
-        for i, prim in enumerate(primitives):
-            if i < 5 or self.debug_mode:  # 显示前几个的调试信息
-                print(f"  处理图元 {i+1}/{len(primitives)}: {prim.get('type', 'unknown')}")
-            
-            # 为每个图元创建网格数据
-            verts, faces = self._create_mesh_from_primitive(prim, i, unit_factor)
-            
-            if verts and faces:
-                # 调整面索引，因为我们要合并到同一个网格
-                vert_offset = len(all_verts)
-                for face in faces:
-                    all_faces.append([v_idx + vert_offset for v_idx in face])
-                
-                all_verts.extend(verts)
-                
-                stats['total_verts'] += len(verts)
-                stats['total_faces'] += len(faces)
-        
-        if not all_verts:
-            print("警告: 没有创建任何网格数据")
-            return stats
-        
-        # 创建合并后的网格
-        mesh_data = bpy.data.meshes.new(layer_name)
-        mesh_data.from_pydata(all_verts, [], all_faces)
-        mesh_data.update()
-        
-        # 创建网格对象
-        mesh_obj = bpy.data.objects.new(layer_name, mesh_data)
-        
-        # 确保对象是2D平面（Z坐标为0）
-        mesh_obj.location.z = 0
-        
-        # 添加到集合
-        collection.objects.link(mesh_obj)
-        
-        # 设置为活动对象
-        bpy.context.view_layer.objects.active = mesh_obj
-        mesh_obj.select_set(True)
-        
-        # 更新场景
-        bpy.context.view_layer.update()
-        
-        stats['meshes_created'] = 1
-        
-        print(f"网格创建完成: {len(all_verts)}个顶点, {len(all_faces)}个面")
-        print(f"网格尺寸: {mesh_obj.dimensions}")
-        
+
+# ============================================================================
+# Gerber 2D图元解析
+# ============================================================================
+def _create_gerber_mesh_filled(layer_name, primitives, collection, unit_factor, debug_mode=False):
+    """创建Gerber网格 - 2D填充模式核心函数"""
+    stats = {
+        'total_prims': len(primitives),
+        'total_verts': 0,
+        'total_faces': 0,
+        'meshes_created': 0,
+        'success': False
+    }
+    if bpy.context is None:
+        print("警告: 必须在Blender里运行")
         return stats
+    
+    print(f"开始创建Gerber网格: {len(primitives)} 个图元")
+    print(f"单位转换比例: {unit_factor}")
+    
+    # 将所有图元合并到一个网格中
+    all_verts = []
+    all_faces = []
+    
+    # 处理每个图元
+    for i, prim in enumerate(primitives):
+        if i < 5 or debug_mode:  # 显示前几个的调试信息
+            print(f"  处理图元 {i+1}/{len(primitives)}: {prim.get('type', 'unknown')}")
+        
+        # 为每个图元创建网格数据
+        verts, faces = _create_mesh_from_primitive(prim, i, unit_factor, debug_mode)
+        
+        if verts and faces:
+            # 调整面索引，因为我们要合并到同一个网格
+            vert_offset = len(all_verts)
+            for face in faces:
+                all_faces.append([v_idx + vert_offset for v_idx in face])
+            
+            all_verts.extend(verts)
+            
+            stats['total_verts'] += len(verts)
+            stats['total_faces'] += len(faces)
+    
+    if not all_verts:
+        print("警告: 没有创建任何网格数据")
+        return stats
+    
+    # 创建合并后的网格
+    mesh_data = bpy.data.meshes.new(layer_name)
+    mesh_data.from_pydata(all_verts, [], all_faces)
+    mesh_data.update()
+    
+    # 创建网格对象
+    mesh_obj = bpy.data.objects.new(layer_name, mesh_data)
+    
+    # 确保对象是2D平面（Z坐标为0）
+    mesh_obj.location.z = 0
+    
+    # 添加到集合
+    collection.objects.link(mesh_obj)
+    
+    # 设置为活动对象
+    bpy.context.view_layer.objects.active = mesh_obj
+    mesh_obj.select_set(True)
+    stats['mesh_obj'] = mesh_obj
+    
+    # 更新场景
+    bpy.context.view_layer.update()
+    
+    stats['meshes_created'] = 1
+    
+    print(f"网格创建完成: {len(all_verts)}个顶点, {len(all_faces)}个面")
+    print(f"网格尺寸: {mesh_obj.dimensions}")
 
-    def _create_mesh_from_primitive(self, prim, index, unit_factor):
-        """从图元创建样条线"""
+    stats['success'] = True
+    
+    return stats
+
+def _create_mesh_from_primitive(prim, index, unit_factor, debug_mode=False):
+    """从图元创建样条线"""
+    try:
         prim_type = prim.get('type', '')
-        
-        try:
-            if prim_type == 'line':
-                return self._create_line_mesh(prim, index, unit_factor)
-            elif prim_type == 'circle':
-                return self._create_circle_mesh(prim, index, unit_factor)
-            elif prim_type == 'rectangle':
-                return self._create_rectangle_mesh(prim, index, unit_factor)
-            elif prim_type == 'obround':
-                return self._create_obround_mesh(prim, index, unit_factor)
-            elif prim_type == 'region':
-                return self._create_region_mesh(prim, index, unit_factor)
-            else:
-                print(f"未知的图元类型{prim_type}: {prim}")
-                return [], []
-        except Exception as e:
-            print(f"创建样条线 {index} 失败: {e}")
+        if prim_type == 'line':
+            return _create_line_mesh(prim, index, unit_factor, debug_mode)
+        elif prim_type == 'circle':
+            return _create_circle_mesh(prim, index, unit_factor, debug_mode)
+        elif prim_type == 'rectangle':
+            return _create_rectangle_mesh(prim, index, unit_factor, debug_mode)
+        elif prim_type == 'obround':
+            return _create_obround_mesh(prim, index, unit_factor, debug_mode)
+        elif prim_type == 'region':
+            return _create_region_mesh(prim, index, unit_factor, debug_mode)
+        else:
+            print(f"未知的图元类型{prim_type}: {prim}")
             return [], []
+    except Exception as e:
+        print(f"创建样条线 {index} 失败: {e}")
+        return [], []
     
-    def _create_line_mesh(self, line_data, index, unit_factor):
-        """创建线段网格（有宽度的矩形）"""
-        # 应用偏移和单位转换
-        x1 = line_data.get('x1', 0) * unit_factor
-        y1 = line_data.get('y1', 0) * unit_factor
-        x2 = line_data.get('x2', 0) * unit_factor
-        y2 = line_data.get('y2', 0) * unit_factor
-        width = line_data.get('width', 0.1) * unit_factor
-        
-        # 计算线段方向和垂直方向
-        dx = x2 - x1
-        dy = y2 - y1
-        length = math.sqrt(dx*dx + dy*dy)
-        
-        if length < 0.000001 or width < 0.000001:  # 忽略过短的线段
-            if self.debug_mode:
-                print(f"    忽略过短线: 长度={length}, 宽度={width}")
-            return [], []
-        
-        # 计算单位向量
-        ux = dx / length
-        uy = dy / length
-        
-        # 计算垂直向量
-        vx = -uy * (width * 0.5)
-        vy = ux * (width * 0.5)
-        
-        # 计算矩形的四个角点
-        verts = [
-            (x1 - vx, y1 - vy, 0.0),  # 左下
-            (x1 + vx, y1 + vy, 0.0),  # 右下
-            (x2 + vx, y2 + vy, 0.0),  # 右上
-            (x2 - vx, y2 - vy, 0.0)   # 左上
-        ]
-        
-        # 创建两个三角形面
-        faces = [[0, 1, 2], [0, 2, 3]]
+def _create_line_mesh(line_data, index, unit_factor, debug_mode=False):
+    """创建线段网格（有宽度的矩形）"""
+    # 应用偏移和单位转换
+    x1 = line_data.get('x1', 0) * unit_factor
+    y1 = line_data.get('y1', 0) * unit_factor
+    x2 = line_data.get('x2', 0) * unit_factor
+    y2 = line_data.get('y2', 0) * unit_factor
+    width = line_data.get('width', 0.1) * unit_factor
+    
+    # 计算线段方向和垂直方向
+    dx = x2 - x1
+    dy = y2 - y1
+    length = math.sqrt(dx*dx + dy*dy)
+    
+    if length < 0.000001 or width < 0.000001:  # 忽略过短的线段
+        if debug_mode:
+            print(f"    忽略过短线: 长度={length}, 宽度={width}")
+        return [], []
+    
+    # 计算单位向量
+    ux = dx / length
+    uy = dy / length
+    
+    # 计算垂直向量
+    vx = -uy * (width * 0.5)
+    vy = ux * (width * 0.5)
+    
+    # 计算矩形的四个角点
+    verts = [
+        (x1 - vx, y1 - vy, 0.0),  # 左下
+        (x1 + vx, y1 + vy, 0.0),  # 右下
+        (x2 + vx, y2 + vy, 0.0),  # 右上
+        (x2 - vx, y2 - vy, 0.0)   # 左上
+    ]
+    
+    # 创建两个三角形面
+    faces = [[0, 1, 2], [0, 2, 3]]
 
-        # 在两个端点创建两个直径为线宽的圆
-        circle_verts, circle_faces = self._create_line_terminal_circle_mesh(x1, y1, x2, y2, width/2)
-        vert_offset = len(verts)
-        for face in circle_faces:
-            faces.append([v_idx + vert_offset for v_idx in face])
-        verts.extend(circle_verts)
+    # 在两个端点创建两个直径为线宽的圆
+    circle_verts, circle_faces = _create_line_terminal_circle_mesh(x1, y1, x2, y2, width/2)
+    vert_offset = len(verts)
+    for face in circle_faces:
+        faces.append([v_idx + vert_offset for v_idx in face])
+    verts.extend(circle_verts)
 
-        if self.debug_mode and index < 5:
-            print(f"    创建线段网格: 起点=({x1:.6f}, {y1:.6f}), 终点=({x2:.6f}, {y2:.6f}), 宽度={width:.6f}")
-        
-        return verts, faces
+    if debug_mode and index < 5:
+        print(f"    创建线段网格: 起点=({x1:.6f}, {y1:.6f}), 终点=({x2:.6f}, {y2:.6f}), 宽度={width:.6f}")
     
-    def  _create_line_terminal_circle_mesh(self, x1, y1, x2, y2, radius):
-        segments = 32
-        
-        # 1. 以(x1, y1)为圆心，radius为半径，创建一个圆
-        verts = []
-        faces = []
+    return verts, faces
 
-        # 中心点
-        verts.append((x1, y1, 0.0))
-        
-        # 圆周上的点
-        for i in range(segments):
-            angle = 2 * math.pi * i / segments
-            px = x1 + radius * math.cos(angle)
-            py = y1 + radius * math.sin(angle)
-            verts.append((px, py, 0.0))
-        
-        # 创建三角形扇
-        for i in range(segments):
-            next_i = (i + 1) % segments
-            faces.append([0, i + 1, next_i + 1])
+def _create_line_terminal_circle_mesh(x1, y1, x2, y2, radius):
+    segments = 32
+    
+    # 1. 以(x1, y1)为圆心，radius为半径，创建一个圆
+    verts = []
+    faces = []
 
-        # 2. 以(x2, y2)为圆心，radius为半径，创建一个圆
-        # 中心点
-        verts.append((x2, y2, 0.0))
-        
-        # 圆周上的点
-        for i in range(segments):
-            angle = 2 * math.pi * i / segments
-            px = x2 + radius * math.cos(angle)
-            py = y2 + radius * math.sin(angle)
-            verts.append((px, py, 0.0))
-        
-        # 创建三角形扇
-        for i in range(segments):
-            next_i = (i + 1) % segments
-            faces.append([segments + 1, i + 2 + segments, next_i + 2 + segments])
-        
-        return verts, faces
+    # 中心点
+    verts.append((x1, y1, 0.0))
     
-    def _create_circle_mesh(self, circle_data, index, unit_factor):
-        """创建圆形网格（实心圆）"""
-        x = circle_data.get('x', 0) * unit_factor
-        y = circle_data.get('y', 0) * unit_factor
-        radius = circle_data.get('radius', 0.05) * unit_factor
-        
-        if radius < 0.000001:  # 忽略过小的圆形
-            if self.debug_mode:
-                print(f"    忽略过小圆: 半径={radius}")
-            return [], []
-        
-        # 创建圆形网格
-        segments = 32
-        verts = []
-        faces = []
-        
-        # 中心点
-        verts.append((x, y, 0.0))
-        
-        # 圆周上的点
-        for i in range(segments):
-            angle = 2 * math.pi * i / segments
-            px = x + radius * math.cos(angle)
-            py = y + radius * math.sin(angle)
-            verts.append((px, py, 0.0))
-        
-        # 创建三角形扇
-        for i in range(segments):
-            next_i = (i + 1) % segments
-            faces.append([0, i + 1, next_i + 1])
-        
-        if self.debug_mode and index < 5:
-            print(f"    创建圆形网格: 中心=({x:.6f}, {y:.6f}), 半径={radius:.6f}")
-        
-        return verts, faces
+    # 圆周上的点
+    for i in range(segments):
+        angle = 2 * math.pi * i / segments
+        px = x1 + radius * math.cos(angle)
+        py = y1 + radius * math.sin(angle)
+        verts.append((px, py, 0.0))
     
-    def _create_rectangle_mesh(self, rect_data, index, unit_factor):
-        """创建矩形网格（实心矩形）"""
-        x = rect_data.get('x', 0) * unit_factor
-        y = rect_data.get('y', 0) * unit_factor
-        width = rect_data.get('width', 0.1) * unit_factor
-        height = rect_data.get('height', 0.1) * unit_factor
-        
-        if width < 0.000001 or height < 0.000001:  # 忽略过小的矩形
-            if self.debug_mode:
-                print(f"    忽略过小矩形: 宽度={width}, 高度={height}")
-            return [], []
-        
-        # 计算矩形半宽高
-        half_width = width * 0.5
-        half_height = height * 0.5
-        
-        # 创建矩形顶点
-        verts = [
-            (x - half_width, y - half_height, 0.0),  # 左下
-            (x + half_width, y - half_height, 0.0),  # 右下
-            (x + half_width, y + half_height, 0.0),  # 右上
-            (x - half_width, y + half_height, 0.0)   # 左上
-        ]
-        
-        # 创建两个三角形面
-        faces = [[0, 1, 2], [0, 2, 3]]
-        
-        if self.debug_mode and index < 5:
-            print(f"    创建矩形网格: 中心=({x:.6f}, {y:.6f}), 大小={width:.6f}x{height:.6f}")
-        
-        return verts, faces
+    # 创建三角形扇
+    for i in range(segments):
+        next_i = (i + 1) % segments
+        faces.append([0, i + 1, next_i + 1])
+
+    # 2. 以(x2, y2)为圆心，radius为半径，创建一个圆
+    # 中心点
+    verts.append((x2, y2, 0.0))
     
-    def _create_obround_mesh(self, obround_data, index, unit_factor):
-        """创建椭圆形网格（实心椭圆）"""
-        x = obround_data.get('x', 0) * unit_factor
-        y = obround_data.get('y', 0) * unit_factor
-        width = obround_data.get('width', 0.1) * unit_factor
-        height = obround_data.get('height', 0.1) * unit_factor
-        
-        if width < 0.000001 or height < 0.000001:  # 忽略过小的椭圆形
-            if self.debug_mode:
-                print(f"    忽略过小椭圆形: 宽度={width}, 高度={height}")
-            return [], []
-        
-        # 计算半轴
-        a = width * 0.5
-        b = height * 0.5
-        
-        # 创建椭圆形网格
-        segments = 32
-        verts = []
-        faces = []
-        
-        # 中心点
-        verts.append((x, y, 0.0))
-        
-        # 椭圆上的点
-        for i in range(segments):
-            angle = 2 * math.pi * i / segments
-            px = x + a * math.cos(angle)
-            py = y + b * math.sin(angle)
-            verts.append((px, py, 0.0))
-        
-        # 创建三角形扇
-        for i in range(segments):
-            next_i = (i + 1) % segments
-            faces.append([0, i + 1, next_i + 1])
-        
-        if self.debug_mode and index < 5:
-            print(f"    创建椭圆形网格: 中心=({x:.6f}, {y:.6f}), 大小={width:.6f}x{height:.6f}")
-        
-        return verts, faces
+    # 圆周上的点
+    for i in range(segments):
+        angle = 2 * math.pi * i / segments
+        px = x2 + radius * math.cos(angle)
+        py = y2 + radius * math.sin(angle)
+        verts.append((px, py, 0.0))
     
-    def _create_region_mesh(self, region_data, index, unit_factor):
-        points_2d = region_data.get('vertices')
-        if len(points_2d) < 3:
-            print(f"错误: 至少需要3个点")
-            return [], []
-        
-        # 转换为3D顶点
-        verts = [(x * unit_factor, y * unit_factor, 0.0) for x, y in points_2d]
-        
-        # 创建面 - 使用凸多边形三角剖分
-        faces = []
-        for j in range(1, len(verts) - 1):
-            faces.append([0, j, j + 1])
-        if self.debug_mode and index < 5:
-            print(f"    创建区域网格: {len(verts)}个顶点，{len(faces)}个面，顶点={verts}")
-        
-        return verts, faces
+    # 创建三角形扇
+    for i in range(segments):
+        next_i = (i + 1) % segments
+        faces.append([segments + 1, i + 2 + segments, next_i + 2 + segments])
+    
+    return verts, faces
+
+def _create_circle_mesh(circle_data, index, unit_factor, debug_mode=False):
+    """创建圆形网格（实心圆）"""
+    x = circle_data.get('x', 0) * unit_factor
+    y = circle_data.get('y', 0) * unit_factor
+    radius = circle_data.get('radius', 0.05) * unit_factor
+    
+    if radius < 0.000001:  # 忽略过小的圆形
+        if debug_mode:
+            print(f"    忽略过小圆: 半径={radius}")
+        return [], []
+    
+    # 创建圆形网格
+    segments = 32
+    verts = []
+    faces = []
+    
+    # 中心点
+    verts.append((x, y, 0.0))
+    
+    # 圆周上的点
+    for i in range(segments):
+        angle = 2 * math.pi * i / segments
+        px = x + radius * math.cos(angle)
+        py = y + radius * math.sin(angle)
+        verts.append((px, py, 0.0))
+    
+    # 创建三角形扇
+    for i in range(segments):
+        next_i = (i + 1) % segments
+        faces.append([0, i + 1, next_i + 1])
+    
+    if debug_mode and index < 5:
+        print(f"    创建圆形网格: 中心=({x:.6f}, {y:.6f}), 半径={radius:.6f}")
+    
+    return verts, faces
+
+def _create_rectangle_mesh(rect_data, index, unit_factor, debug_mode=False):
+    """创建矩形网格（实心矩形）"""
+    x = rect_data.get('x', 0) * unit_factor
+    y = rect_data.get('y', 0) * unit_factor
+    width = rect_data.get('width', 0.1) * unit_factor
+    height = rect_data.get('height', 0.1) * unit_factor
+    
+    if width < 0.000001 or height < 0.000001:  # 忽略过小的矩形
+        if debug_mode:
+            print(f"    忽略过小矩形: 宽度={width}, 高度={height}")
+        return [], []
+    
+    # 计算矩形半宽高
+    half_width = width * 0.5
+    half_height = height * 0.5
+    
+    # 创建矩形顶点
+    verts = [
+        (x - half_width, y - half_height, 0.0),  # 左下
+        (x + half_width, y - half_height, 0.0),  # 右下
+        (x + half_width, y + half_height, 0.0),  # 右上
+        (x - half_width, y + half_height, 0.0)   # 左上
+    ]
+    
+    # 创建两个三角形面
+    faces = [[0, 1, 2], [0, 2, 3]]
+    
+    if debug_mode and index < 5:
+        print(f"    创建矩形网格: 中心=({x:.6f}, {y:.6f}), 大小={width:.6f}x{height:.6f}")
+    
+    return verts, faces
+
+def _create_obround_mesh(obround_data, index, unit_factor, debug_mode=False):
+    """创建椭圆形网格（实心椭圆）"""
+    x = obround_data.get('x', 0) * unit_factor
+    y = obround_data.get('y', 0) * unit_factor
+    width = obround_data.get('width', 0.1) * unit_factor
+    height = obround_data.get('height', 0.1) * unit_factor
+    
+    if width < 0.000001 or height < 0.000001:  # 忽略过小的椭圆形
+        if debug_mode:
+            print(f"    忽略过小椭圆形: 宽度={width}, 高度={height}")
+        return [], []
+    
+    # 计算半轴
+    a = width * 0.5
+    b = height * 0.5
+    
+    # 创建椭圆形网格
+    segments = 32
+    verts = []
+    faces = []
+    
+    # 中心点
+    verts.append((x, y, 0.0))
+    
+    # 椭圆上的点
+    for i in range(segments):
+        angle = 2 * math.pi * i / segments
+        px = x + a * math.cos(angle)
+        py = y + b * math.sin(angle)
+        verts.append((px, py, 0.0))
+    
+    # 创建三角形扇
+    for i in range(segments):
+        next_i = (i + 1) % segments
+        faces.append([0, i + 1, next_i + 1])
+    
+    if debug_mode and index < 5:
+        print(f"    创建椭圆形网格: 中心=({x:.6f}, {y:.6f}), 大小={width:.6f}x{height:.6f}")
+    
+    return verts, faces
+
+def _create_region_mesh(region_data, index, unit_factor, debug_mode=False):
+    points_2d = region_data.get('vertices')
+    if len(points_2d) < 3:
+        print(f"错误: 至少需要3个点")
+        return [], []
+    
+    # 转换为3D顶点
+    verts = [(x * unit_factor, y * unit_factor, 0.0) for x, y in points_2d]
+    
+    # 创建面 - 使用凸多边形三角剖分
+    faces = []
+    for j in range(1, len(verts) - 1):
+        faces.append([0, j, j + 1])
+    if debug_mode and index < 5:
+        print(f"    创建区域网格: {len(verts)}个顶点，{len(faces)}个面，顶点={verts}")
+    
+    return verts, faces
 
 
 # ============================================================================
@@ -1469,6 +1485,10 @@ class VIEW3D_PT_gerber(Panel):
 
     stats = {}
     processing_times = {}
+
+    def draw_header(self, context):
+        if context and getattr(context.scene, 'gerber_import_issuccess', False):
+            self.layout.label(text="", icon='CHECKMARK')
     
     def draw(self, context):
         global gerber_fileinfo
@@ -1650,6 +1670,132 @@ class IMPORT_OT_browse_gerber_files(Operator, ImportHelper):
 
 
 # ============================================================================
+# 菜单导入流程使用的操作符
+# ============================================================================
+class ImportSingleGerber(Operator):
+    bl_idname = "fritzing.import_single_gerber"
+    bl_label = "Import a single Fritzing Gerber file"
+
+    def execute(self, context):
+        """执行导入"""
+        layer_name = None
+        try:
+            layer_name = next(iter(importdata.filenames))
+        except StopIteration as e:
+            if len(importdata.filenames) == 0:
+                importdata.step_name = 'POST_GERBER_EXTRUDE'
+                return {'FINISHED'}
+            else:
+                self.report({'ERROR'}, f"没有可处理的Gerber文件了")
+                return {'CANCELLED'}
+
+        filepath = importdata.filenames[layer_name]
+        if not filepath or not os.path.exists(filepath):
+            self.report({'ERROR'}, f"Gerber文件 {filepath} 不存在")
+            return {'CANCELLED'}
+        if bpy.context is None:
+            return {'CANCELLED'}
+
+        importdata.current_file = filepath
+        if context and hasattr(context.scene, 'gerber_progress_indicator_text'):
+            setattr(context.scene, 'gerber_progress_indicator_text', bpy.app.translations.pgettext('Importing ') + filepath[filepath.rindex(os.path.sep[0]) + 1 :])
+
+        # 创建主集合
+        cut = filepath.rindex(os.path.sep[0])
+        directory = filepath[0:cut]
+        collection_name = os.path.basename(directory).replace('.', '_')
+        if collection_name.endswith('_'):
+            collection_name = collection_name[:-1]
+        collection_name = f"Gerber_{collection_name[:20]}"
+        main_collection = bpy.data.collections.get(collection_name)
+        if main_collection is None:
+            main_collection = bpy.data.collections.new(collection_name)
+            bpy.context.scene.collection.children.link(main_collection)
+            bpy.context.view_layer.active_layer_collection = bpy.context.view_layer.layer_collection.children[collection_name]
+
+        try:
+            if layer_name == 'drill':
+                parser = DrillParser()  # 使用之前定义好的解析器
+                result = parser.parse_drill_file(filepath, debug=False)
+                
+                if not result.get('success', False):
+                    self.report({'ERROR'}, f"解析失败: {result.get('error', '未知错误')}")
+                    return {'CANCELLED'}
+                
+                # 创建几何体
+                generator = DrillGenerator()
+                primitives = result.get('primitives', [])
+                file_info = result.get('file_info', {})
+                height = importdata.board_thickness + 0.0004
+                
+                create_result = generator.create_drill_geometry(layer_name,
+                    main_collection,
+                    primitives, 
+                    file_info,
+                    height=height,
+                    debug=False
+                )
+                
+                if not create_result.get('success', False):
+                    self.report({'ERROR'}, f"创建几何体失败: {create_result.get('error', '未知错误')}")
+                    getattr(getattr(bpy.ops, 'fritzing'), 'import_error')("INVOKE_DEFAULT")
+                
+                message = f"导入完成: {create_result.get('object_count', 0)} 个钻孔"
+                self.report({'INFO'}, message)
+
+                layer = create_result['layer']
+                importdata.svgLayers[layer_name] = layer
+                importdata.filenames.pop(layer_name)
+                importdata.current = importdata.current + 1
+
+                # zoom in by drill layer seems more suitable than other layer
+                for obj in getattr(layer, 'all_objects'):
+                    obj.select_set(True)
+                if bpy.context:
+                    for area in bpy.context.screen.areas:
+                        if area.type == 'VIEW_3D':
+                            with bpy.context.temp_override(area=area, region=area.regions[-1]):
+                                bpy.ops.view3d.view_selected()
+                    bpy.ops.object.select_all(action='DESELECT')
+            else:
+                # 解析Gerber RS-274X文件
+                parser = GerberParser()
+                result = parser.parse_gerber(filepath, debug=False)
+                
+                if not result.get('success', False):
+                    self.report({'ERROR'}, f"解析失败: {result.get('error', '未知错误')}")
+                    getattr(getattr(bpy.ops, 'fritzing'), 'import_error')("INVOKE_DEFAULT")
+                
+                result_stats = _create_gerber_mesh_filled(layer_name,
+                    result.get('primitives', []), 
+                    main_collection,
+                    result.get('unit_factor', 0.001),
+                )
+                
+                # 报告结果
+                message = f"导入完成: {result_stats['total_prims']}个图元, {result_stats['total_verts']}个顶点, {result_stats['total_faces']}个面"
+                self.report({'INFO'}, message)
+                print(f"导入结果: {message}")
+                print(f"集合名称: {collection_name}")
+
+                if result_stats.get('success', False):
+                    obj = result_stats['mesh_obj']
+                    importdata.svgLayers[layer_name] = obj
+                    importdata.filenames.pop(layer_name)
+                    importdata.current = importdata.current + 1
+                else: 
+                    self.report({'ERROR'}, f"创建几何体失败: {result_stats.get('error', '未知错误')}")
+                    getattr(getattr(bpy.ops, 'fritzing'), 'import_error')("INVOKE_DEFAULT")
+        except Exception as e:
+            error_msg = f"导入过程错误: {str(e)}"
+            self.report({'ERROR'}, error_msg)
+            print(f"Error importing {layer_name}, try again...")
+            getattr(getattr(bpy.ops, 'fritzing'), 'import_error')("INVOKE_DEFAULT")
+
+        return {'FINISHED'}
+
+
+# ============================================================================
 # 注册
 # ============================================================================
 classes = [
@@ -1657,6 +1803,7 @@ classes = [
     IMPORT_OT_browse_gerber_files,
     IMPORT_OT_clear_all_objects,
     VIEW3D_PT_gerber,
+    ImportSingleGerber,
 ]
 
 def register():
@@ -1692,6 +1839,17 @@ def register():
     setattr(Scene, 'fetch_gerber_prims_time_consumed', FloatProperty(
         name="获取Gerber文件图元耗时",
         description="获取一批Gerber文件图元的耗时",
+    ))
+    
+    setattr(Scene, 'gerber_import_time_consumed', FloatProperty(
+        name="Gerber文件导入耗时",
+        description="导入一批Gerber文件图元的耗时",
+    ))
+    
+    setattr(Scene, 'gerber_import_issuccess', BoolProperty(
+        name="Gerber导入是否成功",
+        description="Gerber导入是否成功",
+        default=False
     ))
     
     print("✅ Gerber导入插件注册完成")

@@ -9,7 +9,7 @@ class PCBImportData:
     error_msg: str | None
     current_file: str | None
     step_name: str | None
-    board_thinkness: float
+    board_thickness: float
     board_color: str
     silk_color: str
     objects_to_keep: list

@@ -1,7 +1,7 @@
 import bpy 
 from bpy.types import Operator
 from io_fritzing.svg.report import importdata, update as update_report
-from lxml import etree # type: ignore
+# from lxml import etree # type: ignore
 import os
 from io_curve_svg.svg_util import units, read_float
 from mathutils import Matrix

@@ -2,6 +2,8 @@ import bpy
 import os
 import time
 import traceback
+import math
+import bmesh
 from bpy.types import Operator, Panel, Scene
 from bpy.props import StringProperty, BoolProperty
 from io_fritzing.assets.utils.material import create_material
@@ -435,7 +437,8 @@ class DrillGenerator:
                 'object_count': created_count,
                 'failed_count': len(failed_indices),
                 'collection': final_name,
-                'message': f"创建了 {created_count} 个钻孔，{len(failed_indices)} 个失败"
+                'message': f"创建了 {created_count} 个钻孔，{len(failed_indices)} 个失败",
+                'layer': self.collection,
             }
             
             print(f"\n✅ 几何创建完成: {result['message']}")
@@ -499,23 +502,24 @@ class DrillGenerator:
                 print(f"    转换位置: ({x_m:.6f}, {y_m:.6f}, 0.001) m")
                 print(f"    原始直径: {diameter:.6f} inch")
                 print(f"    转换直径: {diameter_m:.6f} m")
+                print(f"    高度: {height:.6f} m")
                 print(f"    工具ID: {tool_id}")
             
             # 创建圆柱体表示钻孔 - 沿Z轴方向
             bpy.ops.mesh.primitive_cylinder_add(
-                vertices=16,
+                vertices=12,
                 radius=radius_m,
-                depth=height,           # 厚度
-                location=(x_m, y_m, 0)  # 在Z=0平面上
+                depth=height,
+                location=(x_m, y_m, 0)
             )
             cylinder = bpy.context.active_object
-            setattr(cylinder, 'name', f"Drill_{tool_id}_{index:05d}")
+            setattr(cylinder, 'name', f"Drill_Cylinder_{tool_id}")
             
             # 根据工具ID设置不同的颜色
             color = self._get_tool_color(tool_id)
             
             # 为圆柱体创建材质
-            mat_cylinder = create_material(name=f"Drill_Cylinder_{tool_id}_Mat", base_color=color)
+            mat_cylinder = create_material(name=f"Drill_Cylinder_{tool_id}_Mat", base_color=color, alpha=1.0, roughness=0.4)
             if cylinder:
                 if getattr(cylinder.data, 'materials'):
                     getattr(cylinder.data, 'materials')[0] = mat_cylinder
@@ -528,66 +532,6 @@ class DrillGenerator:
         except Exception as e:
             print(f"❌ 创建钻孔 {index} 失败: {e}")
             traceback.print_exc()
-            return False
-    
-    def _create_drill_hole_simple_z_axis(self, hole, index, unit_factor, debug=False):
-        """简化的沿Z轴方向钻孔创建"""
-        if bpy.context is None:
-            return False
-        try:
-            x = hole.get('x', 0)
-            y = hole.get('y', 0)
-            diameter = hole.get('diameter', 0.1)
-            tool_id = hole.get('tool_id', 'unknown')
-            
-            if x is None or y is None:
-                return False
-            
-            if diameter is None:
-                diameter = 0.1
-            
-            # 转换单位
-            x_m = x * unit_factor
-            y_m = y * unit_factor
-            diameter_m = diameter * unit_factor
-            
-            if diameter_m <= 0:
-                diameter_m = 0.000254
-            
-            radius_m = diameter_m / 2
-            
-            # 创建圆柱体 - 默认沿Z轴
-            bpy.ops.mesh.primitive_cylinder_add(
-                vertices=16,
-                radius=radius_m,
-                depth=0.002,
-                location=(x_m, y_m, 0.001)  # 在Z轴方向
-            )
-            cylinder = bpy.context.active_object
-            setattr(cylinder, 'name', f"Drill_{tool_id}_{index:05d}")
-            
-            # 创建材质
-            color = self._get_tool_color(tool_id)
-            mat = create_material(name=f"Drill_{tool_id}_Mat", base_color=color)
-            
-            if cylinder:
-                if getattr(cylinder.data, 'materials'):
-                    getattr(cylinder.data, 'materials')[0] = mat
-                else:
-                    getattr(cylinder.data, 'materials').append(mat)
-            
-            # 链接到集合
-            if cylinder and self.collection:
-                self.collection.objects.link(cylinder)
-            
-            if cylinder and cylinder.name in bpy.context.scene.collection.objects:
-                bpy.context.scene.collection.objects.unlink(cylinder)
-            
-            self.created_objects.append(cylinder)
-            return True
-            
-        except Exception as e:
-            print(f"创建钻孔 {index} 失败: {e}")
             return False
     
     def _get_tool_color(self, tool_id):
@@ -875,6 +819,15 @@ class IMPORT_OT_browse_drill_z_axis(Operator):
         if self.filepath:
             setattr(context.scene, 'drill_file_z_axis', self.filepath)
         return {'FINISHED'}
+
+
+# ============================================================================
+# 提高钻孔成功率的方法
+# ============================================================================
+def create_clean_cylinder_no_internal_edges(radius, depth, location=(0, 0, 0), vertices=32):
+
+    
+    return None
 
 # ============================================================================
 # 注册
