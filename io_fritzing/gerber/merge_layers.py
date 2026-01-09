@@ -29,6 +29,6 @@ class GerberMergeLayers(Operator):
             importdata.error_msg = str(e)
             getattr(getattr(bpy.ops, 'fritzing'), 'import_error')("INVOKE_DEFAULT")
 
-        # importdata.step_name = 'POST_GERBER_DRILL_HOLES'
-        importdata.step_name = 'FINISHED'
+        importdata.step_name = 'POST_GERBER_MERGE_CYLINDERS'
+        # importdata.step_name = 'FINISHED'
         return {"FINISHED"}

@@ -14,6 +14,7 @@ from io_fritzing.gerber.merge_layers import GerberMergeLayers
 from io_fritzing.gerber.create_materials import GerberCreateMaterials
 from io_fritzing.gerber.error_dialog import GerberErrorDialog
 from io_fritzing.gerber.drill_holes import GerberDrillHoles
+from io_fritzing.gerber.merge_cylinders import register as register_merge_cylinders, unregister as unregister_merge_cylinders
 
 def menu_import(self, _):
     """
@@ -55,6 +56,7 @@ def register():
     register_gerber_parser()
     register_excellon_parser()
     register_board_settings()
+    register_merge_cylinders()
 
 
 def unregister():
@@ -75,6 +77,7 @@ def unregister():
     unregister_gerber_parser()
     unregister_excellon_parser()
     unregister_board_settings()
+    unregister_merge_cylinders()
 
 # Allow the add-on to be ran directly without installation.
 if __name__ == "__main__":
