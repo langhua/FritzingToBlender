@@ -1,10 +1,9 @@
 import bpy
 import re
-import os
 from collections import defaultdict
-from mathutils import Vector
 from bpy.props import BoolProperty, FloatProperty, StringProperty, EnumProperty
 from bpy.types import Panel, Operator, PropertyGroup
+from io_fritzing.gerber.report import importdata
 
 # 插件信息
 bl_info = {
@@ -58,7 +57,13 @@ class DRILLTOOLS_OT_MergeCylinders(Operator):
     def execute(self, context):
         global pre_merge_stats, merge_operation_performed
         
-        props = context.scene.drill_tools_props
+        if context is None:
+            return {'CANCELLED'}
+        
+        props = getattr(context.scene, "drill_tools_props", None)
+        if props is None:
+            self.report({'ERROR'}, "未找到钻孔工具属性组")
+            return {'CANCELLED'}
         
         # 获取设置
         selected_only = props.merge_selected_only
@@ -108,7 +113,13 @@ class DRILLTOOLS_OT_ShowSummary(Operator):
         global merge_operation_performed
         
         # 获取设置
-        props = context.scene.drill_tools_props
+        if context is None:
+            return {'CANCELLED'}
+        
+        props = getattr(context.scene, "drill_tools_props", None)
+        if props is None:
+            self.report({'ERROR'}, "未找到钻孔工具属性组")
+            return {'CANCELLED'}
         selected_only = props.merge_selected_only
         
         # 获取当前统计信息
@@ -215,8 +226,10 @@ class DRILLTOOLS_PT_MainPanel(Panel):
         global pre_merge_stats, merge_operation_performed
         
         layout = self.layout
-        scene = context.scene
-        props = scene.drill_tools_props
+        if context is None:
+            return {'CANCELLED'}
+        
+        props = getattr(context.scene, "drill_tools_props", None)
         
         # 主操作按钮
         box = layout.box()
@@ -243,7 +256,7 @@ class DRILLTOOLS_PT_MainPanel(Panel):
         col.operator("drilltools.cleanup_tool_numbers", icon='SORTALPHA')
         
         # 状态信息
-        if props.show_details:
+        if props and props.show_details:
             box = layout.box()
             box.label(text="状态", icon='INFO')
             
@@ -285,6 +298,8 @@ class DRILLTOOLS_PT_MainPanel(Panel):
 # 工具函数
 def get_current_stats(selected_only=False):
     """获取当前场景中的Drill_Cylinder统计信息"""
+    if bpy.context is None:
+        return {}
     # 获取对象
     if selected_only:
         all_objects = bpy.context.selected_objects
@@ -334,6 +349,9 @@ def merge_drill_cylinders_with_simple_diameter(selected_only=False, rename_singl
     
     print("开始合并Drill_Cylinder并提取直径信息...")
     
+    if bpy.context is None:
+        return [], {}
+
     # 获取对象
     if selected_only:
         all_objects = bpy.context.selected_objects
@@ -416,6 +434,9 @@ def merge_cylinder_group_safe(objects, cylinder_number):
     if len(objects) < 2:
         return objects[0] if objects else None
     
+    if bpy.context is None:
+        return None
+
     # 保存当前选择和激活状态（只保存名称，而不是对象引用）
     original_selected_names = [obj.name for obj in bpy.context.selected_objects]
     original_active_name = bpy.context.view_layer.objects.active.name if bpy.context.view_layer.objects.active else None
@@ -436,6 +457,8 @@ def merge_cylinder_group_safe(objects, cylinder_number):
         
         # 获取合并后的对象
         merged_obj = bpy.context.active_object
+        if merged_obj is None:
+            return None
         
         # 重命名为 Drill_Cylinder_数字
         new_name = f"Drill_Cylinder_{cylinder_number}"
@@ -501,103 +524,6 @@ def print_simple_diameter_summary(diameter_summary):
     print(f"合并后对象数: {len(diameter_summary)} 个")
     print(f"唯一直径: {unique_diameters} 种")
     
-    # 按直径分组显示
-    if unique_diameters > 1:
-        print("\n直径分布:")
-        diameter_groups = defaultdict(list)
-        for tool_num, data in diameter_summary.items():
-            rounded_diameter = round(data['diameter'], 6)
-            diameter_groups[rounded_diameter].append(f"T{tool_num}")
-        
-        for diameter, tools in sorted(diameter_groups.items()):
-            print(f"  {diameter:.6f}m: {len(tools)} 种工具 ({', '.join(tools)})")
-    
-    # 检查是否有编号不连续
-    tool_numbers = [int(num) for num in diameter_summary.keys()]
-    min_num = min(tool_numbers) if tool_numbers else 0
-    max_num = max(tool_numbers) if tool_numbers else 0
-    expected_count = max_num - min_num + 1 if tool_numbers else 0
-    missing_count = expected_count - len(tool_numbers)
-    
-    if missing_count > 0:
-        print(f"\n⚠ 注意: 工具编号不连续")
-        print(f"  最小编号: T{min_num}")
-        print(f"  最大编号: T{max_num}")
-        print(f"  应有工具数: {expected_count}")
-        print(f"  实际工具数: {len(tool_numbers)}")
-        print(f"  缺失工具数: {missing_count}")
-        
-        # 找出缺失的编号
-        all_numbers = set(range(min_num, max_num + 1))
-        existing_numbers = set(tool_numbers)
-        missing_numbers = sorted(all_numbers - existing_numbers)
-        if missing_numbers:
-            print(f"  缺失的编号: {', '.join([f'T{num}' for num in missing_numbers[:10]])}")
-            if len(missing_numbers) > 10:
-                print(f"  ... 还有 {len(missing_numbers) - 10} 个")
-
-def export_diameter_summary_to_text(diameter_summary, filename="钻孔工具汇总报告.txt"):
-    """将直径汇总数据导出为文本文件"""
-    try:
-        # 获取Blender文件所在目录
-        blend_file_path = bpy.data.filepath
-        if blend_file_path:
-            directory = os.path.dirname(blend_file_path)
-            file_path = os.path.join(directory, filename)
-        else:
-            file_path = filename
-        
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write("钻孔工具直径汇总报告\n")
-            f.write("=" * 50 + "\n\n")
-            f.write(f"生成时间: {bpy.utils.time_to_datetime_string()}\n")
-            f.write(f"Blender文件: {os.path.basename(blend_file_path) if blend_file_path else '未保存'}\n\n")
-            
-            # 按工具编号排序
-            sorted_summary = sorted(diameter_summary.items(), key=lambda x: int(x[0]))
-            
-            # 写入表格
-            f.write(f"{'工具编号':<10} {'直径(m)':<15} {'孔数':<8} {'状态':<10}\n")
-            f.write("-" * 50 + "\n")
-            
-            for tool_number, data in sorted_summary:
-                diameter = data['diameter']
-                count = data['object_count']
-                status = "已合并" if data['object_count'] > 1 else "单孔"
-                f.write(f"T{tool_number:<9} {diameter:<15.6f} {count:<8} {status:<10}\n")
-            
-            f.write("\n" + "=" * 50 + "\n")
-            
-            # 统计信息
-            total_holes = sum(data['object_count'] for data in diameter_summary.values())
-            unique_diameters = len(set(round(data['diameter'], 6) for data in diameter_summary.values()))
-            
-            f.write("统计信息:\n")
-            f.write(f"  工具总数: {len(diameter_summary)}\n")
-            f.write(f"  合并前钻孔总数: {total_holes}\n")
-            f.write(f"  合并后对象数: {len(diameter_summary)}\n")
-            f.write(f"  唯一直径数: {unique_diameters}\n")
-            
-            # 直径分布
-            if unique_diameters > 1:
-                f.write("\n直径分布:\n")
-                diameter_groups = defaultdict(list)
-                for tool_num, data in diameter_summary.items():
-                    rounded_diameter = round(data['diameter'], 6)
-                    diameter_groups[rounded_diameter].append(f"T{tool_num}")
-                
-                for diameter, tools in sorted(diameter_groups.items()):
-                    f.write(f"  {diameter:.6f}m: {len(tools)} 种工具 ({', '.join(tools)})\n")
-            
-            f.write("\n" + "=" * 50 + "\n")
-            f.write("报告结束\n")
-        
-        print(f"钻孔工具汇总已导出到: {file_path}")
-        return file_path
-        
-    except Exception as e:
-        print(f"导出文本文件时出错: {e}")
-        return None
 
 def get_diameter_statistics(diameter_summary):
     """获取直径统计信息"""
@@ -620,6 +546,47 @@ def get_diameter_statistics(diameter_summary):
     
     return stats
 
+
+class GerberMergeCylinders(Operator):
+    bl_idname = "fritzing.gerber_merge_cylinders"
+    bl_label = "Fritzing Gerber post import: merge cylinders"
+    
+    def execute(self, context):
+        global pre_merge_stats, merge_operation_performed
+        
+        if context is None:
+            return {'CANCELLED'}
+        
+        # 执行合并
+        merged_objects, diameter_summary = merge_drill_cylinders_with_simple_diameter(
+            False, 
+            True
+        )
+        
+        if not merged_objects:
+            importdata.error_msg = "没有找到Drill_Cylinder对象"
+            print('--MergeLayers exception: ' + importdata.error_msg)
+            getattr(getattr(bpy.ops, 'fritzing'), 'import_error')("INVOKE_DEFAULT")
+            return {'CANCELLED'}
+        
+        importdata.diameter_summary = diameter_summary
+        
+        # 在控制台打印汇总
+        print_simple_diameter_summary(diameter_summary)
+        
+        # 选中所有处理后的对象
+        bpy.ops.object.select_all(action='DESELECT')
+        for obj in merged_objects:
+            if obj and obj.name in bpy.data.objects:
+                obj.select_set(True)
+        if merged_objects and merged_objects[0].name in bpy.data.objects:
+            context.view_layer.objects.active = merged_objects[0]
+        
+        # importdata.step_name = 'POST_GERBER_DRILL_HOLES'
+        importdata.step_name = 'FINISHED'
+        return {'FINISHED'}
+
+
 # 注册/注销函数
 classes = [
     DrillToolsProperties,
@@ -627,6 +594,7 @@ classes = [
     DRILLTOOLS_OT_ShowSummary,
     DRILLTOOLS_OT_CleanupToolNumbers,
     DRILLTOOLS_PT_MainPanel,
+    GerberMergeCylinders,
 ]
 
 def register():
@@ -634,7 +602,7 @@ def register():
         bpy.utils.register_class(cls)
     
     # 注册自定义属性
-    bpy.types.Scene.drill_tools_props = bpy.props.PointerProperty(type=DrillToolsProperties)
+    setattr(bpy.types.Scene, "drill_tools_props", bpy.props.PointerProperty(type=DrillToolsProperties))
     
     print("Fritzing钻孔工具管理器已注册 (版本 2.1.0)")
 
@@ -643,7 +611,7 @@ def unregister():
         bpy.utils.unregister_class(cls)
     
     # 删除自定义属性
-    del bpy.types.Scene.drill_tools_props
+    delattr(bpy.types.Scene, "drill_tools_props")
     
     print("Fritzing钻孔工具管理器已注销")
 

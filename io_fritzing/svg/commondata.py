@@ -12,7 +12,7 @@ class PCBImportData:
     board_thickness: float
     board_color: str
     silk_color: str
-    objects_to_keep: list
+    diameter_summary: dict
 
 # PCB colors
 # some from the original GerberToBlender code

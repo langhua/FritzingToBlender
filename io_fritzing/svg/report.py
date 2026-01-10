@@ -23,7 +23,7 @@ importdata = PCBImportData(filenames=dict(),
                             board_thickness=1.0,
                             board_color='',
                             silk_color='',
-                            objects_to_keep=[])
+                            diameter_summary={})
 
 
 class ProgressReport(Operator):

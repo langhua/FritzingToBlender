@@ -23,7 +23,7 @@ importdata = PCBImportData(filenames=dict(),
                             board_thickness=0.0018,
                             board_color='',
                             silk_color='',
-                            objects_to_keep=[])
+                            diameter_summary={})
 
 
 class GerberProgressReport(Operator):
@@ -68,12 +68,12 @@ class GerberProgressReport(Operator):
                     setattr(context.scene, 'gerber_progress_indicator_text', 'Merging layers ...')
                     update(self, context)
                 getattr(getattr(bpy.ops, 'fritzing'), 'gerber_merge_layers')("INVOKE_DEFAULT")
-            elif importdata.step_name == 'POST_GERBER_DRILL_LAYER_HOLES':
-                print('--POST_GERBER_DRILL_LAYER_HOLES')
+            elif importdata.step_name == 'POST_GERBER_MERGE_CYLINDERS':
+                print('--POST_GERBER_DRILL_CYLINDERS')
                 if context and hasattr(context.scene, 'gerber_progress_indicator_text'):
-                    setattr(context.scene, 'gerber_progress_indicator_text', 'Drilling layer holes ...')
+                    setattr(context.scene, 'gerber_progress_indicator_text', 'Merging drill cylinders ...')
                     update(self, context)
-                getattr(getattr(bpy.ops, 'fritzing'), 'gerber_drill_layer_holes')("INVOKE_DEFAULT")
+                getattr(getattr(bpy.ops, 'fritzing'), 'gerber_merge_cylinders')("INVOKE_DEFAULT")
         elif event.type == 'TIMER' and importdata.step_name == 'FINISHED':
             update(self, context)
             self.ticks += 1
