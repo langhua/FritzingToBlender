@@ -204,13 +204,15 @@ def register():
   
     if len(drill_algorithm_items) == 0:
         drill_algorithm_items.extend([
-            ('BooleanModifier', 'Boolean Modifier', '', 0),
-            ('AutoBoolean', 'Auto Boolean', '', 1)
+            ('None', 'No Drill', '', 0),
+            ('BooleanModifier', 'Boolean Modifier', '', 1),
+            ('AutoBoolean', 'Auto Boolean (Fast)', '', 2),
+            ('NonDestructiveDifference', 'Booltron Non-Destructive Difference', '', 3),
         ])
 
         setattr(Scene, 'gerber_drill_algorithm_setting', EnumProperty(
             items=drill_algorithm_items,
-            default='BooleanModifier'  # 设置默认值为Boolean Modifier
+            default='None'
         ))
 
     if len(cylinder_filter_items) == 0:

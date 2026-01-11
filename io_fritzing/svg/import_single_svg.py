@@ -1,7 +1,7 @@
 import bpy 
 from bpy.types import Operator
 from io_fritzing.svg.report import importdata, update as update_report
-# from lxml import etree # type: ignore
+import xml.etree.ElementTree as ET  # 替换 lxml
 import os
 from io_curve_svg.svg_util import units, read_float
 from mathutils import Matrix
@@ -65,16 +65,6 @@ class ImportSingleSVG(Operator):
         return {"FINISHED"}
 
 
-##
-# Brings in the SVG file, applies the x and y orientation, converts the curves to meshes, scales it to 1 millimeter in blender equals 1 millimeter in the real world, and places the objects into a collection ... \(still to come: extrusions, height placement, cut the holes, and join a copy into a completed version\)\n
-# Uses Blender 4.2 or higher API
-#
-# @param layerClass - the layer class from pcb-tools
-# @param dir - the directory where the files are located
-# @param file - the list of SVG files representing the Gerber Files / PCB
-#
-# @return layer - the layer objct imported
-#
 def import_svg(layerClass: str, file: str):
     print(f'Importing svg file: layer[{layerClass}], file[{file}]')
     # 1. deselect all
@@ -138,13 +128,50 @@ def import_svg(layerClass: str, file: str):
 
     # 5. parse the svg file again to get right unit scale number
     root = None
-    with open(file) as f:
-        tree = etree.parse(parser=None, source=f)
+    try:
+        # 使用 xml.etree.ElementTree 替换 lxml
+        tree = ET.parse(file)
         root = tree.getroot()
+        
+        # 处理 SVG 命名空间
+        # SVG 文件通常有命名空间，需要处理
+        namespaces = {'svg': 'http://www.w3.org/2000/svg'}
+        
+        # 注册命名空间以便在查找时使用
+        for prefix, uri in namespaces.items():
+            ET.register_namespace(prefix, uri)
+        
+        # 获取高度属性，处理命名空间
+        height_attr = None
+        if 'height' in root.attrib:
+            height_attr = root.attrib['height']
+        else:
+            # 如果没有直接属性，尝试通过命名空间查找
+            # SVG 元素可能有命名空间前缀
+            for key, value in root.attrib.items():
+                if key.endswith('height') or 'height' in key:
+                    height_attr = value
+                    break
+        
+    except Exception as e:
+        print(f"解析SVG文件时出错: {e}")
+        # 如果解析失败，尝试简单的字符串解析
+        try:
+            with open(file, 'r', encoding='utf-8') as f:
+                content = f.read()
+                # 简单查找高度属性
+                import re
+                height_match = re.search(r'height\s*=\s*"([^"]+)"', content)
+                if height_match:
+                    height_attr = height_match.group(1)
+        except Exception as e2:
+            print(f"备用解析方法也失败: {e2}")
+    
     unitscale = 1.0
     unit = ''
-    if root is not None and root.attrib['height'] is not None:
-        raw_height = root.attrib['height']
+    
+    if height_attr is not None:
+        raw_height = height_attr
         token, last_char = read_float(raw_height)
         unit = raw_height[last_char:].strip()
 

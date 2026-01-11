@@ -1,5 +1,6 @@
 import bpy
 import os
+import winsound
 import math
 import time
 import glob
@@ -1153,6 +1154,12 @@ class IMPORT_OT_gerber(Operator):
         if import_success == len(gerber_fileinfo.items()) and context:
             setattr(context.scene, 'gerber_import_issuccess', True)
 
+        if os.name == 'nt':
+            frequency = 1500
+            # Set Duration To 1000 ms == 1 second
+            duration = 1000
+            winsound.Beep(frequency, duration)
+
         return {'FINISHED'}
 
 
@@ -1748,16 +1755,6 @@ class ImportSingleGerber(Operator):
                 importdata.svgLayers[layer_name] = layer
                 importdata.filenames.pop(layer_name)
                 importdata.current = importdata.current + 1
-
-                # zoom in by drill layer seems more suitable than other layer
-                for obj in getattr(layer, 'all_objects'):
-                    obj.select_set(True)
-                if bpy.context:
-                    for area in bpy.context.screen.areas:
-                        if area.type == 'VIEW_3D':
-                            with bpy.context.temp_override(area=area, region=area.regions[-1]):
-                                bpy.ops.view3d.view_selected()
-                    bpy.ops.object.select_all(action='DESELECT')
             else:
                 # 解析Gerber RS-274X文件
                 parser = GerberParser()

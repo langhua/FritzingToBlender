@@ -19,7 +19,6 @@ import bpy
 from io_fritzing.svg.import_single_svg import ImportSingleSVG
 from io_fritzing.svg.get_files import GetFiles
 from io_fritzing.svg.report import register as FritzingIORegister, unregister as FritzingIOUnregister
-from io_fritzing.svg.report import ProgressReport
 from io_fritzing.svg.error_dialog import ErrorDialog
 from io_fritzing.svg.clean_drill_holes import CleanDrillHoles
 from io_fritzing.svg.create_materials import CreateMaterials
@@ -32,13 +31,11 @@ from io_fritzing.svg.board_settings import BoardSettings, register as BoardSetti
 
 # from .test.test_bool_tool import TestBoolTool, register as TestBoolToolRegister, unregister as TestBoolToolUnregister
 
-
 def menu_import(self, _):
     """
     Calls the Fritzing PCB import operator from the menu item.
     """
     self.layout.operator(GetFiles.bl_idname)
-    # self.layout.operator(ProgressReport.bl_idname)
     # self.layout.operator(ErrorDialog.bl_idname)
     # self.layout.operator(TestBoolTool.bl_idname)
     # self.layout.operator(BoardSettings.bl_idname)
@@ -47,7 +44,6 @@ classes = (
     GetFiles,
     ImportSingleSVG,
     ErrorDialog,
-    ProgressReport,
     CleanDrillHoles,
     CreateMaterials,
     DrillHoles,
@@ -66,7 +62,6 @@ def register():
         # 如果没有注册，忽略错误
         pass
 
-    # bpy.app.translations.register(__name__, langs)
     # 注册翻译
     try:
         bpy.app.translations.register(__name__, langs)

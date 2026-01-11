@@ -3,7 +3,6 @@ from io_fritzing.gerber.report import importdata
 from bpy.types import Operator
 import time
 import bmesh
-import gc
 
 
 class GerberDrillHoles(Operator):
@@ -20,8 +19,12 @@ class GerberDrillHoles(Operator):
                 except:
                     pass
                 algorithm = 'BooleanModifier'
-                if context and hasattr(context.scene, 'drill_algorithm_setting'):
-                    algorithm = str(getattr(context.scene, 'drill_algorithm_setting'))
+                if context and hasattr(context.scene, 'gerber_drill_algorithm_setting'):
+                    algorithm = str(getattr(context.scene, 'gerber_drill_algorithm_setting'))
+                if algorithm == 'AutoBoolean' and not hasattr(bpy.ops.object, 'boolean_auto_difference'):
+                    raise Exception('Auto Boolean requires the "Bool Tool" addon.')
+                if algorithm == 'NonDestructiveDifference' and not hasattr(bpy.ops.object, 'booltron_nondestructive_difference'):
+                    raise Exception('Non Destructive Difference requires the "Booltron" addon.')
                 if drill_layer and joined_layer:
                     self.drillHoles(context, joined_layer, drill_layer=drill_layer, algorithm=algorithm)
         except Exception as e:
@@ -44,51 +47,53 @@ class GerberDrillHoles(Operator):
         self.refresh_3d(context)
 
         time_start = time.time()
+
+        cylinder_filter_setting = float(context.scene.gerber_cylinder_filter_setting)
+        if cylinder_filter_setting == None:
+            cylinder_filter_setting = 0.0
+        
         if layer and drill_layer:
             if algorithm == 'AutoBoolean':
                 # apply bool tool
                 bpy.ops.object.select_all(action='DESELECT')
                 layer.select_set(True)
-                i = 0
                 for obj in drill_layer.objects:
-                    if obj.type == 'MESH' and obj.dimensions.x > 0.001:
-                        print(f'----{obj.name}')
+                    if obj.type == 'MESH' and pass_filtered(obj, cylinder_filter_setting):
+                        print(f'Drilling hole: {obj.name}')
                         obj.select_set(True)
-                        i += 1
-                        if i % 10 == 0:
-                            i = 0
-                            context.view_layer.objects.active = layer
-                            bpy.ops.object.boolean_auto_difference()
-                            self.refresh_3d(context)
-                            # 强制垃圾回收
-                            gc.collect()
-                if i > 0:
-                    context.view_layer.objects.active = layer
-                    bpy.ops.object.boolean_auto_difference()
-                    self.refresh_3d(context)
-                    # 强制垃圾回收
-                    gc.collect()
+                        context.view_layer.objects.active = layer
+                        getattr(bpy.ops.object, 'boolean_auto_difference')("INVOKE_DEFAULT")
+                        self.refresh_3d(context)
                 print(f'📊 AutoBoolean done in {time.time() - time_start:.2f}s')
-            else:
-                i = 0
+            elif algorithm == 'NonDestructiveDifference':
+                # apply bool tool
+                bpy.ops.object.select_all(action='DESELECT')
+                layer.select_set(True)
                 for obj in drill_layer.objects:
-                    if obj.type == 'MESH' and obj.dimensions.x > 0.001:
-                        print(f'----{obj.name}')
+                    if obj.type == 'MESH' and pass_filtered(obj, cylinder_filter_setting):
+                        print(f'Drilling hole: {obj.name}')
+                        bpy.context.window_manager.booltron.destructive.solver = 'EXACT'
+                        obj.select_set(True)
+                        layer.select_set(True)
+                        getattr(bpy.ops.object, 'booltron_nondestructive_difference')()
+                        self.refresh_3d(context)
+                print(f'📊 NonDestructiveDifference done in {time.time() - time_start:.2f}s')
+            elif algorithm == 'BooleanModifier':
+                objects_to_remove = []
+                for obj in drill_layer.objects:
+                    if obj.type == 'MESH' and pass_filtered(obj, cylinder_filter_setting):
+                        bpy.ops.object.select_all(action='DESELECT')
+                        print(f'Drilling hole: {obj.name}')
                         modifier = layer.modifiers.new(name="Drill_Boolean", type="BOOLEAN")
                         modifier.object = obj
+                        context.view_layer.objects.active = layer
                         bpy.ops.object.modifier_apply(modifier=modifier.name)
-                        i += 1
-                        if i % 10 == 0:
-                            self.refresh_3d(context)
-                            # 强制垃圾回收
-                            gc.collect()
-                            i = 0
-
-                if i > 0:
-                    # 强制垃圾回收
-                    gc.collect()
+                        self.refresh_3d(context)
+                        objects_to_remove.append(obj)
 
                 bpy.ops.object.select_all(action='DESELECT')
+                for obj in objects_to_remove:
+                    bpy.data.objects.remove(obj, do_unlink=True)
 
                     # try:
                     # except Exception as e:
@@ -132,3 +137,11 @@ class GerberDrillHoles(Operator):
         for area in areas:
             if area.type == 'VIEW_3D':
                 area.tag_redraw()
+
+def pass_filtered(obj, cylinder_filter_setting):
+    if len(importdata.diameter_summary) == 0:
+        if obj.dimensions.x >= cylinder_filter_setting:
+            return True
+    elif importdata.diameter_summary[obj.name]['diameter'] >= cylinder_filter_setting:
+        return True
+    return False

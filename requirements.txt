@@ -1,5 +1,3 @@
 # cairo rendering support
 cairocffi~=0.6
-# only required if you want to try pcb_tools
 pycairo
-# lxml

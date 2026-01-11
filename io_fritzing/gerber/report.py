@@ -1,4 +1,6 @@
 import bpy
+import os
+import winsound
 from bpy.props import FloatProperty, StringProperty
 from bpy.types import Operator, Scene
 from io_fritzing.svg.commondata import PCBImportData
@@ -83,6 +85,11 @@ class GerberProgressReport(Operator):
                 setattr(context.scene, 'gerber_progress_indicator', 101)  # done
             if context:
                 context.window_manager.event_timer_remove(self.timer)
+            if os.name == 'nt':
+                frequency = 1500
+                # Set Duration To 1000 ms == 1 second
+                duration = 1000
+                winsound.Beep(frequency, duration)
             return {'CANCELLED'}
 
         # total steps = 12

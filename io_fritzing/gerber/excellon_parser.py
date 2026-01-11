@@ -2,8 +2,7 @@ import bpy
 import os
 import time
 import traceback
-import math
-import bmesh
+import winsound
 from bpy.types import Operator, Panel, Scene
 from bpy.props import StringProperty, BoolProperty
 from io_fritzing.assets.utils.material import create_material
@@ -394,7 +393,7 @@ class DrillGenerator:
                 if collection:
                     collection.children.link(self.collection)
                     if bpy.context:
-                        bpy.context.view_layer.active_layer_collection = bpy.context.view_layer.layer_collection.children[collection.name].children[final_name]
+                        bpy.context.view_layer.active_layer_collection = bpy.context.view_layer.layer_collection.children[collection.name].children[self.collection.name]
                 elif bpy.context:
                     bpy.context.scene.collection.children.link(self.collection)
                     bpy.context.view_layer.active_layer_collection = bpy.context.view_layer.layer_collection.children[final_name]
@@ -451,6 +450,16 @@ class DrillGenerator:
         
         if collection and bpy.context:
             bpy.context.view_layer.active_layer_collection = bpy.context.view_layer.layer_collection.children[collection.name]
+
+        # zoom in by drill layer seems more suitable than other layer
+        for obj in getattr(self.collection, 'all_objects'):
+            obj.select_set(True)
+        if bpy.context:
+            for area in bpy.context.screen.areas:
+                if area.type == 'VIEW_3D':
+                    with bpy.context.temp_override(area=area, region=area.regions[-1]):
+                        bpy.ops.view3d.view_selected()
+            bpy.ops.object.select_all(action='DESELECT')
 
         return result
     
@@ -654,6 +663,7 @@ class IMPORT_OT_drill_z_axis(Operator):
             
             if not result.get('success', False):
                 self.report({'ERROR'}, f"解析失败: {result.get('error', '未知错误')}")
+                context.window.cursor_modal_set('DEFAULT')
                 return {'CANCELLED'}
             
             # 创建几何体
@@ -680,6 +690,13 @@ class IMPORT_OT_drill_z_axis(Operator):
             self.report({'INFO'}, message)
             # 恢复光标
             context.window.cursor_modal_set('DEFAULT')
+
+            if os.name == 'nt':
+                frequency = 1500
+                # Set Duration To 1000 ms == 1 second
+                duration = 1000
+                winsound.Beep(frequency, duration)
+
             return {'FINISHED'}
             
         except Exception as e:
@@ -687,6 +704,13 @@ class IMPORT_OT_drill_z_axis(Operator):
             self.report({'ERROR'}, error_msg)
             # 恢复光标
             context.window.cursor_modal_set('DEFAULT')
+
+            if os.name == 'nt':
+                frequency = 1500
+                # Set Duration To 1000 ms == 1 second
+                duration = 1000
+                winsound.Beep(frequency, duration)
+
             return {'CANCELLED'}
 
 # ============================================================================
@@ -787,6 +811,7 @@ class VIEW3D_PT_drill_z_axis(Panel):
                              icon='IMPORT')
             setattr(op, 'filepath', filepath)
             setattr(op, 'debug_mode', getattr(scene, 'drill_debug_mode_z_axis'))
+
         else:
             col.label(text="请先选择Drill文件", icon='ERROR')
 

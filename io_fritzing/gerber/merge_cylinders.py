@@ -278,7 +278,7 @@ class DRILLTOOLS_PT_MainPanel(Panel):
                 # 显示工具列表
                 sorted_groups = sorted(stats['cylinder_groups'].items(), key=lambda x: int(x[0]))
                 for i, (num, objects) in enumerate(sorted_groups[:6]):  # 最多显示6个
-                    if objects:
+                    if objects and objects[0]:
                         diameter = objects[0].dimensions.x
                         box.label(text=f"  T{num}: {len(objects)}孔, {diameter:.3f}m")
                 
@@ -419,7 +419,7 @@ def merge_drill_cylinders_with_simple_diameter(selected_only=False, rename_singl
             merged_objects.append(current_obj)
         
         # 记录直径信息
-        diameter_summary[cylinder_number] = {
+        diameter_summary[f"Drill_Cylinder_{cylinder_number}"] = {
             'object': current_obj,
             'diameter': diameter,
             'object_count': len(objects),  # 注意：这是合并前的孔数
@@ -496,22 +496,23 @@ def print_simple_diameter_summary(diameter_summary):
     print("="*50)
     
     # 按工具编号排序
-    sorted_summary = sorted(diameter_summary.items(), key=lambda x: int(x[0]))
+    sorted_summary = sorted(diameter_summary.items(), key=lambda x: x[1]['tool_number'])
     
     # 打印表格标题
-    print(f"{'工具编号':<10} {'直径(m)':<15} {'孔数':<8} {'状态':<10}")
+    print(f"{'工具编号':<15} {'直径(m)':<15} {'孔数':<8} {'状态':<10}")
     print("-" * 60)
     
     total_holes = 0
     total_objects = 0
     
     # 打印每行数据
-    for tool_number, data in sorted_summary:
+    for tool_name, data in sorted_summary:
         diameter = data['diameter']
         count = data['object_count']
         status = "已合并" if data['object_count'] > 1 else "单孔"
+        tool_number = data['tool_number']
         
-        print(f"T{tool_number:<9} {diameter:<15.6f} {count:<8} {status:<10}")
+        print(f"{tool_number:<15} {diameter:<15.6f} {count:<8} {status:<10}")
         total_holes += count
         total_objects += 1
     
@@ -582,8 +583,8 @@ class GerberMergeCylinders(Operator):
         if merged_objects and merged_objects[0].name in bpy.data.objects:
             context.view_layer.objects.active = merged_objects[0]
         
-        # importdata.step_name = 'POST_GERBER_DRILL_HOLES'
-        importdata.step_name = 'FINISHED'
+        importdata.step_name = 'POST_GERBER_DRILL_HOLES'
+        # importdata.step_name = 'FINISHED'
         return {'FINISHED'}
 
 

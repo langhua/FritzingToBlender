@@ -26,7 +26,7 @@ importdata = PCBImportData(filenames=dict(),
                             diameter_summary={})
 
 
-class ProgressReport(Operator):
+class SVGProgressReport(Operator):
     bl_idname = 'fritzing.progress_report'
     bl_label = 'Fritzing Import Progress Report'
     bl_options = {'REGISTER'}
@@ -94,6 +94,7 @@ class ProgressReport(Operator):
 
 
 def register():
+    bpy.utils.register_class(SVGProgressReport)
     # a value between [0,100] will show the slider
     setattr(Scene, 'progress_indicator', FloatProperty(
                                     default=-1,
@@ -138,5 +139,6 @@ def register():
 def unregister():
     global info_header_draw
     bpy.types.VIEW3D_HT_tool_header.draw = info_header_draw
+    bpy.utils.unregister_class(SVGProgressReport)
     delattr(Scene, 'progress_indicator_text')
     delattr(Scene, 'progress_indicator')
