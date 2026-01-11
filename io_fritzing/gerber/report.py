@@ -7,7 +7,7 @@ from io_fritzing.svg.commondata import PCBImportData
 
 
 # a variable where we can store the original draw funtion
-info_header_draw = lambda s, c: None
+gerber_info_header_draw = lambda s, c: None
 
 def update(self, context):
     areas = context.window.screen.areas
@@ -100,6 +100,31 @@ class GerberProgressReport(Operator):
     
     def invoke(self, context, event):
         self.ticks = 0
+
+        # save the original draw method of the Info header
+        global gerber_info_header_draw
+        gerber_info_header_draw = bpy.types.VIEW3D_HT_tool_header.draw
+
+        # create a new draw function
+        def newdraw(self, context):
+            # first call the original stuff
+            # global gerber_info_header_draw
+            # gerber_info_header_draw(self, context)
+            # then add the prop that acts as a progress indicator
+            if context.scene.gerber_progress_indicator >= 0 and context.scene.gerber_progress_indicator <= 100:
+                layout = self.layout
+                layout.ui_units_x = 40
+                layout.alert = True
+                layout.separator()
+                text = context.scene.gerber_progress_indicator_text
+                layout.prop(context.scene,
+                                property='gerber_progress_indicator',
+                                text=text,
+                                slider=True)
+
+        # replace it
+        bpy.types.VIEW3D_HT_tool_header.draw = newdraw
+
         if context:
             wm = context.window_manager
             self.timer = wm.event_timer_add(1.0, window=context.window)
@@ -126,34 +151,10 @@ def register():
                                     default="Starting Gerber import ...",
                                     update=update))
 
-    # save the original draw method of the Info header
-    global info_header_draw
-    info_header_draw = bpy.types.VIEW3D_HT_tool_header.draw
-
-    # create a new draw function
-    def newdraw(self, context):
-        # first call the original stuff
-        # global info_header_draw
-        # info_header_draw(self, context)
-        # then add the prop that acts as a progress indicator
-        if context.scene.gerber_progress_indicator >= 0 and context.scene.gerber_progress_indicator <= 100:
-            layout = self.layout
-            layout.ui_units_x = 40
-            layout.alert = True
-            layout.separator()
-            text = context.scene.gerber_progress_indicator_text
-            layout.prop(context.scene,
-                             property='gerber_progress_indicator',
-                             text=text,
-                             slider=True)
-
-    # replace it
-    bpy.types.VIEW3D_HT_tool_header.draw = newdraw
-
 
 def unregister():
-    global info_header_draw
-    bpy.types.VIEW3D_HT_tool_header.draw = info_header_draw
+    global gerber_info_header_draw
+    bpy.types.VIEW3D_HT_tool_header.draw = gerber_info_header_draw
     bpy.utils.unregister_class(GerberProgressReport)
     delattr(Scene, 'gerber_progress_indicator_text')
     delattr(Scene, 'gerber_progress_indicator')

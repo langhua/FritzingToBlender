@@ -1,11 +1,13 @@
 import bpy
+import os
+import winsound
 from bpy.props import FloatProperty, StringProperty
 from bpy.types import Operator, Scene
 from io_fritzing.svg.commondata import PCBImportData
 
 
 # a variable where we can store the original draw funtion
-info_header_draw = lambda s, c: None
+svg_info_header_draw = lambda s, c: None
 
 def update(self, context):
     areas = context.window.screen.areas
@@ -27,8 +29,8 @@ importdata = PCBImportData(filenames=dict(),
 
 
 class SVGProgressReport(Operator):
-    bl_idname = 'fritzing.progress_report'
-    bl_label = 'Fritzing Import Progress Report'
+    bl_idname = 'fritzing.svg_progress_report'
+    bl_label = 'Fritzing SVG Import Progress Report'
     bl_options = {'REGISTER'}
 
     def modal(self, context, event):
@@ -76,6 +78,11 @@ class SVGProgressReport(Operator):
                 setattr(context.scene, 'progress_indicator', 101)  # done
             if context:
                 context.window_manager.event_timer_remove(self.timer)
+            if os.name == 'nt':
+                frequency = 1500
+                # Set Duration To 1000 ms == 1 second
+                duration = 1000
+                winsound.Beep(frequency, duration)
             return {'CANCELLED'}
 
         # total steps = 12
@@ -86,6 +93,31 @@ class SVGProgressReport(Operator):
     
     def invoke(self, context, event):
         self.ticks = 0
+
+        # save the original draw method of the Info header
+        global svg_info_header_draw
+        svg_info_header_draw = bpy.types.VIEW3D_HT_tool_header.draw
+
+        # create a new draw function
+        def newdraw(self, context):
+            # first call the original stuff
+            global svg_info_header_draw
+            svg_info_header_draw(self, context)
+            # then add the prop that acts as a progress indicator
+            if context.scene.progress_indicator >= 0 and context.scene.progress_indicator <= 100:
+                layout = self.layout
+                layout.ui_units_x = 40
+                layout.alert = True
+                layout.separator()
+                text = context.scene.progress_indicator_text
+                layout.prop(context.scene,
+                                property='progress_indicator',
+                                text=text,
+                                slider=True)
+
+        # replace it
+        bpy.types.VIEW3D_HT_tool_header.draw = newdraw
+
         if context:
             wm = context.window_manager
             self.timer = wm.event_timer_add(1.0, window=context.window)
@@ -111,34 +143,10 @@ def register():
                                     default="Starting SVG import ...",
                                     update=update))
 
-    # save the original draw method of the Info header
-    global info_header_draw
-    info_header_draw = bpy.types.VIEW3D_HT_tool_header.draw
-
-    # create a new draw function
-    def newdraw(self, context):
-        # first call the original stuff
-        # global info_header_draw
-        # info_header_draw(self, context)
-        # then add the prop that acts as a progress indicator
-        if context.scene.progress_indicator >= 0 and context.scene.progress_indicator <= 100:
-            layout = self.layout
-            layout.ui_units_x = 40
-            layout.alert = True
-            layout.separator()
-            text = context.scene.progress_indicator_text
-            layout.prop(context.scene,
-                             property='progress_indicator',
-                             text=text,
-                             slider=True)
-
-    # replace it
-    bpy.types.VIEW3D_HT_tool_header.draw = newdraw
-
 
 def unregister():
-    global info_header_draw
-    bpy.types.VIEW3D_HT_tool_header.draw = info_header_draw
+    global svg_info_header_draw
+    bpy.types.VIEW3D_HT_tool_header.draw = svg_info_header_draw
     bpy.utils.unregister_class(SVGProgressReport)
     delattr(Scene, 'progress_indicator_text')
     delattr(Scene, 'progress_indicator')

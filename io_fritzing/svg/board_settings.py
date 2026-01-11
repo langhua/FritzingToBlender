@@ -79,7 +79,7 @@ class BoardSettings(Operator):
 
 
     def execute(self, context):
-        getattr(getattr(bpy.ops, 'fritzing'), 'progress_report')("INVOKE_DEFAULT")
+        getattr(getattr(bpy.ops, 'fritzing'), 'svg_progress_report')("INVOKE_DEFAULT")
         return {"FINISHED"}
     
     def invoke(self, context, event):
