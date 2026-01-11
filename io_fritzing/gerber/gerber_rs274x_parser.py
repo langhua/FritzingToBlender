@@ -1414,11 +1414,6 @@ def _create_circle_mesh(circle_data, index, unit_factor, debug_mode=False):
             py = y + hole_radius * math.sin(angle)
             verts.append((px, py, 0.0))
 
-        # for i in range(segments):
-        #     faces.append([i, i + segments, i + 1 + segments])
-        #     faces.append([i, i + 1, i + 1 + segments])
-        # faces.append([segments, 0, segments])
-    
         # 创建面（连接内外圆）
         for i in range(segments):
             next_i = (i + 1) % segments
