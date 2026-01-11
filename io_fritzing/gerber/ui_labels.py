@@ -19,6 +19,7 @@ ui_labels= {
     ('*', 'Drill Algorithm:'): '钻孔算法：',
     ('*', 'Auto Boolean (Fast)'): '自动布尔（快速）',
     ('*', 'No Drill'): '不钻孔',
+    ('*', 'Booltron Non-Destructive Difference'): 'Booltron非破坏性差分',
 }
 
 langs = {

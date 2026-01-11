@@ -258,13 +258,23 @@ class GerberParser:
                 radius = circle.radius
             elif hasattr(circle, 'diameter'):
                 radius = circle.diameter / 2
-            
-            return {
+
+            result = {
                 'type': 'circle',
                 'x': x,
                 'y': y,
                 'radius': radius
             }
+
+            # 获取孔直径、孔高度、孔宽度
+            if hasattr(circle, 'hole_diameter') and circle.hole_diameter > 0.0:
+                result['hole_diameter'] = circle.hole_diameter
+            if hasattr(circle, 'hole_height') and circle.hole_height > 0.0:
+                result['hole_height'] = circle.hole_height
+            if hasattr(circle, 'hole_width') and circle.hole_width > 0.0:
+                result['hole_width'] = circle.hole_width
+
+            return result
         except Exception as e:
             print(f"提取圆形数据失败: {e}")
             return None
@@ -1352,39 +1362,82 @@ def _create_line_terminal_circle_mesh(x1, y1, x2, y2, radius):
     return verts, faces
 
 def _create_circle_mesh(circle_data, index, unit_factor, debug_mode=False):
-    """创建圆形网格（实心圆）"""
+    """创建圆形网格（实心圆或圆环）"""
     x = circle_data.get('x', 0) * unit_factor
     y = circle_data.get('y', 0) * unit_factor
     radius = circle_data.get('radius', 0.05) * unit_factor
-    
-    if radius < 0.000001:  # 忽略过小的圆形
-        if debug_mode:
-            print(f"    忽略过小圆: 半径={radius}")
-        return [], []
-    
-    # 创建圆形网格
+
+    # 创建网格
     segments = 32
     verts = []
     faces = []
+    print(f'圆({index}): {circle_data}')
+    if circle_data.get('hole_diameter', 0.0) == 0.0:
+        # 实心圆
+        if radius < 0.000001:  # 忽略过小的圆形
+            if debug_mode:
+                print(f"    忽略过小圆: 半径={radius}")
+            return [], []
+        
+        # 中心点
+        verts.append((x, y, 0.0))
+        
+        # 圆周上的点
+        for i in range(segments):
+            angle = 2 * math.pi * i / segments
+            px = x + radius * math.cos(angle)
+            py = y + radius * math.sin(angle)
+            verts.append((px, py, 0.0))
+        
+        # 创建三角形扇
+        for i in range(segments):
+            next_i = (i + 1) % segments
+            faces.append([0, i + 1, next_i + 1])
+        
+        if debug_mode and index < 5:
+            print(f"    创建圆形网格: 中心=({x:.6f}, {y:.6f}), 半径={radius:.6f}")
+    else:
+        # 圆环
+        hole_radius = circle_data['hole_diameter'] * unit_factor/2
+
+        # 外圆周上的点
+        for i in range(segments):
+            angle = 2 * math.pi * i / segments
+            px = x + radius * math.cos(angle)
+            py = y + radius * math.sin(angle)
+            verts.append((px, py, 0.0))
+        
+        # 内圆周上的点
+        for i in range(segments):
+            angle = 2 * math.pi * i / segments
+            px = x + hole_radius * math.cos(angle)
+            py = y + hole_radius * math.sin(angle)
+            verts.append((px, py, 0.0))
+
+        # for i in range(segments):
+        #     faces.append([i, i + segments, i + 1 + segments])
+        #     faces.append([i, i + 1, i + 1 + segments])
+        # faces.append([segments, 0, segments])
     
-    # 中心点
-    verts.append((x, y, 0.0))
-    
-    # 圆周上的点
-    for i in range(segments):
-        angle = 2 * math.pi * i / segments
-        px = x + radius * math.cos(angle)
-        py = y + radius * math.sin(angle)
-        verts.append((px, py, 0.0))
-    
-    # 创建三角形扇
-    for i in range(segments):
-        next_i = (i + 1) % segments
-        faces.append([0, i + 1, next_i + 1])
-    
-    if debug_mode and index < 5:
-        print(f"    创建圆形网格: 中心=({x:.6f}, {y:.6f}), 半径={radius:.6f}")
-    
+        # 创建面（连接内外圆）
+        for i in range(segments):
+            next_i = (i + 1) % segments
+            
+            # 外圆当前点和下一点
+            outer_current = i
+            outer_next = next_i
+            
+            # 内圆当前点和下一点（注意索引偏移）
+            inner_current = i + segments
+            inner_next = next_i + segments
+            
+            # 创建两个三角形形成四边形
+            # 三角形1: 外圆当前点 -> 外圆下一点 -> 内圆下一点
+            faces.append([outer_current, outer_next, inner_next])
+            
+            # 三角形2: 外圆当前点 -> 内圆下一点 -> 内圆当前点
+            faces.append([outer_current, inner_next, inner_current])
+        
     return verts, faces
 
 def _create_rectangle_mesh(rect_data, index, unit_factor, debug_mode=False):
