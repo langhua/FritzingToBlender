@@ -3,56 +3,57 @@ import re
 from collections import defaultdict
 from bpy.props import BoolProperty, FloatProperty, StringProperty, EnumProperty
 from bpy.types import Panel, Operator, PropertyGroup
+from bpy.app.translations import pgettext
 from io_fritzing.gerber.report import importdata
 
-# 插件信息
+# Plugin information
 bl_info = {
-    "name": "Fritzing钻孔工具管理器",
+    "name": "Fritzing Drill Tool Manager",
     "version": (2, 1, 0),
     "blender": (4, 2, 0),
-    "location": "View3D > Sidebar > Fritzing工具 > 钻孔工具",
-    "description": "合并钻孔圆柱体并生成直径汇总报告",
-    "category": "Fritzing",
+    "location": "View3D > Sidebar > Fritzing Tools > Drill Tools",
+    "description": "Merge drill cylinders and generate diameter summary report",
+    "category": "Fritzing Tools",
 }
 
-# 全局变量用于存储统计信息
+# Global variables for storing statistics
 pre_merge_stats = None
 merge_operation_performed = False
 
-# 自定义属性组
+# Custom property group
 class DrillToolsProperties(PropertyGroup):
-    # 选项
+    # Options
     auto_create_labels: BoolProperty(
-        name="自动创建直径标签",
-        description="合并后自动在3D视图中创建直径标签",
+        name="Auto Create Diameter Labels",
+        description="Automatically create diameter labels in 3D view after merge",
         default=True
     ) # type: ignore
     
-    # 显示选项
+    # Display options
     show_details: BoolProperty(
-        name="显示详细信息",
-        description="显示每个工具组的详细信息",
+        name="Show Details",
+        description="Show detailed information for each tool group",
         default=True
     ) # type: ignore
     
-    # 合并选项
+    # Merge options
     merge_selected_only: BoolProperty(
-        name="仅处理选中对象",
-        description="只处理选中的Drill_Cylinder对象",
+        name="Process Selected Only",
+        description="Only process selected Drill_Cylinder objects",
         default=False
     ) # type: ignore
     
     rename_single_objects: BoolProperty(
-        name="重名单个对象",
-        description="即使只有一个圆柱体，也重命名为规范名称",
+        name="Rename Single Objects",
+        description="Rename to standard name even if there's only one cylinder",
         default=True
     ) # type: ignore
 
-# 合并操作符
+# Merge operator
 class DRILLTOOLS_OT_MergeCylinders(Operator):
     bl_idname = "drilltools.merge_cylinders"
-    bl_label = "合并钻孔工具"
-    bl_description = "合并相同工具编号的钻孔圆柱体并生成直径汇总"
+    bl_label = "Merge Cylinder Tools"
+    bl_description = "Merge drill cylinders with the same tool number and generate diameter summary"
     
     def execute(self, context):
         global pre_merge_stats, merge_operation_performed
@@ -62,34 +63,34 @@ class DRILLTOOLS_OT_MergeCylinders(Operator):
         
         props = getattr(context.scene, "drill_tools_props", None)
         if props is None:
-            self.report({'ERROR'}, "未找到钻孔工具属性组")
+            self.report({'ERROR'}, "Drill tool properties group not found")
             return {'CANCELLED'}
         
-        # 获取设置
+        # Get settings
         selected_only = props.merge_selected_only
         auto_create_labels = props.auto_create_labels
         rename_single_objects = props.rename_single_objects
         
-        # 保存合并前的统计信息
+        # Save pre-merge statistics
         pre_merge_stats = get_current_stats(selected_only)
         
-        # 执行合并
+        # Execute merge
         merged_objects, diameter_summary = merge_drill_cylinders_with_simple_diameter(
             selected_only, 
             rename_single_objects
         )
         
         if not merged_objects:
-            self.report({'WARNING'}, "没有找到Drill_Cylinder对象")
+            self.report({'WARNING'}, "No Drill_Cylinder objects found")
             return {'CANCELLED'}
         
-        # 设置合并操作标志
+        # Set merge operation flag
         merge_operation_performed = True
         
-        # 在控制台打印汇总
+        # Print summary in console
         print_simple_diameter_summary(diameter_summary)
         
-        # 选中所有处理后的对象
+        # Select all processed objects
         bpy.ops.object.select_all(action='DESELECT')
         for obj in merged_objects:
             if obj and obj.name in bpy.data.objects:
@@ -97,48 +98,48 @@ class DRILLTOOLS_OT_MergeCylinders(Operator):
         if merged_objects and merged_objects[0].name in bpy.data.objects:
             context.view_layer.objects.active = merged_objects[0]
         
-        # 显示统计信息
+        # Show statistics
         stats = get_diameter_statistics(diameter_summary)
-        self.report({'INFO'}, f"完成! 处理了 {stats['total_tools']} 种工具, {stats['total_holes']} 个钻孔")
+        self.report({'INFO'}, pgettext("Complete! Processed {num_tools} tool types, {num_holes} drill holes").format(num_tools = stats['total_tools'], num_holes = stats['total_holes']))
         
         return {'FINISHED'}
 
-# 查看汇总操作符
+# View summary operator
 class DRILLTOOLS_OT_ShowSummary(Operator):
     bl_idname = "drilltools.show_summary"
-    bl_label = "查看直径汇总"
-    bl_description = "在控制台显示钻孔工具直径汇总"
+    bl_label = "View Diameter Summary"
+    bl_description = "Display drill tool diameter summary in console"
     
     def execute(self, context):
         global merge_operation_performed
         
-        # 获取设置
+        # Get settings
         if context is None:
             return {'CANCELLED'}
         
         props = getattr(context.scene, "drill_tools_props", None)
         if props is None:
-            self.report({'ERROR'}, "未找到钻孔工具属性组")
+            self.report({'ERROR'}, "Drill tool properties group not found")
             return {'CANCELLED'}
         selected_only = props.merge_selected_only
         
-        # 获取当前统计信息
+        # Get current statistics
         stats = get_current_stats(selected_only)
         
         if not stats['drill_objects']:
-            self.report({'WARNING'}, "没有找到Drill_Cylinder对象")
+            self.report({'WARNING'}, "No Drill_Cylinder objects found")
             return {'CANCELLED'}
         
-        # 在控制台显示汇总
+        # Display summary in console
         print("\n" + "="*50)
-        print("当前钻孔工具统计")
+        print("Current Drill Tool Statistics")
         print("="*50)
-        print(f"钻孔圆柱体总数: {stats['total_holes']} 个")
-        print(f"工具种类: {stats['total_groups']} 种")
+        print(f"Total drill cylinders: {stats['total_holes']}")
+        print(f"Tool types: {stats['total_groups']}")
         
-        # 显示每个组的详细信息
+        # Display detailed information for each group
         sorted_groups = sorted(stats['cylinder_groups'].items(), key=lambda x: int(x[0]))
-        print(f"\n{'工具编号':<10} {'孔数':<8} {'直径(m)':<12}")
+        print(f"\n{'Tool No.':<10} {'Count':<8} {'Diameter(m)':<12}")
         print("-" * 40)
         
         for cylinder_number, objects in sorted_groups:
@@ -146,19 +147,19 @@ class DRILLTOOLS_OT_ShowSummary(Operator):
                 diameter = objects[0].dimensions.x
                 print(f"T{cylinder_number:<9} {len(objects):<8} {diameter:<12.6f}")
         
-        # 显示合并状态
+        # Display merge status
         if merge_operation_performed:
-            print("\n⚠ 注意: 此统计显示的是当前场景中的对象状态")
-            print("  如果已执行合并操作，请查看合并后的汇总报告以获取详细直径信息")
+            print("\n⚠ Note: This statistics shows the current state of objects in the scene")
+            print("  If a merge operation has been performed, please check the post-merge summary report for detailed diameter information")
         
-        self.report({'INFO'}, f"汇总完成: {stats['total_groups']} 种工具, {stats['total_holes']} 个钻孔")
+        self.report({'INFO'}, pgettext("Summary complete: {num_groups} tool types, {num_holes} drill holes").format(num_groups = stats['total_groups'], num_holes = stats['total_holes']))
         return {'FINISHED'}
 
-# 清理工具编号操作符
+# Cleanup tool numbers operator
 class DRILLTOOLS_OT_CleanupToolNumbers(Operator):
     bl_idname = "drilltools.cleanup_tool_numbers"
-    bl_label = "清理工具编号"
-    bl_description = "清理和重新编号工具，确保编号从1开始连续"
+    bl_label = "Cleanup Tool Numbers"
+    bl_description = "Clean up and renumber tools, ensuring numbering starts from 1 consecutively"
     
     def execute(self, context):
         global merge_operation_performed
@@ -166,7 +167,7 @@ class DRILLTOOLS_OT_CleanupToolNumbers(Operator):
         all_objects = bpy.data.objects
         cylinder_groups = defaultdict(list)
         
-        # 匹配所有可能的Drill_Cylinder格式
+        # Match all possible Drill_Cylinder formats
         patterns = [
             re.compile(r'^Drill_Cylinder_(\d+)(?:_Mat)?(?:\.\d{3})?$'),
             re.compile(r'^Drill_Cylinder_(\d+)_\d+$'),
@@ -185,10 +186,10 @@ class DRILLTOOLS_OT_CleanupToolNumbers(Operator):
                     break
         
         if not cylinder_groups:
-            self.report({'WARNING'}, "没有找到Drill_Cylinder对象")
+            self.report({'WARNING'}, "No Drill_Cylinder objects found")
             return {'CANCELLED'}
         
-        # 重新编号
+        # Renumber
         sorted_numbers = sorted(cylinder_groups.keys())
         renumber_map = {}
         
@@ -200,24 +201,24 @@ class DRILLTOOLS_OT_CleanupToolNumbers(Operator):
             new_number = renumber_map[old_number]
             
             for obj in objects:
-                # 构建新的名称
+                # Build new name
                 if old_number != new_number or not obj.name.startswith(f"Drill_Cylinder_{old_number}"):
                     obj.name = f"Drill_Cylinder_{new_number}"
                     renamed_count += 1
         
-        # 重置合并标志
+        # Reset merge flag
         merge_operation_performed = False
         
-        self.report({'INFO'}, f"重新编号完成: {len(cylinder_groups)} 种工具, 重命名了 {renamed_count} 个对象")
+        self.report({'INFO'}, pgettext("Renumbering complete: {num_groups} tool types, renamed {renamed_count} objects").format(num_groups = len(cylinder_groups), renamed_count = renamed_count))
         return {'FINISHED'}
 
-# 面板
+# Panel
 class DRILLTOOLS_PT_MainPanel(Panel):
-    bl_label = "钻孔合并工具"
+    bl_label = "Cylinder Merge Tools"
     bl_idname = "DRILLTOOLS_PT_MainPanel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "Fritzing工具"
+    bl_category = "Fritzing Tools"
     bl_context = "objectmode"
     bl_order = 3
     bl_options = {'DEFAULT_CLOSED'}
@@ -231,89 +232,87 @@ class DRILLTOOLS_PT_MainPanel(Panel):
         
         props = getattr(context.scene, "drill_tools_props", None)
         
-        # 主操作按钮
+        # Main operation buttons
         box = layout.box()
-        box.label(text="主操作", icon='TOOL_SETTINGS')
-        
         row = box.row()
         row.scale_y = 1.5
-        row.operator("drilltools.merge_cylinders", text="合并钻孔工具", icon='AUTOMERGE_OFF')
+        row.operator("drilltools.merge_cylinders", text=pgettext("Merge Cylinder Tools"), icon='AUTOMERGE_OFF')
         
-        # 选项
+        # Options
         box = layout.box()
-        box.label(text="选项", icon='PREFERENCES')
+        box.label(text="Options", icon='PREFERENCES')
         
         box.prop(props, "merge_selected_only")
         box.prop(props, "rename_single_objects")
         box.prop(props, "show_details")
         
-        # 工具按钮
+        # Tool buttons
         box = layout.box()
-        box.label(text="工具", icon='TOOL_SETTINGS')
+        box.label(text="Tools", icon='TOOL_SETTINGS')
         
         col = box.column(align=True)
         col.operator("drilltools.show_summary", icon='VIEWZOOM')
         col.operator("drilltools.cleanup_tool_numbers", icon='SORTALPHA')
         
-        # 状态信息
+        # Status information
         if props and props.show_details:
             box = layout.box()
-            box.label(text="状态", icon='INFO')
+            box.label(text="Status", icon='INFO')
             
-            # 根据是否执行过合并操作显示不同的状态信息
+            # Display different status information based on whether merge operation has been performed
             if merge_operation_performed and pre_merge_stats:
-                # 显示合并前的统计信息
+                # Display pre-merge statistics
                 stats = pre_merge_stats
                 if merge_operation_performed:
-                    box.label(text="*已执行合并操作*", icon='INFO')
-                    box.label(text="以下是合并前的统计信息:")
+                    box.label(text="*Merge operation performed*", icon='INFO')
+                    box.label(text="The following are pre-merge statistics:")
             else:
-                # 获取当前实时统计
+                # Get current real-time statistics
                 stats = get_current_stats(props.merge_selected_only)
             
             if stats['drill_objects']:
-                box.label(text=f"共 {stats['total_holes']} 个钻孔圆柱体", icon='MESH_CYLINDER')
-                box.label(text=f"共 {stats['total_groups']} 种工具编号", icon='LINENUMBERS_ON')
+                box.label(text=pgettext("Total {stats_total_holes} drill cylinders").format(stats_total_holes=stats['total_holes']), icon='MESH_CYLINDER')
+                box.label(text=pgettext("Total {stats_total_groups} tool numbers").format(stats_total_groups=stats['total_groups']), icon='LINENUMBERS_ON')
                 
-                # 显示工具列表
+                # Display tool list
                 sorted_groups = sorted(stats['cylinder_groups'].items(), key=lambda x: int(x[0]))
-                for i, (num, objects) in enumerate(sorted_groups[:6]):  # 最多显示6个
+                for i, (num, objects) in enumerate(sorted_groups[:6]):  # Display up to 6
                     if objects and objects[0]:
                         diameter = objects[0].dimensions.x
-                        box.label(text=f"  T{num}: {len(objects)}孔, {diameter:.3f}m")
+                        box.label(text=f"  T{num}: {len(objects)} " + pgettext("holes") + f", {diameter:.4f}m")
                 
                 if len(stats['cylinder_groups']) > 6:
-                    box.label(text=f"  ... 还有 {len(stats['cylinder_groups']) - 6} 种工具")
+                    box.label(text=pgettext("  ... and {num_more} more tool types").format(num_more = len(stats['cylinder_groups']) - 6))
                 
-                # 如果已合并，添加说明
+                # If merged, add explanation
                 if merge_operation_performed:
                     box.separator()
-                    box.label(text="合并后，每个工具组已合并为单个对象", icon='INFO')
+                    box.label(text="After merge, each tool group has been merged into a single object", icon='INFO')
                     current_stats = get_current_stats(props.merge_selected_only)
                     if current_stats['total_objects'] != stats['total_groups']:
-                        box.label(text=f"当前有 {current_stats['total_objects']} 个Drill_Cylinder对象", icon='OUTLINER_OB_MESH')
+                        box.label(text=f"Currently there are {current_stats['total_objects']} Drill_Cylinder objects", icon='OUTLINER_OB_MESH')
             else:
-                box.label(text="未找到Drill_Cylinder", icon='ERROR')
+                box.label(text="No Drill_Cylinder found", icon='ERROR')
 
-# 工具函数
+# Tool functions
 def get_current_stats(selected_only=False):
-    """获取当前场景中的Drill_Cylinder统计信息"""
+    """Get Drill_Cylinder statistics in the current scene"""
     if bpy.context is None:
         return {}
-    # 获取对象
+    # Get objects
     if selected_only:
         all_objects = bpy.context.selected_objects
     else:
         all_objects = bpy.data.objects
     
-    # 按数字分组存储Drill_Cylinder
+    # Store Drill_Cylinders grouped by number
     cylinder_groups = defaultdict(list)
     
-    # 使用多个模式匹配
+    # Use multiple patterns for matching
     patterns = [
         re.compile(r'^Drill_Cylinder_(\d+)(?:_Mat)?(?:\.\d{3})?$'),
-        re.compile(r'^Drill_Cylinder_(\d+)_\d+$'),  # 匹配 Drill_Cylinder_1_001
-        re.compile(r'^Drill_Cylinder_(\d+)\.\d+$'),  # 匹配 Drill_Cylinder_1.001
+        re.compile(r'^Drill_Cylinder_(\d+)_\d+$'),  # Match Drill_Cylinder_1_001
+        re.compile(r'^Drill_Cylinder_(\d+)\.\d+$'),  # Match Drill_Cylinder_1.001
     ]
     
     drill_objects = []
@@ -329,7 +328,7 @@ def get_current_stats(selected_only=False):
                 drill_objects.append(obj)
                 break
     
-    # 计算统计信息
+    # Calculate statistics
     total_holes = len(drill_objects)
     total_groups = len(cylinder_groups)
     total_objects = len([obj for obj in drill_objects])
@@ -345,27 +344,27 @@ def get_current_stats(selected_only=False):
     return stats
 
 def merge_drill_cylinders_with_simple_diameter(selected_only=False, rename_single_objects=True):
-    """简化版：合并Drill_Cylinder并提取直径信息"""
+    """Simplified version: Merge Drill_Cylinders and extract diameter information"""
     
-    print("开始合并Drill_Cylinder并提取直径信息...")
+    print("Starting to merge Drill_Cylinders and extract diameter information...")
     
     if bpy.context is None:
         return [], {}
 
-    # 获取对象
+    # Get objects
     if selected_only:
         all_objects = bpy.context.selected_objects
     else:
         all_objects = bpy.data.objects
     
-    # 按数字分组存储Drill_Cylinder
+    # Store Drill_Cylinders grouped by number
     cylinder_groups = defaultdict(list)
     
-    # 使用多个模式匹配
+    # Use multiple patterns for matching
     patterns = [
         re.compile(r'^Drill_Cylinder_(\d+)(?:_Mat)?(?:\.\d{3})?$'),
-        re.compile(r'^Drill_Cylinder_(\d+)_\d+$'),  # 匹配 Drill_Cylinder_1_001
-        re.compile(r'^Drill_Cylinder_(\d+)\.\d+$'),  # 匹配 Drill_Cylinder_1.001
+        re.compile(r'^Drill_Cylinder_(\d+)_\d+$'),  # Match Drill_Cylinder_1_001
+        re.compile(r'^Drill_Cylinder_(\d+)\.\d+$'),  # Match Drill_Cylinder_1.001
     ]
     
     for obj in all_objects:
@@ -380,12 +379,12 @@ def merge_drill_cylinders_with_simple_diameter(selected_only=False, rename_singl
                 break
     
     if not cylinder_groups:
-        print("没有找到Drill_Cylinder对象")
+        print("No Drill_Cylinder objects found")
         return [], {}
     
-    print(f"找到 {len(cylinder_groups)} 组Drill_Cylinder")
+    print(f"Found {len(cylinder_groups)} groups of Drill_Cylinders")
     
-    # 合并每组，并记录直径信息
+    # Merge each group and record diameter information
     merged_objects = []
     diameter_summary = {}
     
@@ -393,141 +392,141 @@ def merge_drill_cylinders_with_simple_diameter(selected_only=False, rename_singl
         if not objects:
             continue
             
-        # 简化直径计算：取第一个对象的X维度作为直径
+        # Simplified diameter calculation: take the X dimension of the first object as the diameter
         first_obj = objects[0]
         diameter = first_obj.dimensions.x
         
-        # 处理单个或多个对象
+        # Handle single or multiple objects
         if len(objects) > 1:
-            print(f"合并第 {cylinder_number} 组 ({len(objects)} 个对象, 直径: {diameter:.6f}m):")
+            print(f"Merging group {cylinder_number} ({len(objects)} objects, diameter: {diameter:.6f}m):")
             merged_obj = merge_cylinder_group_safe(objects, cylinder_number)
             if merged_obj:
                 merged_objects.append(merged_obj)
                 current_obj = merged_obj
             else:
-                # 如果合并失败，使用第一个对象
+                # If merge fails, use the first object
                 current_obj = first_obj
                 if rename_single_objects:
                     current_obj.name = f"Drill_Cylinder_{cylinder_number}"
         else:
-            # 只有一个对象
-            print(f"第 {cylinder_number} 组只有1个对象 (直径: {diameter:.6f}m)")
+            # Only one object
+            print(f"Group {cylinder_number} has only 1 object (diameter: {diameter:.6f}m)")
             current_obj = first_obj
             if rename_single_objects:
                 if not current_obj.name.startswith(f"Drill_Cylinder_{cylinder_number}"):
                     current_obj.name = f"Drill_Cylinder_{cylinder_number}"
             merged_objects.append(current_obj)
         
-        # 记录直径信息
+        # Record diameter information
         diameter_summary[f"Drill_Cylinder_{cylinder_number}"] = {
             'object': current_obj,
             'diameter': diameter,
-            'object_count': len(objects),  # 注意：这是合并前的孔数
+            'object_count': len(objects),  # Note: This is the number of holes before merge
             'tool_number': cylinder_number
         }
     
-    print(f"处理完成! 共处理 {len(merged_objects)} 个圆柱体")
+    print(f"Processing complete! Processed {len(merged_objects)} cylinders in total")
     return merged_objects, diameter_summary
 
 def merge_cylinder_group_safe(objects, cylinder_number):
-    """安全地合并同一组的圆柱体，避免引用已删除的对象"""
+    """Safely merge cylinders in the same group, avoiding references to deleted objects"""
     if len(objects) < 2:
         return objects[0] if objects else None
     
     if bpy.context is None:
         return None
 
-    # 保存当前选择和激活状态（只保存名称，而不是对象引用）
+    # Save current selection and active state (save names, not object references)
     original_selected_names = [obj.name for obj in bpy.context.selected_objects]
     original_active_name = bpy.context.view_layer.objects.active.name if bpy.context.view_layer.objects.active else None
     
     try:
-        # 取消选择所有对象
+        # Deselect all objects
         bpy.ops.object.select_all(action='DESELECT')
         
-        # 选择要合并的所有对象
+        # Select all objects to be merged
         for obj in objects:
             obj.select_set(True)
         
-        # 设置第一个对象为激活对象
+        # Set the first object as the active object
         bpy.context.view_layer.objects.active = objects[0]
         
-        # 执行合并
+        # Execute merge
         bpy.ops.object.join()
         
-        # 获取合并后的对象
+        # Get the merged object
         merged_obj = bpy.context.active_object
         if merged_obj is None:
             return None
         
-        # 重命名为 Drill_Cylinder_数字
+        # Rename to Drill_Cylinder_number
         new_name = f"Drill_Cylinder_{cylinder_number}"
         merged_obj.name = new_name
         
-        print(f"  ✓ 合并为: {new_name}")
+        print(f"  ✓ Merged to: {new_name}")
         
         return merged_obj
         
     except Exception as e:
-        print(f"  ✗ 合并第 {cylinder_number} 组时出错: {e}")
+        print(f"  ✗ Error merging group {cylinder_number}: {e}")
         return None
         
     finally:
-        # 恢复原始选择状态（通过名称查找对象）
+        # Restore original selection state (find objects by name)
         bpy.ops.object.select_all(action='DESELECT')
         
-        # 恢复选择状态
+        # Restore selection state
         for obj_name in original_selected_names:
             if obj_name in bpy.data.objects:
                 bpy.data.objects[obj_name].select_set(True)
         
-        # 恢复激活对象
+        # Restore active object
         if original_active_name and original_active_name in bpy.data.objects:
             bpy.context.view_layer.objects.active = bpy.data.objects[original_active_name]
 
 def print_simple_diameter_summary(diameter_summary):
-    """打印简化的直径汇总表"""
+    """Print simplified diameter summary table"""
     if not diameter_summary:
-        print("没有直径数据可汇总")
+        print("No diameter data to summarize")
         return
     
     print("\n" + "="*50)
-    print("钻孔工具直径汇总表")
+    print("Drill Tool Diameter Summary Table")
     print("="*50)
     
-    # 按工具编号排序
+    # Sort by tool number
     sorted_summary = sorted(diameter_summary.items(), key=lambda x: x[1]['tool_number'])
     
-    # 打印表格标题
-    print(f"{'工具编号':<15} {'直径(m)':<15} {'孔数':<8} {'状态':<10}")
+    # Print table header
+    print(f"{'Tool No.':<15} {'Diameter(m)':<15} {'Hole Count':<8} {'Status':<10}")
     print("-" * 60)
     
     total_holes = 0
     total_objects = 0
     
-    # 打印每行数据
+    # Print each row of data
     for tool_name, data in sorted_summary:
         diameter = data['diameter']
         count = data['object_count']
-        status = "已合并" if data['object_count'] > 1 else "单孔"
+        status = "Merged" if data['object_count'] > 1 else "Single"
         tool_number = data['tool_number']
         
         print(f"{tool_number:<15} {diameter:<15.6f} {count:<8} {status:<10}")
         total_holes += count
         total_objects += 1
     
-    # 统计信息
+    # Statistics
     print("-" * 60)
     unique_diameters = len(set(round(data['diameter'], 6) for data in diameter_summary.values()))
     
-    print(f"工具种类: {len(diameter_summary)} 种")
-    print(f"合并前钻孔总数: {total_holes} 个")
-    print(f"合并后对象数: {len(diameter_summary)} 个")
-    print(f"唯一直径: {unique_diameters} 种")
+    print(f"Tool types: {len(diameter_summary)}")
+    print(f"Total holes before merge: {total_holes}")
+    print(f"Objects after merge: {len(diameter_summary)}")
+    print(f"Unique diameters: {unique_diameters}")
     
 
 def get_diameter_statistics(diameter_summary):
-    """获取直径统计信息"""
+    """Get diameter statistics"""
     if not diameter_summary:
         return {}
     
@@ -537,7 +536,7 @@ def get_diameter_statistics(diameter_summary):
     stats = {
         'total_tools': len(diameter_summary),
         'total_holes': sum(counts),
-        'total_objects': len(diameter_summary),  # 合并后的对象数
+        'total_objects': len(diameter_summary),  # Number of objects after merge
         'avg_diameter': sum(diameters) / len(diameters) if diameters else 0,
         'min_diameter': min(diameters) if diameters else 0,
         'max_diameter': max(diameters) if diameters else 0,
@@ -558,24 +557,24 @@ class GerberMergeCylinders(Operator):
         if context is None:
             return {'CANCELLED'}
         
-        # 执行合并
+        # Execute merge
         merged_objects, diameter_summary = merge_drill_cylinders_with_simple_diameter(
             False, 
             True
         )
         
         if not merged_objects:
-            importdata.error_msg = "没有找到Drill_Cylinder对象"
+            importdata.error_msg = "No Drill_Cylinder objects found"
             print('--MergeLayers exception: ' + importdata.error_msg)
             getattr(getattr(bpy.ops, 'fritzing'), 'import_error')("INVOKE_DEFAULT")
             return {'CANCELLED'}
         
         importdata.diameter_summary = diameter_summary
         
-        # 在控制台打印汇总
+        # Print summary in console
         print_simple_diameter_summary(diameter_summary)
         
-        # 选中所有处理后的对象
+        # Select all processed objects
         bpy.ops.object.select_all(action='DESELECT')
         for obj in merged_objects:
             if obj and obj.name in bpy.data.objects:
@@ -588,7 +587,7 @@ class GerberMergeCylinders(Operator):
         return {'FINISHED'}
 
 
-# 注册/注销函数
+# Register/unregister functions
 classes = [
     DrillToolsProperties,
     DRILLTOOLS_OT_MergeCylinders,
@@ -602,23 +601,23 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
     
-    # 注册自定义属性
+    # Register custom properties
     setattr(bpy.types.Scene, "drill_tools_props", bpy.props.PointerProperty(type=DrillToolsProperties))
     
-    print("Fritzing钻孔工具管理器已注册 (版本 2.1.0)")
+    print("Fritzing Drill Tool Manager registered (version 2.1.0)")
 
 def unregister():
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
     
-    # 删除自定义属性
+    # Delete custom properties
     delattr(bpy.types.Scene, "drill_tools_props")
     
-    print("Fritzing钻孔工具管理器已注销")
+    print("Fritzing Drill Tool Manager unregistered")
 
-# 如果作为独立脚本运行
+# If run as a standalone script
 if __name__ == "__main__":
-    # 临时注册以进行测试
+    # Temporarily register for testing
     try:
         unregister()
     except:

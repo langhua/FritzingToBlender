@@ -5,6 +5,7 @@ import math
 import time
 import glob
 import traceback
+from bpy.app.translations import pgettext
 from bpy.types import Operator, Panel, Scene
 from bpy.props import (StringProperty, BoolProperty, FloatProperty)
 from bpy_extras.io_utils import ImportHelper
@@ -22,49 +23,49 @@ global gerber_import_info
 gerber_import_info = dict()
 
 # ============================================================================
-# 性能优化工具
+# Performance Optimization Tools
 # ============================================================================
 class PerformanceOptimizer:
-    """性能优化工具类"""
+    """Performance optimization utility class"""
     @staticmethod
     def batch_process(primitives, batch_size=50):
-        """批量处理图元，提高性能"""
+        """Batch process primitives to improve performance"""
         for i in range(0, len(primitives), batch_size):
             yield primitives[i:i + batch_size]
     
     @staticmethod
     def clear_unused_data():
-        """清理未使用的数据"""
+        """Clean up unused data"""
         try:
-            # 清理未使用的网格
+            # Clean up unused meshes
             for mesh in bpy.data.meshes:
                 if mesh.users == 0:
                     bpy.data.meshes.remove(mesh)
             
-            # 清理未使用的材质
+            # Clean up unused materials
             for mat in bpy.data.materials:
                 if mat.users == 0:
                     bpy.data.materials.remove(mat)
             
-            # 清理未使用的曲线
+            # Clean up unused curves
             for curve in bpy.data.curves:
                 if curve.users == 0:
                     bpy.data.curves.remove(curve)
             
-            # 强制垃圾回收
+            # Force garbage collection
             gc.collect()
             
-            print("🧹 已清理未使用的数据")
+            print("🧹 Cleaned up unused data")
             return True
         except Exception as e:
-            print(f"清理数据失败: {e}")
+            print(f"Failed to clean up data: {e}")
             return False
 
 # ============================================================================
-# Gerber解析器
+# Gerber Parser
 # ============================================================================
 class GerberParser:
-    """Gerber解析器"""
+    """Gerber file parser"""
     
     def __init__(self):
         self.primitives = []
@@ -72,21 +73,21 @@ class GerberParser:
     
     def parse_gerber(self, filepath, debug=False):
         try:
-            print(f"🔍 开始解析Gerber文件: {os.path.basename(filepath)}")
+            print(f"🔍 Starting to parse Gerber file: {os.path.basename(filepath)}")
             start_time = time.time()
             
-            # 读取Gerber文件
+            # Read the Gerber file
             gerber = read(filepath)
             
-            # 获取单位
+            # Get units
             units = 'metric' if hasattr(gerber, 'units') and gerber.units == 'metric' else 'inch'
             unit_factor = 0.001 if units == 'metric' else 0.0254
 
-            # 获取文件信息
+            # Get file information
             self.file_info = self._get_gerber_info(gerber, filepath)
-            print(f"📄 Gerber文件信息: {self.file_info}")
+            print(f"📄 Gerber file info: {self.file_info}")
             
-            # 提取图元
+            # Extract primitives
             if hasattr(gerber, 'primitives'):
                 for i, prim in enumerate(gerber.primitives):
                     prim_data = self._extract_primitive_data(prim, i, units)
@@ -95,7 +96,7 @@ class GerberParser:
 
             processing_time = time.time() - start_time
             
-            # 统计图元类型
+            # Analyze primitive types
             type_stats = self._analyze_primitive_types()
             
             result = {
@@ -108,32 +109,32 @@ class GerberParser:
                 'processing_time': processing_time,
                 'units': units,
                 'unit_factor': unit_factor,
-                'message': f"成功解析 {len(self.primitives)} 个图元"
+                'message': f"Successfully parsed {len(self.primitives)} primitives"
             }
             
-            print(f"\n📊 Gerber解析统计:")
-            print(f"  - 总图元数: {len(self.primitives)}")
+            print(f"\n📊 Gerber parsing statistics:")
+            print(f"  - Total primitives: {len(self.primitives)}")
             for prim_type, count in type_stats.items():
-                print(f"  - {prim_type}: {count} 个")
+                print(f"  - {prim_type}: {count}")
             
-            print(f"⏱️  耗时: {processing_time:.2f} 秒")
+            print(f"⏱️  Time taken: {processing_time:.2f} seconds")
             return result
             
         except Exception as e:
-            error_msg = f"解析Gerber文件失败: {str(e)}"
+            error_msg = f"Failed to parse Gerber file: {str(e)}"
             print(f"❌ {error_msg}")
             traceback.print_exc()
             return {'success': False, 'error': error_msg}
     
     def _get_gerber_info(self, gerber, filepath):
-        """获取Gerber文件信息"""
+        """Get Gerber file information"""
         info = {
             'filename': os.path.basename(filepath),
             'file_size': os.path.getsize(filepath),
             'units': gerber.units if hasattr(gerber, 'units') else 'metric',
         }
         
-        # 获取边界框
+        # Get bounding box
         if hasattr(gerber, 'bounds') and gerber.bounds:
             try:
                 bounds = gerber.bounds
@@ -151,12 +152,12 @@ class GerberParser:
                         'height': max_y - min_y,
                     })
             except Exception as e:
-                print(f"⚠️ 获取边界框失败: {e}")
+                print(f"⚠️ Failed to get bounding box: {e}")
         
         return info
     
     def _extract_primitive_data(self, primitive, index, units):
-        """提取图元数据"""
+        """Extract primitive data"""
         try:
             prim_type = primitive.__class__.__name__.lower()
             
@@ -174,11 +175,11 @@ class GerberParser:
                 return None
                 
         except Exception as e:
-            print(f"提取图元{index}数据失败: {e}")
+            print(f"Failed to extract data for primitive {index}: {e}")
             return None
     
     def _extract_line_data(self, line, index):
-        """提取线段数据"""
+        """Extract line data"""
         try:
             start = getattr(line, 'start', (0, 0))
             end = getattr(line, 'end', (0, 0))
@@ -193,7 +194,7 @@ class GerberParser:
             else:
                 x2, y2 = 0, 0
             
-            # 获取线宽
+            # Get line width
             width = 0.001
             if hasattr(line, 'width'):
                 width = line.width
@@ -211,13 +212,13 @@ class GerberParser:
                 'width': width
             }
         except Exception as e:
-            print(f"提取线段数据失败: {e}")
+            print(f"Failed to extract line data: {e}")
             return None
     
     def _extract_region_data(self, region, index):
-        """提取Region数据"""
+        """Extract Region data"""
         try:
-            # 获取顶点
+            # Get vertices
             primitives = region.primitives
             vertices = []
             for primitive in primitives:
@@ -229,18 +230,18 @@ class GerberParser:
                 'vertices': vertices
             }
         except Exception as e:
-            print(f"提取Region数据失败: {e}")
+            print(f"Failed to extract Region data: {e}")
             return None
     
     def _extract_circle_data(self, circle, index):
-        """提取圆形数据"""
+        """Extract circle data"""
         try:
-            # 尝试多种可能的属性名
+            # Try multiple possible attribute names
             x = 0
             y = 0
             radius = 0.001
             
-            # 尝试各种可能的中心坐标属性
+            # Try various possible center coordinate attributes
             if hasattr(circle, 'position'):
                 pos = circle.position
                 if hasattr(pos, '__len__') and len(pos) >= 2:
@@ -253,7 +254,7 @@ class GerberParser:
                 x = circle.x
                 y = circle.y
             
-            # 获取半径
+            # Get radius
             if hasattr(circle, 'radius'):
                 radius = circle.radius
             elif hasattr(circle, 'diameter'):
@@ -266,7 +267,7 @@ class GerberParser:
                 'radius': radius
             }
 
-            # 获取孔直径、孔高度、孔宽度
+            # Get hole diameter, hole height, hole width
             if hasattr(circle, 'hole_diameter') and circle.hole_diameter > 0.0:
                 result['hole_diameter'] = circle.hole_diameter
             if hasattr(circle, 'hole_height') and circle.hole_height > 0.0:
@@ -276,18 +277,18 @@ class GerberParser:
 
             return result
         except Exception as e:
-            print(f"提取圆形数据失败: {e}")
+            print(f"Failed to extract circle data: {e}")
             return None
     
     def _extract_rectangle_data(self, rectangle, index):
-        """提取矩形数据"""
+        """Extract rectangle data"""
         try:
             x = 0
             y = 0
             width = 0.001
             height = 0.001
             
-            # 尝试各种可能的中心坐标属性
+            # Try various possible center coordinate attributes
             if hasattr(rectangle, 'position'):
                 pos = rectangle.position
                 if hasattr(pos, '__len__') and len(pos) >= 2:
@@ -300,7 +301,7 @@ class GerberParser:
                 x = rectangle.x
                 y = rectangle.y
             
-            # 获取尺寸
+            # Get dimensions
             if hasattr(rectangle, 'width'):
                 width = rectangle.width
             if hasattr(rectangle, 'height'):
@@ -314,18 +315,18 @@ class GerberParser:
                 'height': height
             }
         except Exception as e:
-            print(f"提取矩形数据失败: {e}")
+            print(f"Failed to extract rectangle data: {e}")
             return None
     
     def _extract_obround_data(self, obround, index):
-        """提取椭圆形数据"""
+        """Extract obround data"""
         try:
             x = 0
             y = 0
             width = 0.001
             height = 0.001
             
-            # 尝试各种可能的中心坐标属性
+            # Try various possible center coordinate attributes
             if hasattr(obround, 'position'):
                 pos = obround.position
                 if hasattr(pos, '__len__') and len(pos) >= 2:
@@ -338,7 +339,7 @@ class GerberParser:
                 x = obround.x
                 y = obround.y
             
-            # 获取尺寸
+            # Get dimensions
             if hasattr(obround, 'width'):
                 width = obround.width
             if hasattr(obround, 'height'):
@@ -352,16 +353,16 @@ class GerberParser:
                 'height': height
             }
         except Exception as e:
-            print(f"提取椭圆形数据失败: {e}")
+            print(f"Failed to extract obround data: {e}")
             return None
     
     def _extract_primitives(self, gerber, debug=False):
-        """提取图元"""
+        """Extract primitives"""
         primitives = []
         
         try:
             if hasattr(gerber, 'primitives') and gerber.primitives:
-                print(f"🔍 从primitives属性提取图元: {len(gerber.primitives)} 个")
+                print(f"🔍 Extracting primitives from primitives attribute: {len(gerber.primitives)}")
                 
                 for i, primitive in enumerate(gerber.primitives):
                     primitive_data = self._parse_primitive(primitive, i, debug and i < 5)
@@ -373,17 +374,17 @@ class GerberParser:
             return []
             
         except Exception as e:
-            print(f"❌ 提取图元失败: {e}")
+            print(f"❌ Failed to extract primitives: {e}")
             traceback.print_exc()
             return []
     
     def _parse_primitive(self, primitive, index, debug=False):
-        """解析单个图元"""
+        """Parse a single primitive"""
         try:
             class_name = primitive.__class__.__name__
             
             if debug:
-                print(f"  🔍 解析图元 {index}: {class_name}")
+                print(f"  🔍 Parsing primitive {index}: {class_name}")
             
             if class_name == 'Line':
                 return self._parse_line(primitive, index, debug)
@@ -399,11 +400,11 @@ class GerberParser:
                 return self._parse_unknown(primitive, index, debug)
                 
         except Exception as e:
-            print(f"❌ 解析图元 {index} 失败: {e}")
+            print(f"❌ Failed to parse primitive {index}: {e}")
             return None
     
     def _parse_line(self, line, index, debug=False):
-        """解析线段"""
+        """Parse line"""
         try:
             start = getattr(line, 'start', (0, 0))
             end = getattr(line, 'end', (0, 0))
@@ -418,10 +419,10 @@ class GerberParser:
             else:
                 end_x, end_y = 0, 0
             
-            # 获取线段宽度
-            width = 0.001  # 默认宽度
+            # Get line width
+            width = 0.001  # Default width
             
-            # 尝试多种方法获取宽度
+            # Try multiple methods to get width
             if hasattr(line, 'width'):
                 width = line.width
             elif hasattr(line, 'aperture'):
@@ -432,7 +433,7 @@ class GerberParser:
                     width = aperture.diameter
             
             if debug:
-                print(f"    线段: ({start_x:.3f}, {start_y:.3f}) -> ({end_x:.3f}, {end_y:.3f}), 宽度: {width:.6f}")
+                print(f"    Line: ({start_x:.3f}, {start_y:.3f}) -> ({end_x:.3f}, {end_y:.3f}), Width: {width:.6f}")
             
             return {
                 'id': index,
@@ -445,11 +446,11 @@ class GerberParser:
                 'length': math.sqrt((end_x - start_x)**2 + (end_y - start_y)**2),
             }
         except Exception as e:
-            print(f"解析线段失败: {e}")
+            print(f"Failed to parse line: {e}")
             return None
     
     def _parse_circle(self, circle, index, debug=False):
-        """解析圆形"""
+        """Parse circle"""
         try:
             position = getattr(circle, 'position', (0, 0))
             if hasattr(position, '__len__') and len(position) >= 2:
@@ -461,7 +462,7 @@ class GerberParser:
             radius = diameter / 2
             
             if debug:
-                print(f"    圆形: 中心({x:.3f}, {y:.3f}), 直径: {diameter:.6f}")
+                print(f"    Circle: Center({x:.3f}, {y:.3f}), Diameter: {diameter:.6f}")
             
             return {
                 'id': index,
@@ -472,11 +473,11 @@ class GerberParser:
                 'diameter': diameter,
             }
         except Exception as e:
-            print(f"解析圆形失败: {e}")
+            print(f"Failed to parse circle: {e}")
             return None
     
     def _parse_rectangle(self, rectangle, index, debug=False):
-        """解析矩形"""
+        """Parse rectangle"""
         try:
             position = getattr(rectangle, 'position', (0, 0))
             if hasattr(position, '__len__') and len(position) >= 2:
@@ -489,7 +490,7 @@ class GerberParser:
             rotation = getattr(rectangle, 'rotation', 0.0)
             
             if debug:
-                print(f"    矩形: 中心({x:.3f}, {y:.3f}), 尺寸: {width:.6f}x{height:.6f}")
+                print(f"    Rectangle: Center({x:.3f}, {y:.3f}), Size: {width:.6f}x{height:.6f}")
             
             return {
                 'id': index,
@@ -501,11 +502,11 @@ class GerberParser:
                 'rotation': rotation,
             }
         except Exception as e:
-            print(f"解析矩形失败: {e}")
+            print(f"Failed to parse rectangle: {e}")
             return None
     
     def _parse_obround(self, obround, index, debug=False):
-        """解析椭圆形"""
+        """Parse obround"""
         try:
             position = getattr(obround, 'position', (0, 0))
             if hasattr(position, '__len__') and len(position) >= 2:
@@ -518,7 +519,7 @@ class GerberParser:
             rotation = getattr(obround, 'rotation', 0.0)
             
             if debug:
-                print(f"    椭圆形: 中心({x:.3f}, {y:.3f}), 尺寸: {width:.6f}x{height:.6f}")
+                print(f"    Obround: Center({x:.3f}, {y:.3f}), Size: {width:.6f}x{height:.6f}")
             
             return {
                 'id': index,
@@ -530,11 +531,11 @@ class GerberParser:
                 'rotation': rotation,
             }
         except Exception as e:
-            print(f"解析椭圆形失败: {e}")
+            print(f"Failed to parse obround: {e}")
             return None
     
     def _parse_region(self, region, index, debug=False):
-        """解析区域"""
+        """Parse region"""
         try:
             bounding_box = getattr(region, 'bounding_box', ((0, 0), (0, 0)))
             
@@ -545,7 +546,7 @@ class GerberParser:
                 width = max_x - min_x
                 height = max_y - min_y
                 
-                # 计算中心点
+                # Calculate center point
                 center_x = (min_x + max_x) / 2
                 center_y = (min_y + max_y) / 2
             else:
@@ -554,8 +555,8 @@ class GerberParser:
                 center_x, center_y = 0, 0
             
             if debug:
-                print(f"    区域: 边界框({min_x:.3f}, {min_y:.3f}) -> ({max_x:.3f}, {max_y:.3f})")
-                print(f"          尺寸: {width:.6f}x{height:.6f}")
+                print(f"    Region: Bounding box({min_x:.3f}, {min_y:.3f}) -> ({max_x:.3f}, {max_y:.3f})")
+                print(f"          Size: {width:.6f}x{height:.6f}")
             
             return {
                 'id': index,
@@ -571,11 +572,11 @@ class GerberParser:
                 'is_valid': width > 0 and height > 0,
             }
         except Exception as e:
-            print(f"解析区域失败: {e}")
+            print(f"Failed to parse region: {e}")
             return None
     
     def _parse_unknown(self, primitive, index, debug=False):
-        """解析未知图元"""
+        """Parse unknown primitive"""
         try:
             return {
                 'id': index,
@@ -588,7 +589,7 @@ class GerberParser:
             return None
     
     def _analyze_primitive_types(self):
-        """分析图元类型统计"""
+        """Analyze primitive type statistics"""
         type_stats = {}
         for primitive in self.primitives:
             prim_type = primitive.get('type', 'unknown')
@@ -596,10 +597,10 @@ class GerberParser:
         return type_stats
 
 # ============================================================================
-# Gerber几何生成器
+# Gerber Geometry Generator
 # ============================================================================
 class GerberGenerator:
-    """Gerber几何生成器"""
+    """Gerber geometry generator"""
     
     def __init__(self):
         self.collection = None
@@ -607,42 +608,42 @@ class GerberGenerator:
         self.optimizer = PerformanceOptimizer()
     
     def create_gerber_geometry(self, primitives, file_info, debug=False, optimize=True):
-        """创建Gerber几何体"""
+        """Create Gerber geometry"""
         if not primitives:
-            print("⚠️ 没有图元数据")
+            print("⚠️ No primitive data")
             return {
                 'success': True,
                 'object_count': 0,
                 'collection': None,
-                'message': "没有图元数据"
+                'message': "No primitive data"
             }
         
         try:
-            print(f"🛠️ 开始创建几何体，共 {len(primitives)} 个图元")
+            print(f"🛠️ Starting to create geometry for {len(primitives)} primitives")
             
-            # 获取单位转换因子
+            # Get unit conversion factor
             units = file_info.get('units', 'metric')
             unit_factor = 0.0254 if units == 'inch' else 0.001
-            print(f"📏 单位系统: {units}, 转换因子: {unit_factor}")
+            print(f"📏 Unit system: {units}, Conversion factor: {unit_factor}")
             
-            # 生成唯一集合名称
+            # Generate unique collection name
             base_name = f"Gerber_{os.path.basename(file_info['filename']).replace('.', '_')}"
             timestamp = int(time.time())
             final_name = f"{base_name}_{timestamp}"
             
-            # 创建集合
+            # Create collection
             self._create_collection_safe(final_name)
             
-            # 清理内存
+            # Clean up memory
             if optimize:
                 self.optimizer.clear_unused_data()
             
-            # 批量处理图元
+            # Batch process primitives
             created_count = 0
             batch_index = 0
             
             for batch in self.optimizer.batch_process(primitives, batch_size=50):
-                print(f"📦 处理批次 {batch_index + 1}, 大小: {len(batch)}")
+                print(f"📦 Processing batch {batch_index + 1}, Size: {len(batch)}")
                 
                 for primitive in batch:
                     if self._create_primitive(primitive, created_count, unit_factor, debug and created_count < 5):
@@ -650,7 +651,7 @@ class GerberGenerator:
                 
                 batch_index += 1
                 
-                # 清理内存
+                # Clean up memory
                 if optimize and batch_index % 5 == 0:
                     self.optimizer.clear_unused_data()
             
@@ -658,32 +659,32 @@ class GerberGenerator:
                 'success': True,
                 'object_count': created_count,
                 'collection': final_name,
-                'message': f"创建了 {created_count} 个对象"
+                'message': f"Created {created_count} objects"
             }
             
-            print(f"\n✅ 几何创建完成: {result['message']}")
+            print(f"\n✅ Geometry creation complete: {result['message']}")
             return result
             
         except Exception as e:
-            error_msg = f"创建几何体失败: {str(e)}"
+            error_msg = f"Failed to create geometry: {str(e)}"
             print(f"❌ {error_msg}")
             traceback.print_exc()
             return {'success': False, 'error': error_msg}
     
     def _create_collection_safe(self, name):
-        """安全创建集合"""
+        """Safely create a collection"""
         try:
-            # 创建新集合
+            # Create new collection
             self.collection = bpy.data.collections.new(name)
             if bpy.context:
                 bpy.context.scene.collection.children.link(self.collection)
                 bpy.context.view_layer.active_layer_collection = bpy.context.view_layer.layer_collection.children[name]
-                print(f"📁 创建集合: {name}")
+                print(f"📁 Created collection: {name}")
         except Exception as e:
-            print(f"创建集合失败: {e}")
+            print(f"Failed to create collection: {e}")
     
     def _create_primitive(self, primitive, index, unit_factor, debug=False):
-        """创建图元"""
+        """Create a primitive"""
         primitive_type = primitive.get('type', 'unknown')
         
         try:
@@ -700,11 +701,11 @@ class GerberGenerator:
             else:
                 return self._create_point(primitive, index, unit_factor, debug)
         except Exception as e:
-            print(f"创建图元 {index} 失败: {e}")
+            print(f"Failed to create primitive {index}: {e}")
             return False
     
     def _create_line_connected(self, primitive, index, unit_factor, debug=False):
-        """创建连接的线段"""
+        """Create a connected line"""
         try:
             start_x = primitive.get('start_x', 0) * unit_factor
             start_y = primitive.get('start_y', 0) * unit_factor
@@ -713,12 +714,12 @@ class GerberGenerator:
             width = primitive.get('width', 0.001) * unit_factor
             
             if debug:
-                print(f"  🔧 创建连接线段 {index}:")
-                print(f"    起点: ({start_x:.6f}, {start_y:.6f})")
-                print(f"    终点: ({end_x:.6f}, {end_y:.6f})")
-                print(f"    线宽: {width:.6f}")
+                print(f"  🔧 Creating connected line {index}:")
+                print(f"    Start: ({start_x:.6f}, {start_y:.6f})")
+                print(f"    End: ({end_x:.6f}, {end_y:.6f})")
+                print(f"    Width: {width:.6f}")
             
-            # 计算线段的方向和长度
+            # Calculate line direction and length
             dx = end_x - start_x
             dy = end_y - start_y
             length = math.sqrt(dx*dx + dy*dy)
@@ -726,43 +727,43 @@ class GerberGenerator:
             if length == 0:
                 return False
             
-            # 创建有厚度的线段（矩形）
-            # 计算矩形的四个角点
+            # Create a thick line (rectangle)
+            # Calculate the four corners of the rectangle
             half_width = width / 2
             
-            # 计算垂直方向
+            # Calculate perpendicular direction
             if dx == 0:
-                # 垂直线段
+                # Vertical line
                 perp_x = half_width
                 perp_y = 0
             elif dy == 0:
-                # 水平线段
+                # Horizontal line
                 perp_x = 0
                 perp_y = half_width
             else:
-                # 斜线段
-                # 计算垂直向量
+                # Diagonal line
+                # Calculate perpendicular vector
                 perp_length = math.sqrt(dx*dx + dy*dy)
                 perp_x = -dy * half_width / perp_length
                 perp_y = dx * half_width / perp_length
             
-            # 创建矩形顶点
+            # Create rectangle vertices
             vertices = [
-                (start_x - perp_x, start_y - perp_y, 0),  # 起点左下
-                (start_x + perp_x, start_y + perp_y, 0),  # 起点右下
-                (end_x + perp_x, end_y + perp_y, 0),     # 终点右下
-                (end_x - perp_x, end_y - perp_y, 0),     # 终点左下
+                (start_x - perp_x, start_y - perp_y, 0),  # Start bottom-left
+                (start_x + perp_x, start_y + perp_y, 0),  # Start bottom-right
+                (end_x + perp_x, end_y + perp_y, 0),     # End top-right
+                (end_x - perp_x, end_y - perp_y, 0),     # End top-left
             ]
             
-            # 创建面
+            # Create face
             faces = [(0, 1, 2, 3)]
             
-            # 创建网格
+            # Create mesh
             mesh = bpy.data.meshes.new(f"Gerber_Line_Conn_{index:05d}")
             mesh.from_pydata(vertices, [], faces)
             mesh.update()
             
-            # 创建对象
+            # Create object
             line_obj = bpy.data.objects.new(f"Gerber_Line_Conn_{index:05d}", mesh)
             
             try:
@@ -775,11 +776,11 @@ class GerberGenerator:
             return True
             
         except Exception as e:
-            print(f"创建连接线段失败: {e}")
+            print(f"Failed to create connected line: {e}")
             return False
     
     def _create_circle(self, primitive, index, unit_factor, debug=False):
-        """创建圆形"""
+        """Create a circle"""
         if bpy.context is None:
             return False
 
@@ -791,15 +792,15 @@ class GerberGenerator:
             
             if diameter <= 0:
                 if debug:
-                    print(f"  ⚠️  圆形 {index}: 无效直径 {diameter}")
+                    print(f"  ⚠️  Circle {index}: Invalid diameter {diameter}")
                 return False
             
             if debug:
-                print(f"  🔧 创建圆形 {index}:")
-                print(f"    中心: ({x:.6f}, {y:.6f})")
-                print(f"    直径: {diameter:.6f}")
+                print(f"  🔧 Creating circle {index}:")
+                print(f"    Center: ({x:.6f}, {y:.6f})")
+                print(f"    Diameter: {diameter:.6f}")
             
-            # 创建圆形
+            # Create circle
             bpy.ops.mesh.primitive_circle_add(
                 vertices=32,
                 radius=radius,
@@ -810,11 +811,11 @@ class GerberGenerator:
             if circle:
                 circle.name = f"Gerber_Circle_{index:05d}"
             
-            # 链接到集合
+            # Link to collection
             if circle and self.collection:
                 self.collection.objects.link(circle)
             
-            # 从场景集合中移除
+            # Remove from scene collection
             if circle and circle.name in bpy.context.scene.collection.objects:
                 bpy.context.scene.collection.objects.unlink(circle)
             
@@ -822,11 +823,11 @@ class GerberGenerator:
             return True
             
         except Exception as e:
-            print(f"创建圆形失败: {e}")
+            print(f"Failed to create circle: {e}")
             return False
     
     def _create_rectangle(self, primitive, index, unit_factor, debug=False):
-        """创建矩形"""
+        """Create a rectangle"""
         if bpy.context is None:
             return False
 
@@ -839,15 +840,15 @@ class GerberGenerator:
             
             if width <= 0 or height <= 0:
                 if debug:
-                    print(f"  ⚠️  矩形 {index}: 无效尺寸 {width}x{height}")
+                    print(f"  ⚠️  Rectangle {index}: Invalid dimensions {width}x{height}")
                 return False
             
             if debug:
-                print(f"  🔧 创建矩形 {index}:")
-                print(f"    中心: ({x:.6f}, {y:.6f})")
-                print(f"    尺寸: {width:.6f}x{height:.6f}")
+                print(f"  🔧 Creating rectangle {index}:")
+                print(f"    Center: ({x:.6f}, {y:.6f})")
+                print(f"    Size: {width:.6f}x{height:.6f}")
             
-            # 创建平面
+            # Create plane
             bpy.ops.mesh.primitive_plane_add(
                 size=1.0,
                 location=(x, y, 0)
@@ -856,22 +857,22 @@ class GerberGenerator:
             if plane:
                 plane.name = f"Gerber_Rect_{index:05d}"
             
-                # 旋转
+                # Rotate
                 if rotation != 0:
                     plane.rotation_euler.z = math.radians(rotation)
                 
-                # 缩放
+                # Scale
                 plane.scale = (width, height, 1)
             
             self.created_objects.append(plane)
             return True
             
         except Exception as e:
-            print(f"创建矩形失败: {e}")
+            print(f"Failed to create rectangle: {e}")
             return False
     
     def _create_obround(self, primitive, index, unit_factor, debug=False):
-        """创建椭圆形"""
+        """Create an obround"""
         if bpy.context is None:
             return False
 
@@ -884,15 +885,15 @@ class GerberGenerator:
             
             if width <= 0 or height <= 0:
                 if debug:
-                    print(f"  ⚠️  椭圆形 {index}: 无效尺寸 {width}x{height}")
+                    print(f"  ⚠️  Obround {index}: Invalid dimensions {width}x{height}")
                 return False
             
             if debug:
-                print(f"  🔧 创建椭圆形 {index}:")
-                print(f"    中心: ({x:.6f}, {y:.6f})")
-                print(f"    尺寸: {width:.6f}x{height:.6f}")
+                print(f"  🔧 Creating obround {index}:")
+                print(f"    Center: ({x:.6f}, {y:.6f})")
+                print(f"    Size: {width:.6f}x{height:.6f}")
             
-            # 创建圆形
+            # Create circle
             radius = min(width, height) / 2
             bpy.ops.mesh.primitive_circle_add(
                 vertices=32,
@@ -903,10 +904,10 @@ class GerberGenerator:
             circle = bpy.context.active_object
             if circle:
                 circle.name = f"Gerber_Obround_{index:05d}"
-                # 旋转
+                # Rotate
                 if rotation != 0:
                     circle.rotation_euler.z = math.radians(rotation)
-                # 缩放为椭圆形
+                # Scale to obround
                 if width != height:
                     circle.scale = (width/height, 1, 1)
             
@@ -914,11 +915,11 @@ class GerberGenerator:
             return True
             
         except Exception as e:
-            print(f"创建椭圆形失败: {e}")
+            print(f"Failed to create obround: {e}")
             return False
     
     def _create_region(self, primitive, index, unit_factor, debug=False):
-        """创建区域"""
+        """Create a region"""
         if bpy.context is None:
             return False
 
@@ -931,20 +932,20 @@ class GerberGenerator:
             
             if not is_valid or width <= 0 or height <= 0:
                 if debug:
-                    print(f"  ⚠️  区域 {index}: 无效尺寸 {width}x{height}")
+                    print(f"  ⚠️  Region {index}: Invalid dimensions {width}x{height}")
                 return False
             
             if debug:
-                print(f"  🔧 创建区域 {index}:")
-                print(f"    中心: ({x:.6f}, {y:.6f})")
-                print(f"    尺寸: {width:.6f}x{height:.6f}")
+                print(f"  🔧 Creating region {index}:")
+                print(f"    Center: ({x:.6f}, {y:.6f})")
+                print(f"    Size: {width:.6f}x{height:.6f}")
             
-            # 创建较小的区域（原尺寸的1/10，避免过大）
+            # Create smaller region (1/10 of original size to avoid being too large)
             scale_factor = 0.1
             scaled_width = width * scale_factor
             scaled_height = height * scale_factor
             
-            # 创建平面表示区域
+            # Create plane to represent region
             bpy.ops.mesh.primitive_plane_add(
                 size=1.0,
                 location=(x, y, 0)
@@ -952,23 +953,23 @@ class GerberGenerator:
             plane = bpy.context.active_object
             if plane:
                 plane.name = f"Gerber_Region_{index:05d}"
-                # 缩放
+                # Scale
                 plane.scale = (scaled_width, scaled_height, 1)
             
             self.created_objects.append(plane)
             return True
             
         except Exception as e:
-            print(f"创建区域失败: {e}")
+            print(f"Failed to create region: {e}")
             return False
     
     def _create_point(self, primitive, index, unit_factor, debug=False):
-        """创建点"""
+        """Create a point"""
         try:
             x = primitive.get('x', 0) * unit_factor
             y = primitive.get('y', 0) * unit_factor
             
-            # 创建立方体
+            # Create cube
             bpy.ops.mesh.primitive_cube_add(
                 size=0.0005,
                 location=(x, y, 0)
@@ -982,42 +983,42 @@ class GerberGenerator:
             return True
             
         except Exception as e:
-            print(f"创建点失败: {e}")
+            print(f"Failed to create point: {e}")
             return False
 
 # ============================================================================
-# 清理操作符
+# Clear Operator
 # ============================================================================
 class IMPORT_OT_clear_all_objects(Operator):
-    """清理所有导入的对象"""
+    """Clear all imported objects"""
     bl_idname = "io_fritzing.clear_all_objects"
-    bl_label = "清理所有导入的对象"
-    bl_description = "清理所有导入的对象，提高性能"
+    bl_label = "Clear All Imported Objects"
+    bl_description = "Clear all imported objects to improve performance"
     
     def execute(self, context):
         try:
-            # 清理未使用的数据
+            # Clean up unused data
             optimizer = PerformanceOptimizer()
             optimizer.clear_unused_data()
             
-            # 统计清理前的对象数量
+            # Count objects before cleanup
             meshes_before = len(bpy.data.meshes)
             materials_before = len(bpy.data.materials)
             
-            # 清理集合
+            # Clean up collections
             collections_to_remove = []
             for collection in bpy.data.collections:
                 if collection.name.startswith(("Gerber_", "Drill_", "PCB_")):
                     collections_to_remove.append(collection)
             
             for collection in collections_to_remove:
-                # 删除集合中的所有对象
+                # Delete all objects in the collection
                 for obj in collection.objects:
                     bpy.data.objects.remove(obj, do_unlink=True)
-                # 删除集合
+                # Delete the collection
                 bpy.data.collections.remove(collection)
             
-            # 清理独立的Gerber对象
+            # Clean up standalone Gerber objects
             objects_to_remove = []
             for obj in bpy.data.objects:
                 if obj.name.startswith(("Gerber_", "Drill_")):
@@ -1026,50 +1027,50 @@ class IMPORT_OT_clear_all_objects(Operator):
             for obj in objects_to_remove:
                 bpy.data.objects.remove(obj, do_unlink=True)
             
-            # 强制垃圾回收
+            # Force garbage collection
             gc.collect()
             
-            # 统计清理后的对象数量
+            # Count objects after cleanup
             meshes_after = len(bpy.data.meshes)
             materials_after = len(bpy.data.materials)
             
-            message = f"清理完成: 删除了 {len(collections_to_remove)} 个集合, {len(objects_to_remove)} 个对象"
-            message += f"\n网格减少: {meshes_before} -> {meshes_after}"
-            message += f"\n材质减少: {materials_before} -> {materials_after}"
+            message = pgettext("Cleanup complete: Deleted {collections_to_remove} collections, {objects_to_remove} objects").format(collections_to_remove = len(collections_to_remove), objects_to_remove = len(objects_to_remove))
+            message += pgettext(" Meshes reduced: {meshes_before} -> {meshes_after}").format(meshes_before = meshes_before, meshes_after = meshes_after)
+            message += pgettext(" Materials reduced: {materials_before} -> {materials_after}").format(materials_before = materials_before, materials_after = materials_after)
             
             self.report({'INFO'}, message)
             return {'FINISHED'}
             
         except Exception as e:
-            error_msg = f"清理失败: {str(e)}"
+            error_msg = pgettext("Cleanup failed: {error}").format(error = str(e))
             self.report({'ERROR'}, error_msg)
             return {'CANCELLED'}
 
 # ============================================================================
-# 主导入操作符
+# Main Import Operator
 # ============================================================================
 class IMPORT_OT_gerber(Operator):
-    """Gerber导入"""
+    """Import Gerber Folder"""
     bl_idname = "io_fritzing.import_gerber_file"
-    bl_label = "导入Gerber文件"
-    bl_description = "导入Gerber文件"
+    bl_label = "Import Gerber Folder"
+    bl_description = "Import Gerber Folder"
     bl_options = {'REGISTER', 'UNDO'}
     bl_order = 1
     
     debug_mode: BoolProperty(
-        name="调试模式",
-        description="显示详细的调试信息",
+        name="Debug mode",
+        description="Output debug information in console",
         default=False
     ) # type: ignore
     
     optimize_performance: BoolProperty(
-        name="性能优化",
-        description="启用性能优化（批量处理和内存清理）",
+        name="Optimize performance",
+        description="Enable performance optimization (batch processing and memory cleanup)",
         default=True
     ) # type: ignore
     
     def invoke(self, context, event):
-        """调用对话框"""
+        """Invoke dialog"""
         global gerber_fileinfo
         if not gerber_fileinfo or len(gerber_fileinfo) == 0:
             if context:
@@ -1078,7 +1079,7 @@ class IMPORT_OT_gerber(Operator):
         return self.execute(context)
     
     def execute(self, context):
-        """执行导入"""
+        """Execute import"""
         global gerber_fileinfo
 
         main_collection = None
@@ -1091,7 +1092,7 @@ class IMPORT_OT_gerber(Operator):
                 continue
 
             if main_collection is None:
-                # 创建主集合
+                # Create main collection
                 cut = filepath.rindex(os.path.sep[0])
                 directory = filepath[0:cut]
                 collection_name = os.path.basename(directory).replace('.', '_')
@@ -1105,14 +1106,14 @@ class IMPORT_OT_gerber(Operator):
 
             try:
                 if layer_name == 'drill':
-                    parser = DrillParser()  # 使用之前定义好的解析器
+                    parser = DrillParser()
                     result = parser.parse_drill_file(filepath, debug=self.debug_mode)
                     
                     if not result.get('success', False):
-                        self.report({'ERROR'}, f"解析失败: {result.get('error', '未知错误')}")
+                        self.report({'ERROR'}, pgettext("Parse failed: ") + result.get('error', pgettext('Unknown error')))
                         return {'CANCELLED'}
                     
-                    # 创建几何体
+                    # Create geometry
                     generator = DrillGenerator()
                     primitives = result.get('primitives', [])
                     file_info = result.get('file_info', {})
@@ -1127,20 +1128,20 @@ class IMPORT_OT_gerber(Operator):
                     )
                     
                     if not create_result.get('success', False):
-                        self.report({'ERROR'}, f"创建几何体失败: {create_result.get('error', '未知错误')}")
+                        self.report({'ERROR'}, pgettext("Geometry creation failed: {create_result_error}").format(create_result_error = create_result.get('error', pgettext('Unknown error'))))
                         return {'CANCELLED'}
                     
-                    message = f"导入完成: {create_result.get('object_count', 0)} 个钻孔"
+                    message = pgettext("Import complete: {object_count)} drills").format(object_count = create_result.get('object_count', 0))
                     self.report({'INFO'}, message)
                     import_success += 1
 
                 else:
-                    # 解析Gerber RS-274X文件
+                    # Parse Gerber RS-274X file
                     parser = GerberParser()
                     result = parser.parse_gerber(filepath, debug=self.debug_mode)
                     
                     if not result.get('success', False):
-                        self.report({'ERROR'}, f"解析失败: {result.get('error', '未知错误')}")
+                        self.report({'ERROR'}, pgettext("Parse failed: ") + result.get('error', pgettext('Unknown error')))
                         return {'CANCELLED'}
                     
                     result_stats = _create_gerber_mesh_filled(layer_name,
@@ -1149,16 +1150,16 @@ class IMPORT_OT_gerber(Operator):
                         result.get('unit_factor', 0.001)
                     )
                     
-                    # 报告结果
-                    message = f"导入完成: {result_stats['total_prims']}个图元, {result_stats['total_verts']}个顶点, {result_stats['total_faces']}个面"
+                    # Report result
+                    message = pgettext("Import complete: {total_prims} primitives, {total_verts} vertices, {total_faces} faces").format(total_prims=result_stats['total_prims'], total_verts=result_stats['total_verts'], total_faces=result_stats['total_faces'])
                     self.report({'INFO'}, message)
-                    print(f"导入结果: {message}")
-                    print(f"集合名称: {collection_name}")
+                    print(f"Import result: {message}")
+                    print(f"Collection name: {collection_name}")
                     if result_stats.get('success', False):
                         import_success += 1
                 
             except Exception as e:
-                error_msg = f"导入过程错误: {str(e)}"
+                error_msg = pgettext("Import process error: {error}").format(error = str(e))
                 self.report({'ERROR'}, error_msg)
 
         if import_success == len(gerber_fileinfo.items()) and context:
@@ -1174,10 +1175,10 @@ class IMPORT_OT_gerber(Operator):
 
 
 # ============================================================================
-# Gerber 2D图元解析
+# Gerber 2D Primitive Parsing
 # ============================================================================
 def _create_gerber_mesh_filled(layer_name, primitives, collection, unit_factor, debug_mode=False):
-    """创建Gerber网格 - 2D填充模式核心函数"""
+    """Create Gerber mesh - 2D filled mode core function"""
     stats = {
         'total_prims': len(primitives),
         'total_verts': 0,
@@ -1186,26 +1187,26 @@ def _create_gerber_mesh_filled(layer_name, primitives, collection, unit_factor, 
         'success': False
     }
     if bpy.context is None:
-        print("警告: 必须在Blender里运行")
+        print("Warning: Must be run in Blender")
         return stats
     
-    print(f"开始创建Gerber网格: {len(primitives)} 个图元")
-    print(f"单位转换比例: {unit_factor}")
+    print(f"Starting to create Gerber mesh: {len(primitives)} primitives")
+    print(f"Unit conversion factor: {unit_factor}")
     
-    # 将所有图元合并到一个网格中
+    # Merge all primitives into one mesh
     all_verts = []
     all_faces = []
     
-    # 处理每个图元
+    # Process each primitive
     for i, prim in enumerate(primitives):
-        if i < 5 or debug_mode:  # 显示前几个的调试信息
-            print(f"  处理图元 {i+1}/{len(primitives)}: {prim.get('type', 'unknown')}")
+        if i < 5 or debug_mode:  # Show debug info for the first few
+            print(f"  Processing primitive {i+1}/{len(primitives)}: {prim.get('type', 'unknown')}")
         
-        # 为每个图元创建网格数据
+        # Create mesh data for each primitive
         verts, faces = _create_mesh_from_primitive(prim, i, unit_factor, debug_mode)
         
         if verts and faces:
-            # 调整面索引，因为我们要合并到同一个网格
+            # Adjust face indices because we're merging into the same mesh
             vert_offset = len(all_verts)
             for face in faces:
                 all_faces.append([v_idx + vert_offset for v_idx in face])
@@ -1216,42 +1217,42 @@ def _create_gerber_mesh_filled(layer_name, primitives, collection, unit_factor, 
             stats['total_faces'] += len(faces)
     
     if not all_verts:
-        print("警告: 没有创建任何网格数据")
+        print("Warning: No mesh data created")
         return stats
     
-    # 创建合并后的网格
+    # Create merged mesh
     mesh_data = bpy.data.meshes.new(layer_name)
     mesh_data.from_pydata(all_verts, [], all_faces)
     mesh_data.update()
     
-    # 创建网格对象
+    # Create mesh object
     mesh_obj = bpy.data.objects.new(layer_name, mesh_data)
     
-    # 确保对象是2D平面（Z坐标为0）
+    # Ensure object is a 2D plane (Z coordinate is 0)
     mesh_obj.location.z = 0
     
-    # 添加到集合
+    # Add to collection
     collection.objects.link(mesh_obj)
     
-    # 设置为活动对象
+    # Set as active object
     bpy.context.view_layer.objects.active = mesh_obj
     mesh_obj.select_set(True)
     stats['mesh_obj'] = mesh_obj
     
-    # 更新场景
+    # Update scene
     bpy.context.view_layer.update()
     
     stats['meshes_created'] = 1
     
-    print(f"网格创建完成: {len(all_verts)}个顶点, {len(all_faces)}个面")
-    print(f"网格尺寸: {mesh_obj.dimensions}")
+    print(f"Mesh creation complete: {len(all_verts)} vertices, {len(all_faces)} faces")
+    print(f"Mesh dimensions: {mesh_obj.dimensions}")
 
     stats['success'] = True
     
     return stats
 
 def _create_mesh_from_primitive(prim, index, unit_factor, debug_mode=False):
-    """从图元创建样条线"""
+    """Create spline from primitive"""
     try:
         prim_type = prim.get('type', '')
         if prim_type == 'line':
@@ -1265,51 +1266,51 @@ def _create_mesh_from_primitive(prim, index, unit_factor, debug_mode=False):
         elif prim_type == 'region':
             return _create_region_mesh(prim, index, unit_factor, debug_mode)
         else:
-            print(f"未知的图元类型{prim_type}: {prim}")
+            print(f"Unknown primitive type {prim_type}: {prim}")
             return [], []
     except Exception as e:
-        print(f"创建样条线 {index} 失败: {e}")
+        print(f"Failed to create spline {index}: {e}")
         return [], []
     
 def _create_line_mesh(line_data, index, unit_factor, debug_mode=False):
-    """创建线段网格（有宽度的矩形）"""
-    # 应用偏移和单位转换
+    """Create line mesh (rectangle with width)"""
+    # Apply offset and unit conversion
     x1 = line_data.get('x1', 0) * unit_factor
     y1 = line_data.get('y1', 0) * unit_factor
     x2 = line_data.get('x2', 0) * unit_factor
     y2 = line_data.get('y2', 0) * unit_factor
     width = line_data.get('width', 0.1) * unit_factor
     
-    # 计算线段方向和垂直方向
+    # Calculate line direction and perpendicular direction
     dx = x2 - x1
     dy = y2 - y1
     length = math.sqrt(dx*dx + dy*dy)
     
-    if length < 0.000001 or width < 0.000001:  # 忽略过短的线段
+    if length < 0.000001 or width < 0.000001:  # Ignore too short lines
         if debug_mode:
-            print(f"    忽略过短线: 长度={length}, 宽度={width}")
+            print(f"    Ignoring too short line: length={length}, width={width}")
         return [], []
     
-    # 计算单位向量
+    # Calculate unit vector
     ux = dx / length
     uy = dy / length
     
-    # 计算垂直向量
+    # Calculate perpendicular vector
     vx = -uy * (width * 0.5)
     vy = ux * (width * 0.5)
     
-    # 计算矩形的四个角点
+    # Calculate the four corners of the rectangle
     verts = [
-        (x1 - vx, y1 - vy, 0.0),  # 左下
-        (x1 + vx, y1 + vy, 0.0),  # 右下
-        (x2 + vx, y2 + vy, 0.0),  # 右上
-        (x2 - vx, y2 - vy, 0.0)   # 左上
+        (x1 - vx, y1 - vy, 0.0),  # Bottom-left
+        (x1 + vx, y1 + vy, 0.0),  # Bottom-right
+        (x2 + vx, y2 + vy, 0.0),  # Top-right
+        (x2 - vx, y2 - vy, 0.0)   # Top-left
     ]
     
-    # 创建两个三角形面
+    # Create two triangular faces
     faces = [[0, 1, 2], [0, 2, 3]]
 
-    # 在两个端点创建两个直径为线宽的圆
+    # Create two circles at the endpoints with diameter equal to line width
     circle_verts, circle_faces = _create_line_terminal_circle_mesh(x1, y1, x2, y2, width/2)
     vert_offset = len(verts)
     for face in circle_faces:
@@ -1317,44 +1318,44 @@ def _create_line_mesh(line_data, index, unit_factor, debug_mode=False):
     verts.extend(circle_verts)
 
     if debug_mode and index < 5:
-        print(f"    创建线段网格: 起点=({x1:.6f}, {y1:.6f}), 终点=({x2:.6f}, {y2:.6f}), 宽度={width:.6f}")
+        print(f"    Creating line mesh: start=({x1:.6f}, {y1:.6f}), end=({x2:.6f}, {y2:.6f}), width={width:.6f}")
     
     return verts, faces
 
 def _create_line_terminal_circle_mesh(x1, y1, x2, y2, radius):
     segments = 32
     
-    # 1. 以(x1, y1)为圆心，radius为半径，创建一个圆
+    # 1. Create a circle with center at (x1, y1) and radius
     verts = []
     faces = []
 
-    # 中心点
+    # Center point
     verts.append((x1, y1, 0.0))
     
-    # 圆周上的点
+    # Points on the circumference
     for i in range(segments):
         angle = 2 * math.pi * i / segments
         px = x1 + radius * math.cos(angle)
         py = y1 + radius * math.sin(angle)
         verts.append((px, py, 0.0))
     
-    # 创建三角形扇
+    # Create triangle fan
     for i in range(segments):
         next_i = (i + 1) % segments
         faces.append([0, i + 1, next_i + 1])
 
-    # 2. 以(x2, y2)为圆心，radius为半径，创建一个圆
-    # 中心点
+    # 2. Create a circle with center at (x2, y2) and radius
+    # Center point
     verts.append((x2, y2, 0.0))
     
-    # 圆周上的点
+    # Points on the circumference
     for i in range(segments):
         angle = 2 * math.pi * i / segments
         px = x2 + radius * math.cos(angle)
         py = y2 + radius * math.sin(angle)
         verts.append((px, py, 0.0))
     
-    # 创建三角形扇
+    # Create triangle fan
     for i in range(segments):
         next_i = (i + 1) % segments
         faces.append([segments + 1, i + 2 + segments, next_i + 2 + segments])
@@ -1362,181 +1363,181 @@ def _create_line_terminal_circle_mesh(x1, y1, x2, y2, radius):
     return verts, faces
 
 def _create_circle_mesh(circle_data, index, unit_factor, debug_mode=False):
-    """创建圆形网格（实心圆或圆环）"""
+    """Create circle mesh (solid circle or ring)"""
     x = circle_data.get('x', 0) * unit_factor
     y = circle_data.get('y', 0) * unit_factor
     radius = circle_data.get('radius', 0.05) * unit_factor
 
-    # 创建网格
+    # Create mesh
     segments = 32
     verts = []
     faces = []
-    print(f'圆({index}): {circle_data}')
+    print(f'Circle({index}): {circle_data}')
     if circle_data.get('hole_diameter', 0.0) == 0.0:
-        # 实心圆
-        if radius < 0.000001:  # 忽略过小的圆形
+        # Solid circle
+        if radius < 0.000001:  # Ignore too small circles
             if debug_mode:
-                print(f"    忽略过小圆: 半径={radius}")
+                print(f"    Ignoring too small circle: radius={radius}")
             return [], []
         
-        # 中心点
+        # Center point
         verts.append((x, y, 0.0))
         
-        # 圆周上的点
+        # Points on the circumference
         for i in range(segments):
             angle = 2 * math.pi * i / segments
             px = x + radius * math.cos(angle)
             py = y + radius * math.sin(angle)
             verts.append((px, py, 0.0))
         
-        # 创建三角形扇
+        # Create triangle fan
         for i in range(segments):
             next_i = (i + 1) % segments
             faces.append([0, i + 1, next_i + 1])
         
         if debug_mode and index < 5:
-            print(f"    创建圆形网格: 中心=({x:.6f}, {y:.6f}), 半径={radius:.6f}")
+            print(f"    Creating circle mesh: center=({x:.6f}, {y:.6f}), radius={radius:.6f}")
     else:
-        # 圆环
+        # Ring
         hole_radius = circle_data['hole_diameter'] * unit_factor/2
 
-        # 外圆周上的点
+        # Points on the outer circumference
         for i in range(segments):
             angle = 2 * math.pi * i / segments
             px = x + radius * math.cos(angle)
             py = y + radius * math.sin(angle)
             verts.append((px, py, 0.0))
         
-        # 内圆周上的点
+        # Points on the inner circumference
         for i in range(segments):
             angle = 2 * math.pi * i / segments
             px = x + hole_radius * math.cos(angle)
             py = y + hole_radius * math.sin(angle)
             verts.append((px, py, 0.0))
 
-        # 创建面（连接内外圆）
+        # Create faces (connecting inner and outer circles)
         for i in range(segments):
             next_i = (i + 1) % segments
             
-            # 外圆当前点和下一点
+            # Outer circle current point and next point
             outer_current = i
             outer_next = next_i
             
-            # 内圆当前点和下一点（注意索引偏移）
+            # Inner circle current point and next point (note index offset)
             inner_current = i + segments
             inner_next = next_i + segments
             
-            # 创建两个三角形形成四边形
-            # 三角形1: 外圆当前点 -> 外圆下一点 -> 内圆下一点
+            # Create two triangles to form a quadrilateral
+            # Triangle 1: outer current -> outer next -> inner next
             faces.append([outer_current, outer_next, inner_next])
             
-            # 三角形2: 外圆当前点 -> 内圆下一点 -> 内圆当前点
+            # Triangle 2: outer current -> inner next -> inner current
             faces.append([outer_current, inner_next, inner_current])
         
     return verts, faces
 
 def _create_rectangle_mesh(rect_data, index, unit_factor, debug_mode=False):
-    """创建矩形网格（实心矩形）"""
+    """Create rectangle mesh (solid rectangle)"""
     x = rect_data.get('x', 0) * unit_factor
     y = rect_data.get('y', 0) * unit_factor
     width = rect_data.get('width', 0.1) * unit_factor
     height = rect_data.get('height', 0.1) * unit_factor
     
-    if width < 0.000001 or height < 0.000001:  # 忽略过小的矩形
+    if width < 0.000001 or height < 0.000001:  # Ignore too small rectangles
         if debug_mode:
-            print(f"    忽略过小矩形: 宽度={width}, 高度={height}")
+            print(f"    Ignoring too small rectangle: width={width}, height={height}")
         return [], []
     
-    # 计算矩形半宽高
+    # Calculate half width and height
     half_width = width * 0.5
     half_height = height * 0.5
     
-    # 创建矩形顶点
+    # Create rectangle vertices
     verts = [
-        (x - half_width, y - half_height, 0.0),  # 左下
-        (x + half_width, y - half_height, 0.0),  # 右下
-        (x + half_width, y + half_height, 0.0),  # 右上
-        (x - half_width, y + half_height, 0.0)   # 左上
+        (x - half_width, y - half_height, 0.0),  # Bottom-left
+        (x + half_width, y - half_height, 0.0),  # Bottom-right
+        (x + half_width, y + half_height, 0.0),  # Top-right
+        (x - half_width, y + half_height, 0.0)   # Top-left
     ]
     
-    # 创建两个三角形面
+    # Create two triangular faces
     faces = [[0, 1, 2], [0, 2, 3]]
     
     if debug_mode and index < 5:
-        print(f"    创建矩形网格: 中心=({x:.6f}, {y:.6f}), 大小={width:.6f}x{height:.6f}")
+        print(f"    Creating rectangle mesh: center=({x:.6f}, {y:.6f}), size={width:.6f}x{height:.6f}")
     
     return verts, faces
 
 def _create_obround_mesh(obround_data, index, unit_factor, debug_mode=False):
-    """创建椭圆形网格（实心椭圆）"""
+    """Create obround mesh (solid obround)"""
     x = obround_data.get('x', 0) * unit_factor
     y = obround_data.get('y', 0) * unit_factor
     width = obround_data.get('width', 0.1) * unit_factor
     height = obround_data.get('height', 0.1) * unit_factor
     
-    if width < 0.000001 or height < 0.000001:  # 忽略过小的椭圆形
+    if width < 0.000001 or height < 0.000001:  # Ignore too small obrounds
         if debug_mode:
-            print(f"    忽略过小椭圆形: 宽度={width}, 高度={height}")
+            print(f"    Ignoring too small obround: width={width}, height={height}")
         return [], []
     
-    # 计算半轴
+    # Calculate semi-axes
     a = width * 0.5
     b = height * 0.5
     
-    # 创建椭圆形网格
+    # Create obround mesh
     segments = 32
     verts = []
     faces = []
     
-    # 中心点
+    # Center point
     verts.append((x, y, 0.0))
     
-    # 椭圆上的点
+    # Points on the obround
     for i in range(segments):
         angle = 2 * math.pi * i / segments
         px = x + a * math.cos(angle)
         py = y + b * math.sin(angle)
         verts.append((px, py, 0.0))
     
-    # 创建三角形扇
+    # Create triangle fan
     for i in range(segments):
         next_i = (i + 1) % segments
         faces.append([0, i + 1, next_i + 1])
     
     if debug_mode and index < 5:
-        print(f"    创建椭圆形网格: 中心=({x:.6f}, {y:.6f}), 大小={width:.6f}x{height:.6f}")
+        print(f"    Creating obround mesh: center=({x:.6f}, {y:.6f}), size={width:.6f}x{height:.6f}")
     
     return verts, faces
 
 def _create_region_mesh(region_data, index, unit_factor, debug_mode=False):
     points_2d = region_data.get('vertices')
     if len(points_2d) < 3:
-        print(f"错误: 至少需要3个点")
+        print(f"Error: At least 3 points are required")
         return [], []
     
-    # 转换为3D顶点
+    # Convert to 3D vertices
     verts = [(x * unit_factor, y * unit_factor, 0.0) for x, y in points_2d]
     
-    # 创建面 - 使用凸多边形三角剖分
+    # Create faces - using convex polygon triangulation
     faces = []
     for j in range(1, len(verts) - 1):
         faces.append([0, j, j + 1])
     if debug_mode and index < 5:
-        print(f"    创建区域网格: {len(verts)}个顶点，{len(faces)}个面，顶点={verts}")
+        print(f"    Creating region mesh: {len(verts)} vertices, {len(faces)} faces, vertices={verts}")
     
     return verts, faces
 
 
 # ============================================================================
-# 设置面板
+# Settings Panel
 # ============================================================================
 class VIEW3D_PT_gerber(Panel):
-    """Gerber导入设置面板"""
-    bl_label = "Gerber导入"
+    """Gerber Import Settings Panel"""
+    bl_label = "Gerber Import"
     bl_idname = "VIEW3D_PT_gerber"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "Fritzing工具"
+    bl_category = "Fritzing Tools"
     bl_order = 1
 
     stats = {}
@@ -1553,69 +1554,71 @@ class VIEW3D_PT_gerber(Panel):
             return
         scene = context.scene
         
-        # 标题
+        # Title
         box = layout.box()
-        box.label(text="Gerber文件导入", icon='IMPORT')
+        box.label(text="Gerber Folder Import", icon='IMPORT')
         
-        # 文件选择
+        # File selection
         row = box.row(align=True)
         row.prop(scene, "gerber_filepath", text="")
         row.operator("io_fritzing.browse_gerber_files",
                     text="", 
                     icon='FILEBROWSER')
         
-        # 文件信息
+        # File information
         filepath = getattr(scene, "gerber_filepath")
         can_process = False
         if filepath and os.path.exists(filepath) and len(gerber_fileinfo) > 0:
             try:
                 col = box.column(align=True)
-                col.label(text=f"有{len(gerber_fileinfo)}个文件：", icon='INFO')
+                col.label(text=pgettext("{count} files found:").format(count=len(gerber_fileinfo)), icon='INFO')
                 for layer_name, file_info in gerber_fileinfo.items():
                     postfix = os.path.splitext(file_info['filepath'])[1]
                     total = file_info['total_prims']
                     if total >= 0:
                         can_process = True
                         row = box.row()
-                        col = row.column()
-                        col.label(text=f"{layer_name}({postfix})：", icon='CHECKMARK')
-                        col = row.column()
-                        col.label(text=f"{total}个图元")
+                        col1 = row.column()
+                        col1.scale_x = 0.6
+                        col1.label(text=pgettext(layer_name) + "(" + postfix + "):", icon='CHECKMARK')
+                        col2 = row.column()
+                        col2.scale_x = 0.5
+                        col2.label(text=str(total) + pgettext(" primitives"))
                     else:
                         row = box.row()
                         col = row.column()
-                        col.label(text=f"{postfix}：解析失败", icon='X')
+                        col.label(text="(" + postfix + "): " + pgettext("Parse failed"), icon='X')
                 if can_process:
                     row = box.row()
                     col = row.column()
-                    col.label(text=f"解析耗时：{getattr(context.scene, 'fetch_gerber_prims_time_consumed'): .2f}秒", icon='PREVIEW_RANGE')
+                    col.label(text=pgettext("Parse time: ") + f"{getattr(context.scene, 'fetch_gerber_prims_time_consumed'): .2f}s", icon='PREVIEW_RANGE')
             except Exception as e:
-                print(f'发生意外：{e}')
+                print(f'Unexpected error: {e}')
                 pass
 
-        # 导入按钮
+        # Import button
         layout.separator()
         col = layout.column(align=True)
         
         if can_process:
             op = col.operator("io_fritzing.import_gerber_file", 
-                             text="导入Gerber文件", 
+                             text="Import Gerber Files", 
                              icon='IMPORT')
             setattr(op, 'debug_mode', getattr(scene, 'gerber_debug_mode', False))
             setattr(op, 'optimize_performance', getattr(scene, 'gerber_optimize_performance'))
             
             col.separator()
             col.operator("io_fritzing.clear_all_objects", 
-                        text="清理所有导入的对象", 
+                        text="Clear All Imported Objects", 
                         icon='TRASH')
         else:
-            col.label(text="请先选择Gerber文件", icon='ERROR')
+            col.label(text="Please select Gerber folder first", icon='ERROR')
 
     def get_gerber_stats(self, filepath):
         start_time = time.time()
         try:
             gerber = read(filepath)
-            # 提取图元
+            # Extract primitives
             lines = 0
             circles = 0
             regions = 0
@@ -1657,12 +1660,12 @@ class VIEW3D_PT_gerber(Panel):
 
 
 # ============================================================================
-# 辅助操作符
+# Auxiliary Operators
 # ============================================================================
 class IMPORT_OT_browse_gerber_files(Operator, ImportHelper):
-    """浏览Gerber文件"""
+    """Browse Gerber Files"""
     bl_idname = "io_fritzing.browse_gerber_files"
-    bl_label = "导入Gerber文件夹"
+    bl_label = "Import Gerber Folder"
     
     use_filter_folder = True
 
@@ -1681,7 +1684,7 @@ class IMPORT_OT_browse_gerber_files(Operator, ImportHelper):
             return
         time_start = time.time()
         global gerber_fileinfo
-        # 设置等待光标
+        # Set wait cursor
         context.window.cursor_modal_set('WAIT')
         directory = self.properties['filepath']
         cut = directory.rindex(os.path.sep[0])
@@ -1709,7 +1712,7 @@ class IMPORT_OT_browse_gerber_files(Operator, ImportHelper):
             setattr(context.scene, 'gerber_filepath', directory)
         setattr(context.scene, 'fetch_gerber_prims_time_consumed', time.time() - time_start)
 
-        # 恢复光标
+        # Restore cursor
         context.window.cursor_modal_set('DEFAULT')
         return {'FINISHED'}
 
@@ -1720,20 +1723,20 @@ class IMPORT_OT_browse_gerber_files(Operator, ImportHelper):
             gerber = read(filename)
             total = len(gerber.primitives)
         except:
-            total = -1   # 解析gerber失败
+            total = -1   # Failed to parse gerber
             pass
         gerber_fileinfo[layer_name] = {'filepath': filename, 'total_prims': total}
 
 
 # ============================================================================
-# 菜单导入流程使用的操作符
+# Operators used by the menu import process
 # ============================================================================
 class ImportSingleGerber(Operator):
     bl_idname = "fritzing.import_single_gerber"
     bl_label = "Import a single Fritzing Gerber file"
 
     def execute(self, context):
-        """执行导入"""
+        """Execute import"""
         layer_name = None
         try:
             layer_name = next(iter(importdata.filenames))
@@ -1742,21 +1745,21 @@ class ImportSingleGerber(Operator):
                 importdata.step_name = 'POST_GERBER_EXTRUDE'
                 return {'FINISHED'}
             else:
-                self.report({'ERROR'}, f"没有可处理的Gerber文件了")
+                self.report({'ERROR'}, pgettext("No more Gerber files to process"))
                 return {'CANCELLED'}
 
         filepath = importdata.filenames[layer_name]
         if not filepath or not os.path.exists(filepath):
-            self.report({'ERROR'}, f"Gerber文件 {filepath} 不存在")
+            self.report({'ERROR'}, pgettext("Gerber file {filepath} does not exist").format(filepath = filepath))
             return {'CANCELLED'}
         if bpy.context is None:
             return {'CANCELLED'}
 
         importdata.current_file = filepath
         if context and hasattr(context.scene, 'gerber_progress_indicator_text'):
-            setattr(context.scene, 'gerber_progress_indicator_text', bpy.app.translations.pgettext('Importing ') + filepath[filepath.rindex(os.path.sep[0]) + 1 :])
+            setattr(context.scene, 'gerber_progress_indicator_text', pgettext('Importing ') + filepath[filepath.rindex(os.path.sep[0]) + 1 :])
 
-        # 创建主集合
+        # Create main collection
         cut = filepath.rindex(os.path.sep[0])
         directory = filepath[0:cut]
         collection_name = os.path.basename(directory).replace('.', '_')
@@ -1771,14 +1774,14 @@ class ImportSingleGerber(Operator):
 
         try:
             if layer_name == 'drill':
-                parser = DrillParser()  # 使用之前定义好的解析器
+                parser = DrillParser()  # Use the previously defined parser
                 result = parser.parse_drill_file(filepath, debug=False)
                 
                 if not result.get('success', False):
-                    self.report({'ERROR'}, f"解析失败: {result.get('error', '未知错误')}")
+                    self.report({'ERROR'}, pgettext("Parse failed: ") + result.get('error', pgettext('Unknown error')))
                     return {'CANCELLED'}
                 
-                # 创建几何体
+                # Create geometry
                 generator = DrillGenerator()
                 primitives = result.get('primitives', [])
                 file_info = result.get('file_info', {})
@@ -1793,10 +1796,10 @@ class ImportSingleGerber(Operator):
                 )
                 
                 if not create_result.get('success', False):
-                    self.report({'ERROR'}, f"创建几何体失败: {create_result.get('error', '未知错误')}")
+                    self.report({'ERROR'}, pgettext("Geometry creation failed: {create_result_error}").format(create_result_error = create_result.get('error', pgettext('Unknown error'))))
                     getattr(getattr(bpy.ops, 'fritzing'), 'import_error')("INVOKE_DEFAULT")
                 
-                message = f"导入完成: {create_result.get('object_count', 0)} 个钻孔"
+                message = pgettext("Import complete: {object_count)} drills").format(object_count = create_result.get('object_count', 0))
                 self.report({'INFO'}, message)
 
                 layer = create_result['layer']
@@ -1804,12 +1807,12 @@ class ImportSingleGerber(Operator):
                 importdata.filenames.pop(layer_name)
                 importdata.current = importdata.current + 1
             else:
-                # 解析Gerber RS-274X文件
+                # Parse Gerber RS-274X file
                 parser = GerberParser()
                 result = parser.parse_gerber(filepath, debug=False)
                 
                 if not result.get('success', False):
-                    self.report({'ERROR'}, f"解析失败: {result.get('error', '未知错误')}")
+                    self.report({'ERROR'}, pgettext("Parse failed: ") + result.get('error', pgettext('Unknown error')))
                     getattr(getattr(bpy.ops, 'fritzing'), 'import_error')("INVOKE_DEFAULT")
                 
                 result_stats = _create_gerber_mesh_filled(layer_name,
@@ -1818,11 +1821,11 @@ class ImportSingleGerber(Operator):
                     result.get('unit_factor', 0.001),
                 )
                 
-                # 报告结果
-                message = f"导入完成: {result_stats['total_prims']}个图元, {result_stats['total_verts']}个顶点, {result_stats['total_faces']}个面"
+                # Report result
+                message = pgettext("Import complete: {total_prims} primitives, {total_verts} vertices, {total_faces} faces").format(total_prims=result_stats['total_prims'], total_verts=result_stats['total_verts'], total_faces=result_stats['total_faces'])
                 self.report({'INFO'}, message)
-                print(f"导入结果: {message}")
-                print(f"集合名称: {collection_name}")
+                print(f"Import result: {message}")
+                print(f"Collection name: {collection_name}")
 
                 if result_stats.get('success', False):
                     obj = result_stats['mesh_obj']
@@ -1830,10 +1833,10 @@ class ImportSingleGerber(Operator):
                     importdata.filenames.pop(layer_name)
                     importdata.current = importdata.current + 1
                 else: 
-                    self.report({'ERROR'}, f"创建几何体失败: {result_stats.get('error', '未知错误')}")
+                    self.report({'ERROR'}, pgettext("Geometry creation failed: {create_result_error}").format(create_result_error = create_result.get('error', pgettext('Unknown error'))))
                     getattr(getattr(bpy.ops, 'fritzing'), 'import_error')("INVOKE_DEFAULT")
         except Exception as e:
-            error_msg = f"导入过程错误: {str(e)}"
+            error_msg = pgettext("Import process error: {error}").format(error = str(e))
             self.report({'ERROR'}, error_msg)
             print(f"Error importing {layer_name}, try again...")
             getattr(getattr(bpy.ops, 'fritzing'), 'import_error')("INVOKE_DEFAULT")
@@ -1842,7 +1845,7 @@ class ImportSingleGerber(Operator):
 
 
 # ============================================================================
-# 注册
+# Registration
 # ============================================================================
 classes = [
     IMPORT_OT_gerber,
@@ -1853,61 +1856,61 @@ classes = [
 ]
 
 def register():
-    """注册插件"""
-    print("注册Gerber导入插件...")
+    """Register plugin"""
+    print("Registering Gerber import plugin...")
     
     for cls in classes:
         try:
             bpy.utils.register_class(cls)
-            print(f"✅ 注册类: {cls.__name__}")
+            print(f"✅ Registered class: {cls.__name__}")
         except Exception as e:
-            print(f"❌ 注册类 {cls.__name__} 失败: {e}")
+            print(f"❌ Failed to register class {cls.__name__}: {e}")
     
-    # 注册场景属性
+    # Register scene properties
     setattr(Scene, 'gerber_filepath', StringProperty(
         name="Gerber File",
-        description="Gerber文件路径",
+        description="Path to Gerber file",
         default=""
     ))
     
     setattr(Scene, 'gerber_debug_mode', BoolProperty(
         name="Gerber Debug Mode",
-        description="启用调试模式显示详细信息",
+        description="Enable debug mode to show detailed information",
         default=False
     ))
     
     setattr(Scene, 'gerber_optimize_performance', BoolProperty(
         name="Optimize Performance",
-        description="启用性能优化",
+        description="Enable performance optimization",
         default=True
     ))
 
     setattr(Scene, 'fetch_gerber_prims_time_consumed', FloatProperty(
-        name="获取Gerber文件图元耗时",
-        description="获取一批Gerber文件图元的耗时",
+        name="Time to Fetch Gerber Primitives",
+        description="Time taken to fetch primitives from a batch of Gerber files",
     ))
     
     setattr(Scene, 'gerber_import_time_consumed', FloatProperty(
-        name="Gerber文件导入耗时",
-        description="导入一批Gerber文件图元的耗时",
+        name="Gerber Files Import Time Consumed",
+        description="Time taken to import a batch of Gerber files",
     ))
     
     setattr(Scene, 'gerber_import_issuccess', BoolProperty(
-        name="Gerber导入是否成功",
-        description="Gerber导入是否成功",
+        name="Gerber Import Success",
+        description="Whether Gerber import was successful",
         default=False
     ))
     
-    print("✅ Gerber导入插件注册完成")
+    print("✅ Gerber import plugin registration complete")
 
 def unregister():
-    """注销插件"""
-    print("注销Gerber导入插件...")
+    """Unregister plugin"""
+    print("Unregistering Gerber import plugin...")
     
     for cls in reversed(classes):
         try:
             bpy.utils.unregister_class(cls)
-            print(f"✅ 注销类: {cls.__name__}")
+            print(f"✅ Unregistered class: {cls.__name__}")
         except:
             pass
 

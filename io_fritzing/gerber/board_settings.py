@@ -145,7 +145,7 @@ def register():
 
         setattr(Scene, 'gerber_board_thickness_setting', EnumProperty(
             items=board_thickness_items,
-            default='0.00154'  # 设置默认值为1.6mm，这是最常见的PCB厚度
+            default='0.00154'  # Set the default value to 1.6mm, which is the most common PCB thickness
         ))
 
     if pcoll is None:
@@ -168,7 +168,7 @@ def register():
 
         setattr(Scene, 'gerber_board_color_setting', EnumProperty(
             items=board_color_items,
-            default=Board_Green['name']  # 设置默认值为绿色
+            default=Board_Green['name']  # Set the default value to green
         ))
 
     if len(copper_color_items) == 0:
@@ -183,7 +183,7 @@ def register():
 
         setattr(Scene, 'gerber_copper_color_setting', EnumProperty(
             items=copper_color_items,
-            default=Copper['name']  # 设置默认值为第一种铜色
+            default=Copper['name']  # Set the default value to the first copper color
         ))
 
     if len(silk_color_items) == 0:
@@ -199,7 +199,7 @@ def register():
 
         setattr(Scene, 'gerber_silk_color_setting', EnumProperty(
             items=silk_color_items,
-            default=Silk_White['name']  # 设置默认值为白色
+            default=Silk_White['name']  # Set the default value to white
         ))
   
     if len(drill_algorithm_items) == 0:
@@ -226,7 +226,7 @@ def register():
 
         setattr(Scene, 'gerber_cylinder_filter_setting', EnumProperty(
             items=cylinder_filter_items,
-            default='0.0015'  # 设置默认值为1.5mm，钻孔孔径大于等于1.5mm的圆柱体会进行钻孔（布尔运算）
+            default='0.0015'  # Set the default value to 1.5mm. Cylinders with a drill diameter >= 1.5mm will be drilled (boolean operation).
         ))
 
 def unregister():

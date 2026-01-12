@@ -38,8 +38,8 @@ class GerberDrillHoles(Operator):
 
 
     ##
-    # creates a drill hole through an individual layer of the pcb
-    # @param layer_name -the layer to drill the holes in
+    # Creates a drill hole through an individual layer of the PCB
+    # @param layer_name -the layer to drill holes in
     def drillHoles(self, context, layer, drill_layer, algorithm):
         if context is None:
             return
@@ -69,12 +69,14 @@ class GerberDrillHoles(Operator):
                 # apply bool tool
                 bpy.ops.object.select_all(action='DESELECT')
                 layer.select_set(True)
+                if bpy.context:
+                    setattr(getattr(context.window_manager, 'booltron'), 'non_destructive.solver', 'EXACT')
                 for obj in drill_layer.objects:
                     if obj.type == 'MESH' and pass_filtered(obj, cylinder_filter_setting):
                         print(f'Drilling hole: {obj.name}')
-                        bpy.context.window_manager.booltron.destructive.solver = 'EXACT'
                         obj.select_set(True)
                         layer.select_set(True)
+                        context.view_layer.objects.active = layer
                         getattr(bpy.ops.object, 'booltron_nondestructive_difference')()
                         self.refresh_3d(context)
                 print(f'📊 NonDestructiveDifference done in {time.time() - time_start:.2f}s')
@@ -99,7 +101,7 @@ class GerberDrillHoles(Operator):
                     # except Exception as e:
                         # print(f'--DrillHoles: BooleanModifier failed on object {obj.name} with error: {str(e)}')
                         # if str(e).find("'utf-8' codec can't decode byte") != -1:
-                        #     # 修复对象编码问题
+                        #     # Fix object encoding issue
                         #     self.fix_object_encoding(obj)
                         #     try:
                         #         modifier = layer.modifiers.new(name="Boolean", type="BOOLEAN")
@@ -116,18 +118,18 @@ class GerberDrillHoles(Operator):
 
 
     def fix_object_encoding(self, obj):
-        """修复对象的编码问题"""
-        # 1. 重命名对象（清除非法字符）
+        """Fix object encoding issues"""
+        # 1. Rename the object (remove illegal characters)
         safe_name = obj.name.encode('ascii', 'ignore').decode('ascii')
         if safe_name and safe_name != obj.name:
-            print(f"重命名对象: {obj.name} -> {safe_name}")
+            print(f"Renaming object: {obj.name} -> {safe_name}")
             obj.name = safe_name
         
-        # 2. 重命名数据块
+        # 2. Rename the data block
         if obj.data:
             safe_data_name = obj.data.name.encode('ascii', 'ignore').decode('ascii')
             if safe_data_name != obj.data.name:
-                print(f"重命名数据块: {obj.data.name} -> {safe_data_name}")
+                print(f"Renaming data block: {obj.data.name} -> {safe_data_name}")
                 obj.data.name = safe_data_name
         
         return obj
