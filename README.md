@@ -42,7 +42,7 @@ Blender 4.2.1 + Bool Tool 1.1.2插件
 
 ![Gerber文件导入成功](docs/images/zh/gerber_import_completed.png)
 
-[br][br]
+<br><br>
 
 ### 导入PNP文件
 
@@ -55,7 +55,7 @@ Blender 4.2.1 + Bool Tool 1.1.2插件
 
 ![PNP文件导入成功(底部视角)](docs/images/zh/pnp_import_bottom.png)
 
-[br][br]
+<br><br>
 
 2. 导入PNP时，3D模型是通过Python脚本生成的。本项目中的3D模型脚本，均是在DeepSeek AI的帮助下编写的，每个模型的脚本的开发时间，平均在2天左右。
 
