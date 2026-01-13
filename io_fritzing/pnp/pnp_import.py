@@ -4,6 +4,7 @@ import time
 import math
 import re
 import threading
+from mathutils import Matrix
 from bpy.types import Operator, Panel, Scene, Collection
 from bpy.props import (
     StringProperty, IntProperty, FloatProperty, 
@@ -448,12 +449,6 @@ class IMPORT_OT_pnp_live_import(Operator):
         # 重置停止事件
         self._stop_event.clear()
 
-        # 设置单位为毫米，注意：没有恢复单位到导入前的设置
-        if context:
-            context.scene.unit_settings.system = 'METRIC'
-            context.scene.unit_settings.length_unit = 'MILLIMETERS'
-            context.scene.unit_settings.scale_length = 0.001
-        
         # 启动导入线程
         self._import_thread = threading.Thread(
             target=self._import_thread_func,
@@ -505,9 +500,9 @@ class IMPORT_OT_pnp_live_import(Operator):
             # 获取原点
             scene = context.scene
             origin = (
-                import_state.origin_x,
-                import_state.origin_y,
-                import_state.origin_z
+                import_state.origin_x * 0.001,
+                import_state.origin_y * 0.001,
+                import_state.origin_z * 0.001
             )
             
             # 开始导入
@@ -595,9 +590,9 @@ class IMPORT_OT_pnp_live_import(Operator):
         package = parts[2]
         center_x = parts[3]
         center_y = parts[4]
-        # mil to mm
-        center_x = round(float(center_x) * 25.4 / 1000, 4)
-        center_y = round(float(center_y) * 25.4 / 1000, 4)
+        # mil to meter
+        center_x = float(center_x) * 0.0000254
+        center_y = float(center_y) * 0.0000254
 
         rotation = parts[5]
         layer = parts[6]
@@ -767,6 +762,13 @@ class IMPORT_OT_pnp_live_import(Operator):
         return None
     
     def post_parse(self, context, component, center_x, center_y, rotation, layer, origin):
+        component.scale.x *= 0.001
+        component.scale.y *= 0.001
+        component.scale.z *= 0.001
+        component.location.x *= 0.001
+        component.location.y *= 0.001
+        component.location.z *= 0.001
+
         # 先旋转
         if float(rotation) != 0.0:
             print(f"   -> 旋转：{rotation}")
@@ -774,7 +776,7 @@ class IMPORT_OT_pnp_live_import(Operator):
         if layer == 'Bottom':
             component.rotation_euler.y -= math.pi
         else:
-            component.location.z += float(context.scene.pnp_pcb_thickness)
+            component.location.z += float(context.scene.pnp_pcb_thickness) * 0.001
         # 再移动
         if center_x != 0.0:
             component.location.x += center_x
@@ -815,7 +817,7 @@ class IMPORT_OT_pnp_live_import(Operator):
         # 如果导入失败，自动弹出结果对话框
         if import_state.has_errors:
             getattr(getattr(bpy.ops, 'fritzing'), 'show_pnp_results_complete')('INVOKE_DEFAULT')
-            # bpy.ops.fritzing.show_pnp_results_complete('INVOKE_DEFAULT')
+
 
 # ============================================================================
 # 控制操作符

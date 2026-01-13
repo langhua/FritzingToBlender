@@ -85,6 +85,7 @@ ui_labels= {
     ('*', 'Renumbering complete: {num_groups} tool types, renamed {renamed_count} objects'): '重命名完成：{num_groups}个工具类型，重命名{renamed_count}个对象',
     ('*', 'Complete! Processed {num_tools} tool types, {num_holes} drill holes'): '完成！处理了{num_tools}个工具类型，{num_holes}个钻孔',
     ('*', 'Failed to parse drill file: '): '解析钻孔文件失败：',
+    ('*', 'Merging drill cylinders ...'): '正在合并钻孔圆柱 ...',
 }
 
 langs = {
