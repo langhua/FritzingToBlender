@@ -86,6 +86,7 @@ ui_labels= {
     ('*', 'Complete! Processed {num_tools} tool types, {num_holes} drill holes'): '完成！处理了{num_tools}个工具类型，{num_holes}个钻孔',
     ('*', 'Failed to parse drill file: '): '解析钻孔文件失败：',
     ('*', 'Merging drill cylinders ...'): '正在合并钻孔圆柱 ...',
+    ('Operator', 'Fritzing Gerber PCB Settings'): 'Fritzing Gerber线路板设置',
 }
 
 langs = {

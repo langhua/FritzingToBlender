@@ -11,7 +11,7 @@ from io_fritzing.gerber.report import importdata
 # Dialog box to handle error messages
 class GerberBoardSettings(Operator):
     bl_idname = "fritzing.gerber_board_settings"
-    bl_label = "Fritzing Gerber Board Settings"
+    bl_label = "Fritzing Gerber PCB Settings"
 
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
