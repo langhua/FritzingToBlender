@@ -34,6 +34,7 @@ from io_fritzing.assets.capacitors.smd_e_cap import create_smd_ecap_model
 from io_fritzing.assets.capacitors.smd_capacitor import create_smd_capacitor_model
 from io_fritzing.assets.inductor.smd_inductor import create_smd_inductor_model
 from io_fritzing.assets.wdfn.wdfn import create_wdfn_3x3_10_model
+from io_fritzing.assets.tft.tft_170x320_1_9inch import create_tft_170x320_1_9inch_model
 
 
 # ============================================================================
@@ -641,6 +642,8 @@ class IMPORT_OT_pnp_live_import(Operator):
                 if bpy.context:
                     bpy.context.view_layer.objects.active = component
                 bpy.ops.object.join()
+                bpy.context.collection.objects.link(component)
+                bpy.data.collections.remove(collection)
         elif description_parts[1].strip() != '':
             # 如果description第二个分号前有内容，作为电容导入
             print(f" ** Capacitor: {description_parts[1].strip()},{package},{center_x},{center_y},{rotation},{layer},{mount}")
@@ -742,6 +745,9 @@ class IMPORT_OT_pnp_live_import(Operator):
                             component.rotation_euler.z += math.pi / 2
                     elif mpn.startswith('9*4无源蜂鸣器'):
                         component = create_buzzer_9042_model()
+                    elif mpn.startswith('1.9吋显示屏'):
+                        component = create_tft_170x320_1_9inch_model()
+                        component.lock_scale = (True, True, True)
                     else:
                         print(f" !!!! No model method !!!!")
                         import_state.add_failed(line_number, line, "No model method", line)
@@ -762,12 +768,13 @@ class IMPORT_OT_pnp_live_import(Operator):
         return None
     
     def post_parse(self, context, component, center_x, center_y, rotation, layer, origin):
-        component.scale.x *= 0.001
-        component.scale.y *= 0.001
-        component.scale.z *= 0.001
-        component.location.x *= 0.001
-        component.location.y *= 0.001
-        component.location.z *= 0.001
+        if component.lock_scale[0] is False:
+            component.scale.x *= 0.001
+            component.scale.y *= 0.001
+            component.scale.z *= 0.001
+            component.location.x *= 0.001
+            component.location.y *= 0.001
+            component.location.z *= 0.001
 
         # 先旋转
         if float(rotation) != 0.0:

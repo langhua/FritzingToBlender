@@ -37,9 +37,9 @@ def create_smd_inductor_model(size_name='0603'):
     body_height = height * 0.95
     
     # 创建集合
-    collection_name = f"Inductor_Layer_{size_name}"
-    collection = bpy.data.collections.new(collection_name)
-    bpy.context.scene.collection.children.link(collection)
+    # collection_name = f"Inductor_Layer_{size_name}"
+    # collection = bpy.data.collections.new(collection_name)
+    # bpy.context.scene.collection.children.link(collection)
     
     # 创建材质
     layer_mat = create_material(name="Inductor_Layer", base_color=(0.15, 0.25, 0.15), metallic=0.0, roughness=0.2)
@@ -55,7 +55,8 @@ def create_smd_inductor_model(size_name='0603'):
     mesh_body = bpy.data.meshes.new("Inductor_Layer_Body")
     bm_body.to_mesh(mesh_body)
     obj_body = bpy.data.objects.new("Inductor_Layer_Body", mesh_body)
-    collection.objects.link(obj_body)
+    # collection.objects.link(obj_body)
+    bpy.context.collection.objects.link(obj_body)
     obj_body.data.materials.clear()
     obj_body.data.materials.append(layer_mat)
     
@@ -70,7 +71,8 @@ def create_smd_inductor_model(size_name='0603'):
     mesh_left_terminal = bpy.data.meshes.new("Left_Terminal")
     bm_left_terminal.to_mesh(mesh_left_terminal)
     obj_left_terminal = bpy.data.objects.new("Left_Terminal", mesh_left_terminal)
-    collection.objects.link(obj_left_terminal)
+    # collection.objects.link(obj_left_terminal)
+    bpy.context.collection.objects.link(obj_left_terminal)
     obj_left_terminal.data.materials.append(terminal_mat)
     
     # 3. 创建右侧金属焊端
@@ -84,7 +86,8 @@ def create_smd_inductor_model(size_name='0603'):
     mesh_right_terminal = bpy.data.meshes.new("Right_Terminal")
     bm_right_terminal.to_mesh(mesh_right_terminal)
     obj_right_terminal = bpy.data.objects.new("Right_Terminal", mesh_right_terminal)
-    collection.objects.link(obj_right_terminal)
+    # collection.objects.link(obj_right_terminal)
+    bpy.context.collection.objects.link(obj_right_terminal)
     obj_right_terminal.data.materials.append(terminal_mat)
     
     # 清理bmesh

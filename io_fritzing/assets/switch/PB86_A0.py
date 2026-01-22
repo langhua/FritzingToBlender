@@ -6,19 +6,9 @@ import io_fritzing.assets.commons.triangle as triangle
 import io_fritzing.assets.commons.rounded_rect as rounded_rect
 import io_fritzing.assets.commons.frustum as frustum
 import io_fritzing.assets.commons.trapezoid as trapezoid
+from io_fritzing.assets.utils.scene import clear_scene
+from io_fritzing.assets.utils.material import create_material
 
-# 清理场景
-def clear_scene():
-    if bpy.context.mode != 'OBJECT':
-        bpy.ops.object.mode_set(mode='OBJECT')
-    
-    bpy.ops.object.select_all(action='SELECT')
-    bpy.ops.object.delete(use_global=False, confirm=False)
-    
-    scene = bpy.context.scene
-    scene.unit_settings.system = 'METRIC'
-    scene.unit_settings.length_unit = 'MILLIMETERS'
-    scene.unit_settings.scale_length = 0.001
 
 # 根据技术图纸定义PB86-A0按键准确尺寸
 pb86_a0_dimensions = {
@@ -73,25 +63,25 @@ def create_pb86_button(dims = pb86_a0_dimensions, color = 'Black'):
     """创建PB86按键完整模型"""
     if color.capitalize() == 'Red' or color.find('红') > -1:
         print("选择红色按键帽")
-        button_cap_color = ((0.8, 0.2, 0.2, 1.0), 0.5, 0.0)
+        button_cap_color = ('Red', (0.8, 0.2, 0.2, 1.0), 0.5, 0.0)
     elif color.capitalize() == 'Blue' or color.find('蓝') > -1:
         print("选择蓝色按键帽")
-        button_cap_color = ((0.2, 0.2, 0.8, 1.0), 0.5, 0.0)
+        button_cap_color = ('Blue', (0.2, 0.2, 0.8, 1.0), 0.5, 0.0)
     elif color.capitalize() == 'Green' or color.find('绿') > -1:
         print("选择绿色按键帽")
-        button_cap_color = ((0.2, 0.8, 0.2, 1.0), 0.5, 0.0)
+        button_cap_color = ('Green', (0.2, 0.8, 0.2, 1.0), 0.5, 0.0)
     elif color.capitalize() == 'Yellow' or color.find('黄') > -1:
         print("选择黄色按键帽")
-        button_cap_color = ((0.8, 0.8, 0.2, 1.0), 0.5, 0.0)
+        button_cap_color = ('Yellow', (0.8, 0.8, 0.2, 1.0), 0.5, 0.0)
     elif color.capitalize() == 'White' or color.find('白') > -1:
         print("选择白色按键帽")
-        button_cap_color = ((0.9, 0.9, 0.9, 1.0), 0.5, 0.0)
+        button_cap_color = ('White', (0.9, 0.9, 0.9, 1.0), 0.5, 0.0)
     elif color.capitalize() == 'Gray' or color.capitalize() == 'Grey' or color.find('灰') > -1:
         print("选择灰色按键帽")
-        button_cap_color = ((0.5, 0.5, 0.5, 1.0), 0.5, 0.0)
+        button_cap_color = ('Gray', (0.5, 0.5, 0.5, 1.0), 0.5, 0.0)
     else:
         print("选择默认按键帽（黑色）")
-        button_cap_color = ((0.1, 0.1, 0.1, 1.0), 0.5, 0.0)
+        button_cap_color = ('Black', (0.1, 0.1, 0.1, 1.0), 0.5, 0.0)
 
     # 1. 创建底座（黑色，PA66材料）
     print("创建底座...")
@@ -270,7 +260,7 @@ def create_base(dims):
     
     # 添加材质
     base.data.materials.clear()
-    mat = create_pa66_material()
+    mat = create_material(name="PA66_Material", base_color=(0.1, 0.1, 0.1, 1.0), metallic=0.0, roughness=0.8)
     base.data.materials.append(mat)
     
     return base, mat
@@ -481,7 +471,7 @@ def create_button_cap(dims, color):
     
     # 添加材质
     button_cap.data.materials.clear()
-    mat = create_abs_material(color)
+    mat = create_material(name="ABS_Material_" + color[0], base_color=color[1], metallic=color[2], roughness=color[3])
     button_cap.data.materials.append(mat)
     
     return button_cap, mat
@@ -496,7 +486,7 @@ def create_pins(dims, pa66_mat):
     pin_thickness = dims['pin_thickness']
     pin_stage_width = dims['pin_stage_width']
     pin_stage_height = dims['pin_stage_height']
-    mat = create_copper_material()
+    mat = create_material(name="Copper_Pin_Material", base_color=(0.8, 0.5, 0.2, 1.0), metallic=0.7, roughness=0.3)
     nail_stage_height = dims['nail_stage_height']
     nail_stage_spacing = dims['nail_stage_spacing']
     
@@ -716,113 +706,6 @@ def create_fixed_nails(dims, pa66_mat):
     nails.append(top_right_nail)
     
     return nails
-
-
-def create_pa66_material():
-    """创建PA66材料（黑色，底座）"""
-    mat = bpy.data.materials.new(name="PA66_Material")
-    mat.use_nodes = True
-    
-    # PA66是黑色塑料
-    pa66_color = (0.1, 0.1, 0.1, 1.0)
-    mat.diffuse_color = pa66_color
-    
-    nodes = mat.node_tree.nodes
-    nodes.clear()
-    
-    # 添加原理化BSDF节点
-    bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.location = (0, 0)
-    bsdf.inputs['Base Color'].default_value = pa66_color
-    bsdf.inputs['Metallic'].default_value = 0.0
-    bsdf.inputs['Roughness'].default_value = 0.8
-    
-    # 添加材质输出节点
-    output = nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = (400, 0)
-    
-    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
-    return mat
-
-def create_abs_material(color):
-    """创建ABS材料"""
-    mat = bpy.data.materials.new(name="ABS_Material")
-    mat.use_nodes = True
-    mat.diffuse_color = color[0]
-    
-    nodes = mat.node_tree.nodes
-    nodes.clear()
-    
-    # 添加原理化BSDF节点
-    bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.location = (0, 0)
-    bsdf.inputs['Base Color'].default_value = color[0]
-    bsdf.inputs['Metallic'].default_value = color[2]
-    bsdf.inputs['Roughness'].default_value = color[1]
-    
-    # 添加材质输出节点
-    output = nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = (400, 0)
-    
-    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
-    return mat
-
-def create_metal_material():
-    """创建金属材质"""
-    mat = bpy.data.materials.new(name="Metal_Material")
-    mat.use_nodes = True
-    
-    # 引脚是银色金属
-    metal_color = (0.85, 0.85, 0.9)
-    mat.diffuse_color = metal_color
-    
-    nodes = mat.node_tree.nodes
-    nodes.clear()
-    
-    # 添加原理化BSDF节点
-    bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.location = (0, 0)
-    bsdf.inputs['Base Color'].default_value = metal_color
-    bsdf.inputs['Metallic'].default_value = 0.9
-    bsdf.inputs['Roughness'].default_value = 0.3
-    
-    # 添加材质输出节点
-    output = nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = (400, 0)
-    
-    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
-    return mat
-
-
-def create_copper_material():
-    """创建铜引脚材质"""
-    mat = bpy.data.materials.new(name="Copper_Pin_Material")
-    mat.use_nodes = True
-    
-    # 引脚是铜金属
-    copper_color = (0.8, 0.5, 0.2, 1.0)
-    mat.diffuse_color = copper_color
-    
-    nodes = mat.node_tree.nodes
-    nodes.clear()
-    
-    # 添加原理化BSDF节点
-    bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-    bsdf.location = (0, 0)
-    bsdf.inputs['Base Color'].default_value = copper_color
-    bsdf.inputs['Metallic'].default_value = 0.7
-    bsdf.inputs['Roughness'].default_value = 0.3
-    
-    # 添加材质输出节点
-    output = nodes.new(type='ShaderNodeOutputMaterial')
-    output.location = (400, 0)
-    
-    mat.node_tree.links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-    
-    return mat
 
 
 def main():
