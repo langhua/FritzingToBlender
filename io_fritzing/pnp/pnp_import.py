@@ -1689,7 +1689,7 @@ class IMPORT_OT_show_pnp_results_complete(Operator):
 class IMPORT_OT_browse_pnp_file(Operator):
     """浏览PNP文件"""
     bl_idname = "fritzing.browse_pnp_file"
-    bl_label = "浏览"
+    bl_label = "Import PNP File"
     
     filepath: bpy.props.StringProperty(
         name="File Path",

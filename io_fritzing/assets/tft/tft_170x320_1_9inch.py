@@ -581,8 +581,13 @@ def create_tft_170x320_1_9inch_model():
     bpy.context.view_layer.objects.active = pcb
     bpy.ops.object.join()
     pcb.name = "TFT_170x320_1.9inch"
+
+    if pcb.name in bpy.context.scene.collection.objects:
+        bpy.context.scene.collection.objects.unlink(pcb)
+    bpy.context.collection.objects.link(pcb)
+
     return pcb
-        
+
 # 主函数
 def main():
     print("开始创建1.9英寸TFT显示屏3D模型（4层结构）...")

@@ -331,11 +331,6 @@ def create_smd_electrolytic_capacitor_with_horizontal_exposed(size_name='6.3x5.3
     # 获取水平露出长度
     horizontal_exposed_length = get_horizontal_exposed_length(horizontal_exposed_type)
     
-    # 创建集合
-    collection_name = f"Electrolytic_Capacitor_{size_name}"
-    collection = bpy.data.collections.new(collection_name)
-    bpy.context.scene.collection.children.link(collection)
-    
     # 创建材质
     body_mat = create_material(name="Capacitor_Body", base_color=(0.8, 0.8, 0.85), metallic=0.3, roughness=0.7)
     base_mat = create_material(name="Base_Plastic", base_color=(0.15, 0.15, 0.15), metallic=0.0, roughness=0.8)
@@ -384,7 +379,7 @@ def create_smd_electrolytic_capacitor_with_horizontal_exposed(size_name='6.3x5.3
 
     body.location.z += body_height / 2 + base_height
     body.rotation_euler.z = math.pi
-    
+
     return body
 
 def create_smd_ecap_model(package='0605'):

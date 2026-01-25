@@ -494,6 +494,10 @@ def create_usb_type_c_16pin_model(plastic_color="black"):
     shell.location.z = (3.16 + 0.9 + 0.1)/2 - 0.9 + 0.1
     shell.location.y = 0.4
 
+    if shell.name in bpy.context.scene.collection.objects:
+        bpy.context.scene.collection.objects.unlink(shell)
+    bpy.context.collection.objects.link(shell)
+
     return shell
 
 # 主函数
