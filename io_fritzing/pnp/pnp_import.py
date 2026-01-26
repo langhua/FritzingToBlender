@@ -405,11 +405,26 @@ class IMPORT_OT_pnp_live_import(Operator):
     
     delay_time: FloatProperty(
         name="延迟时间",
-        default=0.05,
-        min=0.01,
+        default=0.5,
+        min=0.1,
         max=1.0
     ) # type: ignore
-    
+
+    # 以测试文件为例
+    line_delay_time = {
+        124: 1.5,    # 1.9英寸TFT显示屏
+        60: 0.5,     # PB86-A0按钮
+        99: 0.5,
+        126: 0.5,
+        142: 0.5,
+        153: 0.5,
+        158: 0.5,
+        93: 1.0,      # ESP-12F模块
+        72: 1.0,      # USB Type-C 16pin
+        21: 1.5,      # TS-D014开关
+        125: 0.5,     # 蜂鸣器
+        }
+
     # 线程和模态变量
     _import_thread = None
     _timer = None
@@ -540,7 +555,11 @@ class IMPORT_OT_pnp_live_import(Operator):
                     import_state.add_skipped(line_num, f"行{line_num}被跳过", raw_line)
                 
                 # 延迟
-                time.sleep(self.delay_time)
+                delay_time = self.line_delay_time.get(line_num, self.delay_time)
+                if delay_time:
+                    time.sleep(delay_time)
+                else:
+                    time.sleep(self.delay_time)
             
             # 完成导入
             if not self._stop_event.is_set():
@@ -642,7 +661,8 @@ class IMPORT_OT_pnp_live_import(Operator):
                 if bpy.context:
                     bpy.context.view_layer.objects.active = component
                 bpy.ops.object.join()
-                bpy.context.collection.objects.link(component)
+                if bpy.context is not None:
+                    bpy.context.collection.objects.link(component)
                 bpy.data.collections.remove(collection)
         elif description_parts[1].strip() != '':
             # 如果description第二个分号前有内容，作为电容导入
@@ -747,7 +767,8 @@ class IMPORT_OT_pnp_live_import(Operator):
                         component = create_buzzer_9042_model()
                     elif mpn.startswith('1.9吋显示屏'):
                         component = create_tft_170x320_1_9inch_model()
-                        component.lock_scale = (True, True, True)
+                        if component is not None:
+                            component.lock_scale = (True, True, True)
                     else:
                         print(f" !!!! No model method !!!!")
                         import_state.add_failed(line_number, line, "No model method", line)
