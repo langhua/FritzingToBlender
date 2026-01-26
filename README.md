@@ -42,6 +42,8 @@ Blender 4.2.1 + Bool Tool 1.1.2插件
 
 ![Gerber文件导入成功](docs/images/zh/gerber_import_completed.png)
 
+![Gerber文件导入录屏](docs/images/zh/blender4.2.1-import-gerber.gif)
+
 <br><br>
 
 ### 导入PNP文件
