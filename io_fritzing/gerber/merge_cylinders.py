@@ -4,7 +4,7 @@ from collections import defaultdict
 from bpy.props import BoolProperty, FloatProperty, StringProperty, EnumProperty
 from bpy.types import Panel, Operator, PropertyGroup
 from bpy.app.translations import pgettext
-from io_fritzing.gerber.report import importdata
+from .report import importdata
 
 # Plugin information
 bl_info = {

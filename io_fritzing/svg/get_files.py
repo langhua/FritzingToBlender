@@ -3,7 +3,7 @@ from bpy.types import Operator
 from bpy_extras.io_utils import ImportHelper
 import os
 import glob
-from io_fritzing.svg.report import importdata
+from .report import importdata
 
 ##
 # Get import files

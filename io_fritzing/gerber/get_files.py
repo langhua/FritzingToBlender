@@ -4,7 +4,7 @@ from bpy.props import StringProperty
 from bpy_extras.io_utils import ImportHelper
 import os
 import glob
-from io_fritzing.gerber.report import importdata
+from .report import importdata
 
 ##
 # Get import files

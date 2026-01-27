@@ -1,6 +1,6 @@
 import bpy 
 from bpy.types import Operator
-from io_fritzing.svg.report import importdata, update as update_report
+from .report import importdata, update as update_report
 import xml.etree.ElementTree as ET  # 替换 lxml
 import os
 from io_curve_svg.svg_util import units, read_float

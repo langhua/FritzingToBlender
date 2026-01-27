@@ -2,9 +2,9 @@ import bpy
 import bmesh
 from mathutils import Vector, Matrix
 import math
-from io_fritzing.assets.utils.scene import clear_scene
-from io_fritzing.assets.utils.material import create_material
-from io_fritzing.assets.utils.origin import set_origin_to_bottom
+from ..utils.scene import clear_scene
+from ..utils.material import create_material
+from ..utils.origin import set_origin_to_bottom
 
 #根据技术规格说明书定义PPTC0603的精确尺寸
 dimensions = {

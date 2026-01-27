@@ -1,7 +1,7 @@
 import bpy
-from io_fritzing.svg.report import importdata
+from .report import importdata
 from bpy.types import Operator
-from io_fritzing.svg.remove_extra_verts import removeExtraVerts
+from .remove_extra_verts import removeExtraVerts
 
 class DrillHoles(Operator):
     bl_idname = "fritzing.drill_holes"

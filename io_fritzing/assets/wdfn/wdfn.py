@@ -1,10 +1,8 @@
 import bpy
-import bmesh
 import math
-from mathutils import Vector
-import io_fritzing.assets.commons.triangle as triangle
-from io_fritzing.assets.utils.material import create_material
-from io_fritzing.assets.utils.scene import clear_scene
+import commons.triangle as triangle
+from ..utils.material import create_material
+from ..utils.scene import clear_scene
 
 wdfn_3x3_10_dimensions = {
     'body': {

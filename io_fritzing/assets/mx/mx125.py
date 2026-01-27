@@ -2,9 +2,9 @@ import bpy
 import bmesh
 from mathutils import Vector
 import math
-import io_fritzing.assets.commons.trapezoid as trapezoid
-import io_fritzing.assets.commons.rounded_rect as rounded_rect
-from io_fritzing.assets.utils.material import create_material
+import commons.trapezoid as trapezoid
+import commons.rounded_rect as rounded_rect
+from ..utils.material import create_material
 
 # 清理场景
 def clear_scene():

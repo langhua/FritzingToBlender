@@ -2,9 +2,9 @@ import bpy
 import bmesh
 from mathutils import Vector
 import math
-from io_fritzing.assets.utils.origin import set_origin_to_bottom
-from io_fritzing.assets.utils.material import create_material
-from io_fritzing.assets.utils.scene import clear_scene
+from ..utils.origin import set_origin_to_bottom
+from ..utils.material import create_material
+from ..utils.scene import clear_scene
 
 # 根据图纸定义SOD-323参数
 dimensions = {

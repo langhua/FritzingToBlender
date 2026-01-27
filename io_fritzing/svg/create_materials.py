@@ -1,8 +1,8 @@
 import bpy
-from io_fritzing.svg.report import importdata
+from .report import importdata
 from bpy.types import Operator
-from io_fritzing.svg.commondata import Board_Black, Board_Blue, Board_Green, Board_Purple, Board_Red, Board_White, Board_Yellow
-from io_fritzing.svg.commondata import Copper, Copper2, Silk_Black, Silk_White, Silk_White2
+from .commondata import Board_Black, Board_Blue, Board_Green, Board_Purple, Board_Red, Board_White, Board_Yellow
+from .commondata import Copper, Copper2, Silk_Black, Silk_White, Silk_White2
 
 class CreateMaterials(Operator):
     bl_idname = "fritzing.create_materials"

@@ -1,9 +1,9 @@
 import bpy
 import bmesh
-from mathutils import Vector, Matrix
+from mathutils import Matrix
 import math
-from io_fritzing.assets.utils.scene import clear_scene, create_lighting, create_camera
-from io_fritzing.assets.utils.material import create_material
+from ..utils.scene import clear_scene, create_lighting, create_camera
+from ..utils.material import create_material
 
 
 # 根据图片中的表格定义W值映射表（根据直径ΦD）

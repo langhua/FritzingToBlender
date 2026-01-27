@@ -1,9 +1,9 @@
 import bpy
 import math
 import bmesh
-from io_fritzing.assets.utils.material import create_material
-from io_fritzing.assets.utils.scene import clear_scene
-from io_fritzing.assets.utils.origin import set_origin_to_bottom
+from ..utils.material import create_material
+from ..utils.scene import clear_scene
+from ..utils.origin import set_origin_to_bottom
 
 # 颜色定义
 color_map = {

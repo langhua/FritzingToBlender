@@ -1,8 +1,8 @@
 import bpy
 import math
-from io_fritzing.assets.utils.scene import clear_scene
-from io_fritzing.assets.utils.material import create_material
-from io_fritzing.assets.utils.origin import set_origin_to_bottom
+from ..utils.scene import clear_scene
+from ..utils.material import create_material
+from ..utils.origin import set_origin_to_bottom
 
 # 根据设计图定义SOD-123参数（取中值）
 dimensions = {

@@ -1,8 +1,8 @@
 import bpy
-from io_fritzing.gerber.report import importdata
+from .report import importdata
 from bpy.types import Operator
-from io_fritzing.svg.commondata import Board_Black, Board_Blue, Board_Green, Board_Purple, Board_Red, Board_White, Board_Yellow
-from io_fritzing.svg.commondata import Copper, Copper2, Silk_Black, Silk_White, Silk_White2
+from ..svg.commondata import Board_Black, Board_Blue, Board_Green, Board_Purple, Board_Red, Board_White, Board_Yellow
+from ..svg.commondata import Copper, Copper2, Silk_Black, Silk_White, Silk_White2
 
 class GerberCreateMaterials(Operator):
     bl_idname = "fritzing.gerber_create_materials"

@@ -11,30 +11,30 @@ from bpy.props import (
     BoolProperty, EnumProperty
 )
 from datetime import datetime
-from io_fritzing.assets.resistors.YC164 import generate_yc164_resistor
-from io_fritzing.pnp.utils.parse_resistor import parse_resistance_string
-from io_fritzing.assets.switch.TS_D014 import create_ts_d014_switch
-from io_fritzing.assets.switch.PB86_A0 import create_pb86_button
-from io_fritzing.assets.resistors.smd_resistors import generate_smd_resistor, SMD_SIZES
-from io_fritzing.assets.sod.sod123 import create_sod123_model
-from io_fritzing.assets.sod.sod323 import create_sod323_model
-from io_fritzing.assets.sot.sot23_3 import create_sot23_3_model
-from io_fritzing.assets.sot.sot23_6 import create_sot23_6_model
-from io_fritzing.assets.mx.mx125 import create_mx125_2p
-from io_fritzing.assets.vqfn_hr.vqfn_hr_12 import create_vqfn_hr_12
-from io_fritzing.assets.sop.sop20 import create_sop20_model
-from io_fritzing.assets.esp.esp12 import create_esp12f_model
-from io_fritzing.assets.buzzer.buzzer9042 import create_buzzer_9042_model
-from io_fritzing.assets.type_c.usb_type_c_16pin import create_usb_type_c_16pin_model
-from io_fritzing.assets.pptc.pptc0603 import create_smd0603_fuse_model
-from io_fritzing.assets.esop.esop8 import create_esop8_model
-from io_fritzing.assets.msop.msop10 import create_msop10_model
-from io_fritzing.assets.led.led0603 import create_led0603_with_color
-from io_fritzing.assets.capacitors.smd_e_cap import create_smd_ecap_model
-from io_fritzing.assets.capacitors.smd_capacitor import create_smd_capacitor_model
-from io_fritzing.assets.inductor.smd_inductor import create_smd_inductor_model
-from io_fritzing.assets.wdfn.wdfn import create_wdfn_3x3_10_model
-from io_fritzing.assets.tft.tft_170x320_1_9inch import create_tft_170x320_1_9inch_model
+from ..assets.resistors.YC164 import generate_yc164_resistor
+from .utils.parse_resistor import parse_resistance_string
+from ..assets.switch.TS_D014 import create_ts_d014_switch
+from ..assets.switch.PB86_A0 import create_pb86_button
+from ..assets.resistors.smd_resistors import generate_smd_resistor, SMD_SIZES
+from ..assets.sod.sod123 import create_sod123_model
+from ..assets.sod.sod323 import create_sod323_model
+from ..assets.sot.sot23_3 import create_sot23_3_model
+from ..assets.sot.sot23_6 import create_sot23_6_model
+from ..assets.mx.mx125 import create_mx125_2p
+from ..assets.vqfn_hr.vqfn_hr_12 import create_vqfn_hr_12
+from ..assets.sop.sop20 import create_sop20_model
+from ..assets.esp.esp12 import create_esp12f_model
+from ..assets.buzzer.buzzer9042 import create_buzzer_9042_model
+from ..assets.type_c.usb_type_c_16pin import create_usb_type_c_16pin_model
+from ..assets.pptc.pptc0603 import create_smd0603_fuse_model
+from ..assets.esop.esop8 import create_esop8_model
+from ..assets.msop.msop10 import create_msop10_model
+from ..assets.led.led0603 import create_led0603_with_color
+from ..assets.capacitors.smd_e_cap import create_smd_ecap_model
+from ..assets.capacitors.smd_capacitor import create_smd_capacitor_model
+from ..assets.inductor.smd_inductor import create_smd_inductor_model
+from ..assets.wdfn.wdfn import create_wdfn_3x3_10_model
+from ..assets.tft.tft_170x320_1_9inch import create_tft_170x320_1_9inch_model
 
 
 # ============================================================================

@@ -2,8 +2,8 @@ import bpy
 import bmesh
 from mathutils import Vector, Matrix
 import math
-from io_fritzing.assets.utils.material import create_material
-from io_fritzing.assets.utils.scene import clear_scene
+from ..utils.material import create_material
+from ..utils.scene import clear_scene
 
 
 def create_single_L_pin(dims, name: str) -> bpy.types.Object:

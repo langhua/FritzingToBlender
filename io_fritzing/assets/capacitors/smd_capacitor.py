@@ -1,9 +1,9 @@
 import bpy
 import bmesh
 from mathutils import Vector
-from io_fritzing.assets.utils.scene import clear_scene, create_lighting, create_camera
-from io_fritzing.assets.utils.origin import set_origin_to_bottom
-from io_fritzing.assets.utils.material import create_material
+from ..utils.scene import clear_scene, create_lighting, create_camera
+from ..utils.origin import set_origin_to_bottom
+from ..utils.material import create_material
 
 # 定义常见贴片电容封装尺寸（单位：毫米）- 保留所有尺寸
 CAPACITOR_SIZES = {

@@ -5,11 +5,11 @@ from mathutils import Matrix
 from typing import List, Tuple, Dict
 from bpy.types import Panel, Operator, PropertyGroup
 from bpy.props import FloatProperty, StringProperty, EnumProperty, IntProperty, BoolProperty, PointerProperty, FloatVectorProperty
-from io_fritzing.assets.resistors.band_colors import RESISTOR_COLORS, TOLERANCE_COLORS
-from io_fritzing.assets.utils.material import create_material
-from io_fritzing.assets.resistors.color_4band import resistance_tolerance_to_4bands
-from io_fritzing.assets.resistors.color_5band import resistance_tolerance_to_5bands
-from io_fritzing.assets.commons.l_pin import create_L_pins
+from .band_colors import RESISTOR_COLORS, TOLERANCE_COLORS
+from ..utils.material import create_material
+from .color_4band import resistance_tolerance_to_4bands
+from .color_5band import resistance_tolerance_to_5bands
+from ..commons.l_pin import create_L_pins
 
 
 bl_info = {

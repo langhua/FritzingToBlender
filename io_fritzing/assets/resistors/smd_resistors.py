@@ -2,10 +2,10 @@ import bpy
 import bmesh
 from bpy.types import Panel, Operator, PropertyGroup
 from bpy.props import FloatProperty, StringProperty, EnumProperty, IntProperty, BoolProperty, PointerProperty
-from io_fritzing.assets.resistors.eia_96 import resistor_to_eia96
-from io_fritzing.assets.utils.material import create_material
-from io_fritzing.assets.resistors.code_4digit import resistance_to_4digit
-from io_fritzing.assets.resistors.code_3digit import resistance_to_3digit
+from .eia_96 import resistor_to_eia96
+from ..utils.material import create_material
+from .code_4digit import resistance_to_4digit
+from .code_3digit import resistance_to_3digit
 
 bl_info = {
     "name": "贴片电阻生成器",

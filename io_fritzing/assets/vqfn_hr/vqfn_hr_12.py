@@ -1,10 +1,10 @@
 import bpy
 import bmesh
 from mathutils import Vector
-from io_fritzing.assets.commons.rounded_rect import create_rounded_rectangle
+from commons.rounded_rect import create_rounded_rectangle
 import math
-from io_fritzing.assets.utils.material import create_material
-from io_fritzing.assets.utils.scene import clear_scene
+from ..utils.material import create_material
+from ..utils.scene import clear_scene
 
 pin_width = 0.3
 pin_length = 0.5

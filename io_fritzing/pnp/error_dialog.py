@@ -1,6 +1,6 @@
 import bpy
 from bpy.types import Context, Operator
-from io_fritzing.svg.report import importdata
+from ..svg.report import importdata
 import winsound
 import os
 

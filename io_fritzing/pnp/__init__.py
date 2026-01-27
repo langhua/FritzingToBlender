@@ -1,6 +1,6 @@
 import bpy
-from io_fritzing.pnp.ui_labels import langs
-from io_fritzing.pnp.pnp_import import register as register_pnp_settings, unregister as unregister_pnp_settings
+from .ui_labels import langs
+from .pnp_import import register as register_pnp_settings, unregister as unregister_pnp_settings
 
 classes = (
 )

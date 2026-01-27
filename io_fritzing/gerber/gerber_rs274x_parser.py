@@ -12,9 +12,9 @@ from bpy_extras.io_utils import ImportHelper
 import gc
 from pcb_tools.primitives import Line as Rs274x_Line
 from pcb_tools import read
-from io_fritzing.assets.utils.material import create_material
-from io_fritzing.gerber.excellon_parser import DrillParser, DrillGenerator
-from io_fritzing.gerber.report import importdata, update as update_report
+from ..assets.utils.material import create_material
+from .excellon_parser import DrillParser, DrillGenerator
+from .report import importdata, update as update_report
 
 global gerber_fileinfo
 gerber_fileinfo = dict()

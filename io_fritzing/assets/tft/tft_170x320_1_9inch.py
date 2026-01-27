@@ -2,12 +2,12 @@ import bpy
 import bmesh
 from mathutils import Vector
 import math
-from io_fritzing.assets.utils.scene import clear_scene
-from io_fritzing.assets.utils.material import create_material
-from io_fritzing.assets.commons.rounded_rect import create_rounded_rectangle
-from io_fritzing.assets.resistors.smd_resistors import generate_smd_resistor, SMD_SIZES
-from io_fritzing.assets.sot.sot23_3 import create_sot23_3_model
-from io_fritzing.assets.capacitors.smd_capacitor import create_smd_capacitor_model
+from ..utils.scene import clear_scene
+from ..utils.material import create_material
+from ..commons.rounded_rect import create_rounded_rectangle
+from ..resistors.smd_resistors import generate_smd_resistor, SMD_SIZES
+from ..sot.sot23_3 import create_sot23_3_model
+from ..capacitors.smd_capacitor import create_smd_capacitor_model
 
 # 创建4层TFT结构
 def create_tft_layers():

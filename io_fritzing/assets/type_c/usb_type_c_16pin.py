@@ -2,9 +2,9 @@ import bpy
 import bmesh
 from mathutils import Vector
 import math
-from io_fritzing.assets.utils.scene import clear_scene
-from io_fritzing.assets.utils.material import create_material
-from io_fritzing.assets.commons.rounded_rect import create_rounded_rectangle
+from ..utils.scene import clear_scene
+from ..utils.material import create_material
+from ..commons.rounded_rect import create_rounded_rectangle
 
 # 创建基础USB Type-C母座外壳
 def create_usb_type_c_shell():

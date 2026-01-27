@@ -1,11 +1,11 @@
 from bpy.types import Operator, Scene
 import bpy
 from bpy.props import EnumProperty
-from io_fritzing.svg.commondata import Board_Black, Board_Blue, Board_Green, Board_Purple, Board_Red, Board_White, Board_Yellow
-from io_fritzing.svg.commondata import Copper, Copper2, Silk_Black, Silk_White, Silk_White2
+from ..svg.commondata import Board_Black, Board_Blue, Board_Green, Board_Purple, Board_Red, Board_White, Board_Yellow
+from ..svg.commondata import Copper, Copper2, Silk_Black, Silk_White, Silk_White2
 import os
 import bpy.utils.previews as previews
-from io_fritzing.gerber.report import importdata
+from .report import importdata
 
 ##
 # Dialog box to handle error messages

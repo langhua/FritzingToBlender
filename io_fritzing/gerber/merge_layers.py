@@ -1,5 +1,5 @@
 import bpy
-from io_fritzing.gerber.report import importdata
+from .report import importdata
 from bpy.types import Operator
 
 class GerberMergeLayers(Operator):

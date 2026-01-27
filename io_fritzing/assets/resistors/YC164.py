@@ -1,8 +1,8 @@
 import bpy
 import math
-from io_fritzing.assets.utils.material import create_material
-from io_fritzing.assets.utils.scene import clear_scene
-from io_fritzing.assets.resistors.code_3digit import resistance_to_3digit
+from ..utils.material import create_material
+from ..utils.scene import clear_scene
+from .code_3digit import resistance_to_3digit
 
 # 清理场景
 # 根据设计图定义YC164的尺寸

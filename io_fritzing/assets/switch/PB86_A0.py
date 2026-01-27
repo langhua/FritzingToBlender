@@ -2,12 +2,12 @@ import bpy
 import bmesh
 from mathutils import Vector
 import math
-import io_fritzing.assets.commons.triangle as triangle
-import io_fritzing.assets.commons.rounded_rect as rounded_rect
-import io_fritzing.assets.commons.frustum as frustum
-import io_fritzing.assets.commons.trapezoid as trapezoid
-from io_fritzing.assets.utils.scene import clear_scene
-from io_fritzing.assets.utils.material import create_material
+import commons.triangle as triangle
+import commons.rounded_rect as rounded_rect
+import commons.frustum as frustum
+import commons.trapezoid as trapezoid
+from ..utils.scene import clear_scene
+from ..utils.material import create_material
 
 
 # 根据技术图纸定义PB86-A0按键准确尺寸

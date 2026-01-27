@@ -2,7 +2,7 @@ import bpy
 import bmesh
 from mathutils import Vector
 import math
-from io_fritzing.assets.utils.scene import clear_scene
+from ..utils.scene import clear_scene
 
 # 定义精确的尺寸参数
 dimensions = {

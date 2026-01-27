@@ -1,5 +1,5 @@
 import bpy
-from io_fritzing.svg.report import importdata
+from .report import importdata
 from bpy.types import Operator
 from mathutils import Vector
 import time

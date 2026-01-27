@@ -6,7 +6,7 @@ import winsound
 from bpy.app.translations import pgettext
 from bpy.types import Operator, Panel, Scene
 from bpy.props import StringProperty, BoolProperty
-from io_fritzing.assets.utils.material import create_material
+from ..assets.utils.material import create_material
 from pcb_tools.excellon import read as read_excellon
 
 # ============================================================================

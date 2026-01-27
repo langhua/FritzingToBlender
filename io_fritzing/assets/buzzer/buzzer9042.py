@@ -1,7 +1,7 @@
 import bpy
 import math
-from io_fritzing.assets.utils.scene import clear_scene
-from io_fritzing.assets.utils.material import create_material
+from ..utils.scene import clear_scene
+from ..utils.material import create_material
 
 # 根据图片说明修正蜂鸣器9042的尺寸
 dimensions = {

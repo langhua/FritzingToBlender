@@ -1,8 +1,7 @@
 import bpy
-from io_fritzing.gerber.report import importdata
+from .report import importdata
 from bpy.types import Operator
 import time
-import bmesh
 
 
 class GerberDrillHoles(Operator):

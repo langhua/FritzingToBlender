@@ -2,10 +2,10 @@ import bpy
 import math
 import bmesh
 from mathutils import Vector
-from io_fritzing.assets.commons.antenna import create_esp12f_antenna
-from io_fritzing.assets.led.led0603 import create_led0603_with_color
-from io_fritzing.assets.utils.material import create_material
-from io_fritzing.assets.utils.scene import clear_scene
+from ..commons.antenna import create_esp12f_antenna
+from ..led.led0603 import create_led0603_with_color
+from ..utils.material import create_material
+from ..utils.scene import clear_scene
 
 def create_esp12f_model():
     """创建ESP-12F模型的完整函数"""

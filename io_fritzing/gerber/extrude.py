@@ -1,9 +1,7 @@
 import bpy
-from io_fritzing.gerber.report import importdata
+from .report import importdata
 from bpy.types import Operator
 from mathutils import Vector
-import time
-import bmesh
 
 class GerberExtrude(Operator):
     bl_idname = "fritzing.gerber_extrude"

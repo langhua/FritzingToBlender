@@ -3,9 +3,9 @@ schema_version = "1.0.0"
 # Example of manifest file for a Blender extension
 # Change the values according to your extension
 id = "FritzingToBlender"
-version = "0.0.2"
-name = "Import Fritzing PCB SVGs"
-tagline = "Import Fritzing PCB svg files into Blender as a 3D PCB board."
+version = "0.3.0"
+name = "Fritzing To Blender"
+tagline = "Import Fritzing gerber, drill and pnp files into Blender as 3D PCB board or parts."
 maintainer = "Shi Jinghai"
 # Supported types: "add-on", "theme"
 type = "add-on"

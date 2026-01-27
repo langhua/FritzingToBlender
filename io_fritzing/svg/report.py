@@ -3,7 +3,7 @@ import os
 import winsound
 from bpy.props import FloatProperty, StringProperty
 from bpy.types import Operator, Scene
-from io_fritzing.svg.commondata import PCBImportData
+from .commondata import PCBImportData
 
 
 # a variable where we can store the original draw funtion

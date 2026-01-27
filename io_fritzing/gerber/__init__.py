@@ -3,18 +3,18 @@ import os
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 import bpy
-from io_fritzing.gerber.excellon_parser import register as register_excellon_parser, unregister as unregister_excellon_parser
-from io_fritzing.gerber.gerber_rs274x_parser import register as register_gerber_parser, unregister as unregister_gerber_parser
-from io_fritzing.gerber.get_files import GerberGetFiles
-from io_fritzing.gerber.board_settings import register as register_board_settings, unregister as unregister_board_settings
-from io_fritzing.gerber.report import register as register_report, unregister as unregister_report
-from io_fritzing.gerber.ui_labels import langs
-from io_fritzing.gerber.extrude import GerberExtrude
-from io_fritzing.gerber.merge_layers import GerberMergeLayers
-from io_fritzing.gerber.create_materials import GerberCreateMaterials
-from io_fritzing.gerber.error_dialog import GerberErrorDialog
-from io_fritzing.gerber.drill_holes import GerberDrillHoles
-from io_fritzing.gerber.merge_cylinders import register as register_merge_cylinders, unregister as unregister_merge_cylinders
+from .excellon_parser import register as register_excellon_parser, unregister as unregister_excellon_parser
+from .gerber_rs274x_parser import register as register_gerber_parser, unregister as unregister_gerber_parser
+from .get_files import GerberGetFiles
+from .board_settings import register as register_board_settings, unregister as unregister_board_settings
+from .report import register as register_report, unregister as unregister_report
+from .ui_labels import langs
+from .extrude import GerberExtrude
+from .merge_layers import GerberMergeLayers
+from .create_materials import GerberCreateMaterials
+from .error_dialog import GerberErrorDialog
+from .drill_holes import GerberDrillHoles
+from .merge_cylinders import register as register_merge_cylinders, unregister as unregister_merge_cylinders
 
 def menu_import(self, _):
     """

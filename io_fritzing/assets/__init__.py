@@ -2,7 +2,7 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
-from io_fritzing.assets.resistors import register as resistor_register, unregister as resistor_unregister
+from .resistors import register as resistor_register, unregister as resistor_unregister
 
 def register():
     resistor_register()

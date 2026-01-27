@@ -16,18 +16,18 @@ import os
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 import bpy
-from io_fritzing.svg.import_single_svg import ImportSingleSVG
-from io_fritzing.svg.get_files import GetFiles
-from io_fritzing.svg.report import register as FritzingIORegister, unregister as FritzingIOUnregister
-from io_fritzing.svg.error_dialog import ErrorDialog
-from io_fritzing.svg.clean_drill_holes import CleanDrillHoles
-from io_fritzing.svg.create_materials import CreateMaterials
-from io_fritzing.svg.drill_holes import DrillHoles
-from io_fritzing.svg.extrude import Extrude
-from io_fritzing.svg.merge_layers import MergeLayers
-from io_fritzing.svg.remove_extra_verts import RemoveExtraVerts
-from io_fritzing.svg.ui_labels import langs
-from io_fritzing.svg.board_settings import BoardSettings, register as BoardSettingsRegister, unregister as BoardSettingsUnregister
+from .import_single_svg import ImportSingleSVG
+from .get_files import GetFiles
+from .report import register as FritzingIORegister, unregister as FritzingIOUnregister
+from .error_dialog import ErrorDialog
+from .clean_drill_holes import CleanDrillHoles
+from .create_materials import CreateMaterials
+from .drill_holes import DrillHoles
+from .extrude import Extrude
+from .merge_layers import MergeLayers
+from .remove_extra_verts import RemoveExtraVerts
+from .ui_labels import langs
+from .board_settings import BoardSettings, register as BoardSettingsRegister, unregister as BoardSettingsUnregister
 
 # from .test.test_bool_tool import TestBoolTool, register as TestBoolToolRegister, unregister as TestBoolToolUnregister
 
