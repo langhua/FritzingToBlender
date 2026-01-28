@@ -2,10 +2,7 @@ import bpy
 import bmesh
 from mathutils import Vector, Matrix
 import math
-import commons.l_bend as l_bend
-import commons.trapezoid as trapezoid
-import commons.rounded_rect as rounded_rect
-import commons.z as z_pin
+from ..commons import l_bend, trapezoid, rounded_rect, z as z_pin
 from ..utils.scene import clear_scene
 from ..utils.material import create_material
 
