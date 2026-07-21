@@ -1070,35 +1070,35 @@ class IMPORT_OT_gerber(Operator):
     ) # type: ignore
     
     def invoke(self, context, event):
-        """Invoke dialog"""
-        global gerber_fileinfo
+        """Show board settings dialog, then import"""
+        global gerber_fileinfo, _import_files_queue, _import_debug, _import_optimize
+        
         if not gerber_fileinfo or len(gerber_fileinfo) == 0:
             if context:
                 context.window_manager.fileselect_add(self)
             return {'RUNNING_MODAL'}
-        return self.execute(context)
-    
-    def execute(self, context):
-        """Launch modal import operator"""
-        global gerber_fileinfo, _import_files_queue, _import_debug, _import_optimize
         
-        if not gerber_fileinfo or len(gerber_fileinfo) == 0:
-            self.report({'ERROR'}, pgettext("No Gerber files to import"))
-            return {'CANCELLED'}
-        
-        # Reset success flag
-        setattr(context.scene, 'gerber_import_issuccess', False)
-        setattr(context.scene, 'gerber_importing_current_layer', '')
-        setattr(context.scene, 'gerber_importing_progress', 0.0)
-        
-        # Build import queue from gerber_fileinfo
+        # Store import params for later use
         _import_files_queue = list(gerber_fileinfo.items())
         _import_debug = self.debug_mode
         _import_optimize = self.optimize_performance
         
-        # Launch modal import operator
-        bpy.ops.io_fritzing.import_gerber_modal('INVOKE_DEFAULT')
+        # Reset progress
+        setattr(context.scene, 'gerber_import_issuccess', False)
+        setattr(context.scene, 'gerber_importing_current_layer', '')
+        setattr(context.scene, 'gerber_importing_progress', 0.0)
+        
+        # Set flag so board settings launches panel modal after dialog
+        from . import board_settings
+        board_settings._launch_panel_modal = True
+        
+        # Show board settings dialog
+        bpy.ops.fritzing.gerber_board_settings('INVOKE_DEFAULT')
         return {'FINISHED'}
+    
+    def execute(self, context):
+        """Fallback: called if invoked without dialog (e.g., from script)"""
+        return self.invoke(context, None)
 
 
 # ============================================================================
@@ -1500,7 +1500,6 @@ class VIEW3D_PT_gerber(Panel):
             col.label(text=current_file, icon='SORTTIME')
             row = col.row(align=True)
             row.prop(scene, 'gerber_parsing_progress', text=pgettext("Parsing"), slider=True)
-            row.enabled = False
 
         # Show current import progress
         importing_layer = getattr(scene, 'gerber_importing_current_layer', '')
@@ -1514,7 +1513,6 @@ class VIEW3D_PT_gerber(Panel):
             col = col.box()
             row = col.row(align=True)
             row.prop(scene, 'gerber_importing_progress', text=pgettext("Importing"), slider=True)
-            row.enabled = False
 
         # File information (only show when not actively parsing or importing)
         filepath = getattr(scene, "gerber_filepath")
@@ -1842,6 +1840,16 @@ class IMPORT_OT_import_gerber_modal(Operator):
     
     _timer = None
     _ticks = 0
+    _post_phase = -1  # -1 = importing, 0=extrude, 1=materials, 2=merge, 3=cylinders, 4=drill, 5=done
+    
+    # Post-processing step names for progress display
+    _post_steps = [
+        ("extrude", "Extruding ..."),
+        ("materials", "Creating materials ..."),
+        ("merge", "Merging layers ..."),
+        ("cylinders", "Merging drill cylinders ..."),
+        ("drill", "Drilling holes ..."),
+    ]
     
     def _import_one_file(self, context):
         """Import the next file in the queue. Returns True if done."""
@@ -1858,7 +1866,7 @@ class IMPORT_OT_import_gerber_modal(Operator):
         setattr(context.scene, 'gerber_importing_current_layer',
                 pgettext("Importing {layer}...").format(layer=layer_name))
         setattr(context.scene, 'gerber_importing_progress',
-                float(_import_current) / float(_import_total) * 100.0)
+                float(_import_current) / float(_import_total) * 70.0)
         
         # Force panel redraw
         for area in context.screen.areas:
@@ -1914,6 +1922,9 @@ class IMPORT_OT_import_gerber_modal(Operator):
                 self.report({'INFO'},
                            pgettext("Imported {n} drills").format(
                                n=create_result.get('object_count', 0)))
+                # Store drill layer for post-processing
+                if 'layer' in create_result:
+                    importdata.svgLayers[layer_name] = create_result['layer']
             else:
                 # Parse and create mesh for Gerber layer
                 parser = GerberParser()
@@ -1935,6 +1946,9 @@ class IMPORT_OT_import_gerber_modal(Operator):
                            pgettext("Imported {layer}: {p} primitives").format(
                                layer=layer_name,
                                p=result_stats.get('total_prims', 0)))
+                # Store layer object for post-processing
+                if result_stats.get('mesh_obj'):
+                    importdata.svgLayers[layer_name] = result_stats['mesh_obj']
         except Exception as e:
             self.report({'ERROR'},
                        pgettext("Import error for {layer}: {err}").format(
@@ -1948,21 +1962,47 @@ class IMPORT_OT_import_gerber_modal(Operator):
         
         if event.type == 'TIMER':
             self._ticks += 1
-            done = self._import_one_file(context)
             
-            if done:
-                # Final progress update
+            # Phase: importing files
+            if self._post_phase < 0:
+                done = self._import_one_file(context)
+                
+                if done:
+                    # All files imported, start post-processing
+                    self._post_phase = 0
+                    return {'RUNNING_MODAL'}
+            
+            # Phase: post-processing
+            elif 0 <= self._post_phase < len(self._post_steps):
+                step_name, step_label = self._post_steps[self._post_phase]
+                
+                # Update progress (70% - 100% range for post-processing)
+                post_progress = 70.0 + (self._post_phase / len(self._post_steps)) * 30.0
+                setattr(context.scene, 'gerber_importing_progress', post_progress)
+                setattr(context.scene, 'gerber_importing_current_layer',
+                        pgettext(step_label))
+                
+                # Force panel redraw
+                for area in context.screen.areas:
+                    if area.type == 'VIEW_3D':
+                        area.tag_redraw()
+                
+                # Invoke the post-processing operator
+                self._run_post_step(step_name)
+                self._post_phase += 1
+                return {'RUNNING_MODAL'}
+            
+            # Phase: all done
+            elif self._post_phase >= len(self._post_steps):
                 setattr(context.scene, 'gerber_importing_progress', 100.0)
                 setattr(context.scene, 'gerber_importing_current_layer',
                         pgettext("Import complete"))
                 setattr(context.scene, 'gerber_import_issuccess', True)
                 
-                # Force final panel redraw
                 for area in context.screen.areas:
                     if area.type == 'VIEW_3D':
                         area.tag_redraw()
                 
-                # Cleanup
                 if self._timer:
                     context.window_manager.event_timer_remove(self._timer)
                 
@@ -1982,12 +2022,32 @@ class IMPORT_OT_import_gerber_modal(Operator):
         
         return {'PASS_THROUGH'}
     
+    def _run_post_step(self, step_name):
+        """Run a post-processing step by invoking the corresponding operator."""
+        try:
+            if step_name == "extrude":
+                bpy.ops.fritzing.gerber_extrude('INVOKE_DEFAULT')
+            elif step_name == "materials":
+                bpy.ops.fritzing.gerber_create_materials('INVOKE_DEFAULT')
+            elif step_name == "merge":
+                bpy.ops.fritzing.gerber_merge_layers('INVOKE_DEFAULT')
+            elif step_name == "cylinders":
+                bpy.ops.fritzing.gerber_merge_cylinders('INVOKE_DEFAULT')
+            elif step_name == "drill":
+                bpy.ops.fritzing.gerber_drill_holes('INVOKE_DEFAULT')
+        except Exception as e:
+            print(f"--Post-processing {step_name} exception: {e}")
+    
     def invoke(self, context, event):
         global _import_current, _import_total, _import_main_collection
         
         _import_total = len(_import_files_queue)
         _import_current = 0
         _import_main_collection = None
+        self._post_phase = -1
+        
+        # Reset importdata for fresh post-processing pipeline
+        importdata.svgLayers = dict()
         
         # Ensure Scene properties exist
         if not hasattr(Scene, 'gerber_importing_current_layer'):

@@ -114,6 +114,12 @@ ui_labels= {
     ('*', 'Parsing'): '解析',
     ('*', 'Importing'): '导入',
     ('*', 'Progress'): '进度',
+    # Post-processing steps
+    ('*', 'Extruding ...'): '正在挤压成型...',
+    ('*', 'Creating materials ...'): '正在创建材料...',
+    ('*', 'Merging layers ...'): '正在融合各层...',
+    ('*', 'Merging drill cylinders ...'): '正在合并钻孔圆柱...',
+    ('*', 'Drilling holes ...'): '正在钻孔...',
 }
 
 langs = {

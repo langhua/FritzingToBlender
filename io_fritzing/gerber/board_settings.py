@@ -7,6 +7,9 @@ import os
 import bpy.utils.previews as previews
 from .report import importdata
 
+# Flag: when True, GerberBoardSettings launches the panel import modal
+_launch_panel_modal = False
+
 ##
 # Dialog box to handle error messages
 class GerberBoardSettings(Operator):
@@ -97,7 +100,13 @@ class GerberBoardSettings(Operator):
             importdata.silk_color = getattr(context.scene, 'gerber_silk_color_setting')
             importdata.board_color = getattr(context.scene, 'gerber_board_color_setting')
             importdata.board_thickness = float(getattr(context.scene, 'gerber_board_thickness_setting'))
-        getattr(getattr(bpy.ops, 'fritzing'), 'gerber_progress_report')("INVOKE_DEFAULT")
+        
+        global _launch_panel_modal
+        if _launch_panel_modal:
+            _launch_panel_modal = False
+            bpy.ops.io_fritzing.import_gerber_modal('INVOKE_DEFAULT')
+        else:
+            getattr(getattr(bpy.ops, 'fritzing'), 'gerber_progress_report')("INVOKE_DEFAULT")
         return {"FINISHED"}
     
     def invoke(self, context, event):

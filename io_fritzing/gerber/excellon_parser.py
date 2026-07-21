@@ -844,7 +844,6 @@ class VIEW3D_PT_drill_z_axis(Panel):
                 progress_box.label(text=drill_step, icon='IMPORT')
                 row = progress_box.row(align=True)
                 row.prop(scene, 'drill_importing_progress', text=pgettext("Progress"), slider=True)
-                row.enabled = False
         else:
             drill_step = ''
             is_importing = False
