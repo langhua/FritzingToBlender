@@ -2,9 +2,23 @@ import bpy
 import bmesh
 from mathutils import Vector, Matrix
 import math
-from ..commons import l_bend, trapezoid, rounded_rect, z as z_pin
-from ..utils.scene import clear_scene
-from ..utils.material import create_material
+import sys
+import os
+
+# Support both package imports (Blender addon) and direct script execution
+_this_dir = os.path.abspath(os.path.dirname(__file__))
+_project_root = os.path.abspath(os.path.join(_this_dir, '..', '..', '..'))
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
+
+try:
+    from ..commons import l_bend, trapezoid, rounded_rect, z as z_pin
+    from ..utils.scene import clear_scene
+    from ..utils.material import create_material
+except ImportError:
+    from io_fritzing.assets.commons import l_bend, trapezoid, rounded_rect, z as z_pin
+    from io_fritzing.assets.utils.scene import clear_scene
+    from io_fritzing.assets.utils.material import create_material
 
 # 根据设计图定义TS-D014的尺寸参数
 dimensions = {
@@ -93,6 +107,27 @@ dimensions = {
     'z_pin_height': 0.4,      # 矩形高度
     'z_pin_thickness': 0.4,   # 管壁厚度（用于空心管）
 }
+
+# ── Boolean helper: try Bool Tool first, fall back to built-in Boolean ──
+
+def _bool_difference(target, cutter):
+    """Cut cutter shape from target. Tries Bool Tool first, falls back to built-in."""
+    bpy.ops.object.select_all(action='DESELECT')
+    bpy.context.view_layer.objects.active = target
+    cutter.select_set(True)
+    
+    try:
+        bpy.ops.object.boolean_auto_difference()
+    except (AttributeError, RuntimeError):
+        # Bool Tool unavailable, use built-in Boolean modifier
+        bpy.ops.object.select_all(action='DESELECT')
+        bpy.context.view_layer.objects.active = target
+        mod = target.modifiers.new(name="Bool_Cut", type='BOOLEAN')
+        mod.operation = 'DIFFERENCE'
+        mod.object = cutter
+        mod.solver = 'FAST'
+        bpy.ops.object.modifier_apply(modifier=mod.name)
+        bpy.data.objects.remove(cutter, do_unlink=True)
 
 def apply_all_modifiers(obj=None):
     """应用所有修改器"""
@@ -480,10 +515,7 @@ def create_center_hole(plate):
     hole_cutter = bpy.context.active_object
     hole_cutter.name = "Center_Hole_Cutter"
     
-    bpy.ops.object.select_all(action='DESELECT')
-    bpy.context.view_layer.objects.active = plate
-    hole_cutter.select_set(True)
-    bpy.ops.object.boolean_auto_difference()
+    _bool_difference(plate, hole_cutter)
 
 def create_corner_holes(plate):
     """创建四个角部小孔"""
@@ -519,10 +551,7 @@ def create_corner_holes(plate):
         hole_cutter = bpy.context.active_object
         hole_cutter.name = f"Corner_Hole_Cutter_{i}"
         
-        bpy.ops.object.select_all(action='DESELECT')
-        bpy.context.view_layer.objects.active = plate
-        hole_cutter.select_set(True)
-        bpy.ops.object.boolean_auto_difference()
+        _bool_difference(plate, hole_cutter)
 
 def create_l_bends(plate, metal_mat):
     """创建两侧的L型弯折板"""
@@ -617,16 +646,10 @@ def create_right_angled_trapezoid_modifications(plate):
     plate2.location = (3.25, -2.7, -6.699)
 
     # 使用plate1切割左侧L型弯折
-    bpy.ops.object.select_all(action='DESELECT')
-    bpy.context.view_layer.objects.active = plate
-    plate1.select_set(True)
-    bpy.ops.object.boolean_auto_difference()
+    _bool_difference(plate, plate1)
 
     # 使用plate2切割右侧L型弯折
-    bpy.ops.object.select_all(action='DESELECT')
-    bpy.context.view_layer.objects.active = plate
-    plate2.select_set(True)
-    bpy.ops.object.boolean_auto_difference()
+    _bool_difference(plate, plate2)
 
 def create_small_right_angled_trapezoid_modifications(plate):
     """创建两侧的小直角梯形修型"""
@@ -642,16 +665,10 @@ def create_small_right_angled_trapezoid_modifications(plate):
     plate2.location = (3.25, -4.05, -2.95)
 
     # 使用plate1切割左侧L型弯折
-    bpy.ops.object.select_all(action='DESELECT')
-    bpy.context.view_layer.objects.active = plate
-    plate1.select_set(True)
-    bpy.ops.object.boolean_auto_difference()
+    _bool_difference(plate, plate1)
 
     # 使用plate2切割右侧L型弯折
-    bpy.ops.object.select_all(action='DESELECT')
-    bpy.context.view_layer.objects.active = plate
-    plate2.select_set(True)
-    bpy.ops.object.boolean_auto_difference()
+    _bool_difference(plate, plate2)
 
 def create_rectangular_modifications(plate):
     """创建两侧的矩形修型"""
@@ -669,16 +686,10 @@ def create_rectangular_modifications(plate):
     bpy.ops.object.transform_apply(scale=True)
 
     # 使用plate3切割左侧L型弯折
-    bpy.ops.object.select_all(action='DESELECT')
-    bpy.context.view_layer.objects.active = plate
-    plate3.select_set(True)
-    bpy.ops.object.boolean_auto_difference()
+    _bool_difference(plate, plate3)
 
     # 使用plate4切割右侧L型弯折
-    bpy.ops.object.select_all(action='DESELECT')
-    bpy.context.view_layer.objects.active = plate
-    plate4.select_set(True)
-    bpy.ops.object.boolean_auto_difference()
+    _bool_difference(plate, plate4)
 
 def create_rounded_rectangular_modifications(plate):
     plate5 = rounded_rect.create_rounded_rectangle(5, 1.22, 4.2, 1, 0.5, 8, "top")
