@@ -1,6 +1,21 @@
 # FritzingToBlender
 这是一个Blender插件，修改自[GerberToBlender](https://github.com/francis-chris5/GerberToBlender)。本项目目的是把Fritzing导出的Gerber目录，转成3D PCB板模型，以便精确设计安装螺孔位置和外壳等。
 
+FritzingToBlender是简单电子产品制造工具链的一环：
+
+```mermaid
+flowchart LR
+    A[Fritzing<br/>电路设计] -->|Gerber RS-274X| B[PCB 厂家<br/>生产电路板]
+    A -->|PNP 文件| C[pnp2cpl<br/>格式转换] -->|CSV 装配文件| B
+    A -->|Gerber RS-274X| D[★ FritzingToBlender ★<br/>导入 Blender] --> E[Blender<br/>外壳设计 / 3D 打印试装<br/>外观图 / 分解图]
+    E --> F[blender2step<br/>导出 STEP] -->|STEP| G[模具厂家<br/>批量生产外壳]
+
+    H[Inkscape<br/>绘制元器件] -.->|SVG| A
+    I[fritzing-parts-langhua<br/>开源元器件库] -.->|SVG| A
+
+    style D fill:#f57c00,stroke:#333,stroke-width:2px,color:#fff,font-size:16px
+```
+
 ## 适用
 Blender 4.2.1 + Bool Tool 1.1.2插件
 

@@ -1565,8 +1565,21 @@ class VIEW3D_PT_gerber(Panel):
                     text="", 
                     icon='FILEBROWSER')
         
+        # Show current parsing progress
+        current_file = getattr(scene, 'gerber_parsing_current_file', '')
+        parsing_progress = getattr(scene, 'gerber_parsing_progress', 0.0)
+        if current_file:
+            # Show progress bar and current file being parsed
+            col = box.column(align=True)
+            col.label(text=current_file, icon='SORTTIME')
+            # Use a row with a label to simulate progress bar with percentage
+            row = col.row(align=True)
+            row.prop(scene, 'gerber_parsing_progress', text="Progress", slider=True)
+            row.enabled = False  # Read-only display
+
         # File information
         filepath = getattr(scene, "gerber_filepath")
+        import_success = getattr(scene, 'gerber_import_issuccess', False)
         can_process = False
         if filepath and os.path.exists(filepath) and len(gerber_fileinfo) > 0:
             try:
@@ -1600,7 +1613,8 @@ class VIEW3D_PT_gerber(Panel):
         layout.separator()
         col = layout.column(align=True)
         
-        if can_process:
+        if import_success and can_process:
+            col.label(text=pgettext("✓ Parsing complete, ready to import"), icon='CHECKMARK')
             op = col.operator("io_fritzing.import_gerber_file", 
                              text="Import Gerber Files", 
                              icon='IMPORT')
@@ -1611,6 +1625,9 @@ class VIEW3D_PT_gerber(Panel):
             col.operator("io_fritzing.clear_all_objects", 
                         text="Clear All Imported Objects", 
                         icon='TRASH')
+        elif can_process and not import_success:
+            col.label(text="⚠ Some files failed to parse", icon='ERROR')
+            col.label(text="Please re-select the folder")
         else:
             col.label(text="Please select Gerber folder first", icon='ERROR')
 
@@ -1662,6 +1679,16 @@ class VIEW3D_PT_gerber(Panel):
 # ============================================================================
 # Auxiliary Operators
 # ============================================================================
+
+# Module-level state for the parsing modal
+_parse_files_queue = []      # list of (layer_name, filepath) to parse
+_parse_total = 0
+_parse_current = 0
+_parse_time_start = 0
+_parse_all_success = True
+_parse_directory = ''
+
+
 class IMPORT_OT_browse_gerber_files(Operator, ImportHelper):
     """Browse Gerber Files"""
     bl_idname = "io_fritzing.browse_gerber_files"
@@ -1681,17 +1708,26 @@ class IMPORT_OT_browse_gerber_files(Operator, ImportHelper):
     
     def execute(self, context):
         if context is None:
-            return
-        time_start = time.time()
-        global gerber_fileinfo
-        # Set wait cursor
-        context.window.cursor_modal_set('WAIT')
+            return {'CANCELLED'}
+        
+        global gerber_fileinfo, _parse_files_queue, _parse_total, _parse_current
+        global _parse_time_start, _parse_all_success, _parse_directory
+        
+        gerber_fileinfo = dict()
+        # Reset success flag
+        setattr(context.scene, 'gerber_import_issuccess', False)
+        setattr(context.scene, 'gerber_parsing_current_file', '')
+        setattr(context.scene, 'gerber_parsing_progress', 0.0)
+
         directory = self.properties['filepath']
         cut = directory.rindex(os.path.sep[0])
         directory = directory[0:cut]
-        gerber_fileinfo = dict()
+        _parse_directory = directory
+        
         tmp_filenames = glob.glob(os.path.join(directory, '*.*'))
-        # get filenames dictionary contains outline, bottom, top, bottomsilk, topsilk, drill
+
+        # Collect files to parse
+        _parse_files_queue = []
         for filename in tmp_filenames:
             layer_name = None
             if filename.endswith('.gm1'):
@@ -1707,25 +1743,129 @@ class IMPORT_OT_browse_gerber_files(Operator, ImportHelper):
             elif filename.endswith('.gto'):
                 layer_name = 'topsilk'
             if layer_name:
-                self.count_gerber_prims(layer_name, filename)
-        if os.path.exists(directory):
-            setattr(context.scene, 'gerber_filepath', directory)
-        setattr(context.scene, 'fetch_gerber_prims_time_consumed', time.time() - time_start)
+                _parse_files_queue.append((layer_name, filename))
 
-        # Restore cursor
-        context.window.cursor_modal_set('DEFAULT')
+        _parse_total = len(_parse_files_queue)
+        if _parse_total == 0:
+            self.report({'WARNING'}, pgettext("No Gerber files found in the selected folder"))
+            return {'CANCELLED'}
+
+        _parse_current = 0
+        _parse_time_start = time.time()
+        _parse_all_success = True
+        
+        setattr(context.scene, 'gerber_filepath', directory)
+        
+        # Launch modal operator to parse files with progress
+        bpy.ops.io_fritzing.parse_gerber_files('INVOKE_DEFAULT')
         return {'FINISHED'}
 
-    def count_gerber_prims(self, layer_name, filename):
-        global gerber_fileinfo
+
+class IMPORT_OT_parse_gerber_files(Operator):
+    """Parse Gerber files with progress (modal)"""
+    bl_idname = "io_fritzing.parse_gerber_files"
+    bl_label = "Parse Gerber Files"
+    bl_options = {'REGISTER'}
+    
+    _timer = None
+    _ticks = 0
+    
+    def _parse_one_file(self, context):
+        """Parse the next file in the queue. Returns True if done."""
+        global _parse_files_queue, _parse_current, _parse_all_success, gerber_fileinfo
+        
+        if _parse_current >= _parse_total:
+            return True
+        
+        layer_name, filename = _parse_files_queue[_parse_current]
+        base_name = os.path.basename(filename)
+        
+        # Update progress info on scene
+        setattr(context.scene, 'gerber_parsing_current_file',
+                pgettext("Parsing {layer} ({file})...").format(
+                    layer=layer_name, file=base_name))
+        setattr(context.scene, 'gerber_parsing_progress',
+                float(_parse_current) / float(_parse_total))
+        
+        # Force panel redraw
+        for area in context.screen.areas:
+            if area.type == 'VIEW_3D':
+                area.tag_redraw()
+        
+        # Actually parse the file
         total = 0
         try:
             gerber = read(filename)
             total = len(gerber.primitives)
         except:
-            total = -1   # Failed to parse gerber
-            pass
+            total = -1
         gerber_fileinfo[layer_name] = {'filepath': filename, 'total_prims': total}
+        
+        if total < 0:
+            _parse_all_success = False
+        
+        _parse_current += 1
+        return False
+    
+    def modal(self, context, event):
+        global _parse_directory, _parse_time_start, _parse_all_success
+        
+        if event.type == 'TIMER':
+            self._ticks += 1
+            done = self._parse_one_file(context)
+            
+            if done:
+                # Final progress update
+                setattr(context.scene, 'gerber_parsing_progress', 1.0)
+                setattr(context.scene, 'gerber_parsing_current_file', '')
+                setattr(context.scene, 'fetch_gerber_prims_time_consumed',
+                        time.time() - _parse_time_start)
+                
+                if _parse_all_success and _parse_total > 0:
+                    setattr(context.scene, 'gerber_import_issuccess', True)
+                    self.report({'INFO'}, pgettext(
+                        "Parsed {count} Gerber files successfully ({time:.2f}s)").format(
+                        count=_parse_total, time=time.time() - _parse_time_start))
+                elif _parse_total > 0:
+                    self.report({'WARNING'}, pgettext("Some files failed to parse"))
+                
+                # Force final panel redraw
+                for area in context.screen.areas:
+                    if area.type == 'VIEW_3D':
+                        area.tag_redraw()
+                
+                # Cleanup
+                if self._timer:
+                    context.window_manager.event_timer_remove(self._timer)
+                
+                if os.name == 'nt':
+                    winsound.Beep(1500, 200)
+                
+                return {'FINISHED'}
+        
+        # Safety: max ticks to prevent infinite loop
+        if self._ticks > 100:
+            if self._timer:
+                context.window_manager.event_timer_remove(self._timer)
+            return {'CANCELLED'}
+        
+        return {'PASS_THROUGH'}
+    
+    def invoke(self, context, event):
+        # Start a timer that fires every 0.05 seconds
+        wm = context.window_manager
+        self._timer = wm.event_timer_add(0.05, window=context.window)
+        self._ticks = 0
+        wm.modal_handler_add(self)
+        
+        # Parse the first file immediately
+        self._parse_one_file(context)
+        
+        return {'RUNNING_MODAL'}
+    
+    def cancel(self, context):
+        if self._timer:
+            context.window_manager.event_timer_remove(self._timer)
 
 
 # ============================================================================
@@ -1850,6 +1990,7 @@ class ImportSingleGerber(Operator):
 classes = [
     IMPORT_OT_gerber,
     IMPORT_OT_browse_gerber_files,
+    IMPORT_OT_parse_gerber_files,
     IMPORT_OT_clear_all_objects,
     VIEW3D_PT_gerber,
     ImportSingleGerber,
@@ -1901,6 +2042,21 @@ def register():
         default=False
     ))
     
+    setattr(Scene, 'gerber_parsing_current_file', StringProperty(
+        name="Current Parsing File",
+        description="The file currently being parsed",
+        default=""
+    ))
+    
+    setattr(Scene, 'gerber_parsing_progress', FloatProperty(
+        name="Parsing Progress",
+        description="Progress of Gerber file parsing (0.0 to 1.0)",
+        default=0.0,
+        min=0.0,
+        max=1.0,
+        subtype='FACTOR'
+    ))
+    
     print("✅ Gerber import plugin registration complete")
 
 def unregister():
@@ -1918,6 +2074,9 @@ def unregister():
     delattr(Scene, 'gerber_debug_mode')
     delattr(Scene, 'gerber_optimize_performance')
     delattr(Scene, 'fetch_gerber_prims_time_consumed')
+    delattr(Scene, 'gerber_import_issuccess')
+    delattr(Scene, 'gerber_parsing_current_file')
+    delattr(Scene, 'gerber_parsing_progress')
 
 if __name__ == "__main__":
     register()
