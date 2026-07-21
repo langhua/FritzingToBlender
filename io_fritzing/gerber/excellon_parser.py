@@ -5,7 +5,7 @@ import traceback
 import winsound
 from bpy.app.translations import pgettext
 from bpy.types import Operator, Panel, Scene
-from bpy.props import StringProperty, BoolProperty
+from bpy.props import StringProperty, BoolProperty, FloatProperty
 from ..assets.utils.material import create_material
 from pcb_tools.excellon import read as read_excellon
 
@@ -649,70 +649,170 @@ class IMPORT_OT_drill_z_axis(Operator):
         if context is None:
             return {'CANCELLED'}
 
-        """Execute import"""
+        """Launch modal drill import operator"""
         if not self.filepath or not os.path.exists(self.filepath):
             self.report({'ERROR'}, pgettext("Please select a valid Drill file"))
             return {'CANCELLED'}
         
+        # Store parameters for the modal operator
+        global _drill_import_filepath, _drill_import_debug
+        _drill_import_filepath = self.filepath
+        _drill_import_debug = self.debug_mode
+        
+        # Reset progress (with safety check for unregistered property)
+        if hasattr(context.scene, 'drill_importing_progress'):
+            setattr(context.scene, 'drill_importing_progress', 0.0)
+        if hasattr(context.scene, 'drill_importing_current_step'):
+            setattr(context.scene, 'drill_importing_current_step', '')
+        
+        # Launch modal import operator
+        bpy.ops.io_fritzing.drill_import_modal('INVOKE_DEFAULT')
+        return {'FINISHED'}
+
+# ============================================================================
+# Modal Drill Import Operator (async import with progress)
+# ============================================================================
+
+# Module-level state for drill import modal
+_drill_import_filepath = ''
+_drill_import_debug = False
+
+
+class IMPORT_OT_drill_import_modal(Operator):
+    """Import drill file with progress (modal)"""
+    bl_idname = "io_fritzing.drill_import_modal"
+    bl_label = "Import Drill File (Modal)"
+    bl_options = {'REGISTER'}
+    
+    _timer = None
+    _phase = 0  # 0=parsing, 1=geometry, 2=done
+    _wm = None  # for system progress bar
+    
+    def _redraw_panel(self, context):
+        if context.screen:
+            for area in context.screen.areas:
+                if area.type == 'VIEW_3D':
+                    area.tag_redraw()
+    
+    def _set_progress(self, context, step, progress):
+        if self._wm:
+            self._wm.progress_update(int(progress))
         try:
-            # Set wait cursor
-            context.window.cursor_modal_set('WAIT')
+            setattr(context.scene, 'drill_importing_current_step', step)
+        except Exception:
+            pass
+        try:
+            setattr(context.scene, 'drill_importing_progress', progress)
+        except Exception:
+            pass
+        if step:
+            self.report({'INFO'}, step)
+        self._redraw_panel(context)
+    
+    def modal(self, context, event):
+        global _drill_import_filepath, _drill_import_debug
+        
+        if event.type == 'TIMER':
+            if self._phase == 0:
+                # Phase 0: Parse the drill file
+                self._set_progress(context,
+                    pgettext("Parsing drill file..."), 10.0)
+                
+                parser = DrillParser()
+                result = parser.parse_drill_file(_drill_import_filepath, debug=_drill_import_debug)
+                
+                if not result.get('success', False):
+                    self.report({'ERROR'}, pgettext("Parse failed: ") +
+                               result.get('error', pgettext('Unknown error')))
+                    if self._timer:
+                        context.window_manager.event_timer_remove(self._timer)
+                    if self._wm:
+                        self._wm.progress_end()
+                    return {'CANCELLED'}
+                
+                # Store result for next phase
+                self._parse_result = result
+                self._phase = 1
+                return {'RUNNING_MODAL'}
+            
+            elif self._phase == 1:
+                # Phase 1: Create drill geometry
+                self._set_progress(context,
+                    pgettext("Creating drill geometry..."), 50.0)
+                
+                result = self._parse_result
+                generator = DrillGenerator()
+                primitives = result.get('primitives', [])
+                file_info = result.get('file_info', {})
+                
+                create_result = generator.create_drill_geometry(
+                    None, None,
+                    primitives, file_info,
+                    height=0.0018,
+                    debug=_drill_import_debug)
+                
+                if not create_result.get('success', False):
+                    self.report({'ERROR'},
+                               pgettext("Geometry creation failed: {err}").format(
+                                   err=create_result.get('error', '')))
+                    if self._timer:
+                        context.window_manager.event_timer_remove(self._timer)
+                    if self._wm:
+                        self._wm.progress_end()
+                    return {'CANCELLED'}
+                
+                self._object_count = create_result.get('object_count', 0)
+                self._phase = 2
+                return {'RUNNING_MODAL'}
+            
+            elif self._phase == 2:
+                # Phase 2: Done
+                self._set_progress(context,
+                    pgettext("Import complete"), 100.0)
+                
+                self.report({'INFO'},
+                           pgettext("Imported {n} drills").format(
+                               n=self._object_count))
+                
+                if self._timer:
+                    context.window_manager.event_timer_remove(self._timer)
+                if self._wm:
+                    self._wm.progress_end()
+                
+                if os.name == 'nt':
+                    winsound.Beep(1500, 1000)
+                
+                return {'FINISHED'}
+        
+        return {'PASS_THROUGH'}
+    
+    def invoke(self, context, event):
+        self._phase = 0
+        
+        if not hasattr(Scene, 'drill_importing_current_step'):
+            setattr(Scene, 'drill_importing_current_step', StringProperty(
+                name="Current Drill Import Step",
+                description="The current step of the drill import",
+                default=""))
+        if not hasattr(Scene, 'drill_importing_progress'):
+            setattr(Scene, 'drill_importing_progress', FloatProperty(
+                name="Drill Import Progress",
+                description="Progress of drill file import (0 to 100)",
+                default=0.0, min=0.0, max=100.0, subtype='PERCENTAGE'))
+        
+        wm = context.window_manager
+        self._wm = wm
+        wm.progress_begin(0, 100)
+        self._timer = wm.event_timer_add(0.3, window=context.window)
+        wm.modal_handler_add(self)
+        return {'RUNNING_MODAL'}
+    
+    def cancel(self, context):
+        if self._timer:
+            context.window_manager.event_timer_remove(self._timer)
+        if self._wm:
+            self._wm.progress_end()
 
-            # Use the previously defined parser
-            parser = DrillParser()
-            result = parser.parse_drill_file(self.filepath, debug=self.debug_mode)
-            
-            if not result.get('success', False):
-                self.report({'ERROR'}, pgettext("Parse failed: ") + result.get('error', pgettext('Unknown error')))
-                context.window.cursor_modal_set('DEFAULT')
-                return {'CANCELLED'}
-            
-            # Create geometry
-            generator = DrillGenerator()
-            primitives = result.get('primitives', [])
-            file_info = result.get('file_info', {})
-            
-            create_result = generator.create_drill_geometry(
-                None,
-                None,
-                primitives, 
-                file_info,
-                height=0.0018,
-                debug=self.debug_mode
-            )
-            
-            if not create_result.get('success', False):
-                self.report({'ERROR'}, pgettext("Geometry creation failed: {create_result_error}").format(create_result_error = create_result.get('error', pgettext('Unknown error'))))
-                # Restore cursor
-                context.window.cursor_modal_set('DEFAULT')
-                return {'CANCELLED'}
-            
-            message = pgettext("Import complete: {object_count)} drills").format(object_count = create_result.get('object_count', 0))
-            self.report({'INFO'}, message)
-            # Restore cursor
-            context.window.cursor_modal_set('DEFAULT')
-
-            if os.name == 'nt':
-                frequency = 1500
-                # Set Duration To 1000 ms == 1 second
-                duration = 1000
-                winsound.Beep(frequency, duration)
-
-            return {'FINISHED'}
-            
-        except Exception as e:
-            error_msg = pgettext("Import process error: {error}").format(error = str(e))
-            self.report({'ERROR'}, error_msg)
-            # Restore cursor
-            context.window.cursor_modal_set('DEFAULT')
-
-            if os.name == 'nt':
-                frequency = 1500
-                # Set Duration To 1000 ms == 1 second
-                duration = 1000
-                winsound.Beep(frequency, duration)
-
-            return {'CANCELLED'}
 
 # ============================================================================
 # Settings Panel
@@ -725,7 +825,6 @@ class VIEW3D_PT_drill_z_axis(Panel):
     bl_region_type = 'UI'
     bl_category = "Fritzing Tools"
     bl_order = 2
-    bl_options = {'DEFAULT_CLOSED'}
 
     filepath = ''
     
@@ -735,6 +834,24 @@ class VIEW3D_PT_drill_z_axis(Panel):
         
         layout = self.layout
         scene = context.scene
+        
+        # === Progress display (top, always visible during import) ===
+        if hasattr(scene, 'drill_importing_current_step'):
+            drill_step = getattr(scene, 'drill_importing_current_step', '')
+            is_importing = (drill_step and drill_step != pgettext("Import complete"))
+            if drill_step and hasattr(scene, 'drill_importing_progress'):
+                progress_box = layout.box()
+                progress_box.label(text=drill_step, icon='IMPORT')
+                row = progress_box.row(align=True)
+                row.prop(scene, 'drill_importing_progress', text=pgettext("Progress"), slider=True)
+                row.enabled = False
+        else:
+            drill_step = ''
+            is_importing = False
+        
+        # If importing, only show progress
+        if is_importing:
+            return
         
         # Title
         box = layout.box()
@@ -749,28 +866,27 @@ class VIEW3D_PT_drill_z_axis(Panel):
         
         # File information
         filepath = getattr(scene, 'drill_file_z_axis')
-        if filepath and os.path.exists(filepath) and self.filepath != filepath:
-            self.filepath = filepath
-            try:
-                file_size = os.path.getsize(filepath)
-                filename = os.path.basename(filepath)
-                
-                col = box.column(align=True)
-                col.label(text=pgettext("File size: ") + f"{file_size/1024:.1f} KB", icon='INFO')
-                col.label(text=pgettext("File name: ") + filename, icon='FILE')
-                col.label(text=pgettext("File type: Drill file"), icon='MESH_GRID')
-                col.label(text=pgettext("Direction: Along Z-axis (vertical)"), icon='ORIENTATION_GIMBAL')
-
-                # Get file information
-                parser = DrillParser()
-                # Read Excellon file
-                drill = read_excellon(filepath)
-                file_info = parser._get_drill_info(drill, filepath)
-                if file_info and file_info['total_prims']:
-                    col.label(text=pgettext("Primitives: ") + str(file_info['total_prims']), icon='FILE_VOLUME')
+        if filepath and os.path.exists(filepath) and not is_importing:
+            if self.filepath != filepath:
+                self.filepath = filepath
+                try:
+                    file_size = os.path.getsize(filepath)
+                    filename = os.path.basename(filepath)
                     
-            except:
-                pass
+                    col = box.column(align=True)
+                    col.label(text=pgettext("File size: ") + f"{file_size/1024:.1f} KB", icon='INFO')
+                    col.label(text=pgettext("File name: ") + filename, icon='FILE')
+                    col.label(text=pgettext("File type: Drill file"), icon='MESH_GRID')
+                    col.label(text=pgettext("Direction: Along Z-axis (vertical)"), icon='ORIENTATION_GIMBAL')
+
+                    # Get file information
+                    parser = DrillParser()
+                    drill = read_excellon(filepath)
+                    file_info = parser._get_drill_info(drill, filepath)
+                    if file_info and file_info['total_prims']:
+                        col.label(text=pgettext("Primitives: ") + str(file_info['total_prims']), icon='FILE_VOLUME')
+                except:
+                    pass
         
         # Import options
         layout.separator()
@@ -792,13 +908,14 @@ class VIEW3D_PT_drill_z_axis(Panel):
         layout.separator()
         col = layout.column(align=True)
         
-        if filepath and os.path.exists(filepath):
+        if is_importing:
+            col.label(text=pgettext("⏳ Importing drill file..."), icon='SORTTIME')
+        elif filepath and os.path.exists(filepath):
             op = col.operator("io_fritzing.import_drill_z_axis", 
                              text="Import Drill File (Z-axis)", 
                              icon='IMPORT')
             setattr(op, 'filepath', filepath)
             setattr(op, 'debug_mode', getattr(scene, 'drill_debug_mode_z_axis'))
-
         else:
             col.label(text="Please select a Drill file first", icon='ERROR')
 
@@ -848,6 +965,7 @@ def create_clean_cylinder_no_internal_edges(radius, depth, location=(0, 0, 0), v
 # ============================================================================
 classes = [
     IMPORT_OT_drill_z_axis,
+    IMPORT_OT_drill_import_modal,
     IMPORT_OT_browse_drill_z_axis,
     VIEW3D_PT_drill_z_axis,
 ]
@@ -876,6 +994,21 @@ def register():
         default=False
     ))
     
+    setattr(Scene, 'drill_importing_current_step', StringProperty(
+        name="Current Drill Import Step",
+        description="The current step of the drill import",
+        default=""
+    ))
+    
+    setattr(Scene, 'drill_importing_progress', FloatProperty(
+        name="Drill Import Progress",
+        description="Progress of drill file import (0 to 100)",
+        default=0.0,
+        min=0.0,
+        max=100.0,
+        subtype='PERCENTAGE'
+    ))
+    
     print("✅ Drill Z-axis import plugin registration complete")
 
 def unregister():
@@ -888,6 +1021,11 @@ def unregister():
             print(f"✅ Unregistered class: {cls.__name__}")
         except:
             pass
+    
+    delattr(Scene, 'drill_file_z_axis')
+    delattr(Scene, 'drill_debug_mode_z_axis')
+    delattr(Scene, 'drill_importing_current_step')
+    delattr(Scene, 'drill_importing_progress')
 
 if __name__ == "__main__":
     register()

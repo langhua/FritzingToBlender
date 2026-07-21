@@ -1079,98 +1079,25 @@ class IMPORT_OT_gerber(Operator):
         return self.execute(context)
     
     def execute(self, context):
-        """Execute import"""
-        global gerber_fileinfo
-
-        main_collection = None
-        import_success = 0
-        for layer_name, file_info in gerber_fileinfo.items():
-            filepath = file_info['filepath']
-            if not filepath or not os.path.exists(filepath):
-                continue
-            if bpy.context is None:
-                continue
-
-            if main_collection is None:
-                # Create main collection
-                cut = filepath.rindex(os.path.sep[0])
-                directory = filepath[0:cut]
-                collection_name = os.path.basename(directory).replace('.', '_')
-                if collection_name.endswith('_'):
-                    collection_name = collection_name[:-1]
-                collection_name = f"Gerber_{collection_name[:20]}"
-                
-                main_collection = bpy.data.collections.new(collection_name)
-                bpy.context.scene.collection.children.link(main_collection)
-                bpy.context.view_layer.active_layer_collection = bpy.context.view_layer.layer_collection.children[collection_name]
-
-            try:
-                if layer_name == 'drill':
-                    parser = DrillParser()
-                    result = parser.parse_drill_file(filepath, debug=self.debug_mode)
-                    
-                    if not result.get('success', False):
-                        self.report({'ERROR'}, pgettext("Parse failed: ") + result.get('error', pgettext('Unknown error')))
-                        return {'CANCELLED'}
-                    
-                    # Create geometry
-                    generator = DrillGenerator()
-                    primitives = result.get('primitives', [])
-                    file_info = result.get('file_info', {})
-                    height = importdata.board_thickness + 0.0002
-                    
-                    create_result = generator.create_drill_geometry(layer_name,
-                        main_collection,
-                        primitives, 
-                        file_info,
-                        height=height,
-                        debug=self.debug_mode
-                    )
-                    
-                    if not create_result.get('success', False):
-                        self.report({'ERROR'}, pgettext("Geometry creation failed: {create_result_error}").format(create_result_error = create_result.get('error', pgettext('Unknown error'))))
-                        return {'CANCELLED'}
-                    
-                    message = pgettext("Import complete: {object_count)} drills").format(object_count = create_result.get('object_count', 0))
-                    self.report({'INFO'}, message)
-                    import_success += 1
-
-                else:
-                    # Parse Gerber RS-274X file
-                    parser = GerberParser()
-                    result = parser.parse_gerber(filepath, debug=self.debug_mode)
-                    
-                    if not result.get('success', False):
-                        self.report({'ERROR'}, pgettext("Parse failed: ") + result.get('error', pgettext('Unknown error')))
-                        return {'CANCELLED'}
-                    
-                    result_stats = _create_gerber_mesh_filled(layer_name,
-                        result.get('primitives', []), 
-                        main_collection,
-                        result.get('unit_factor', 0.001)
-                    )
-                    
-                    # Report result
-                    message = pgettext("Import complete: {total_prims} primitives, {total_verts} vertices, {total_faces} faces").format(total_prims=result_stats['total_prims'], total_verts=result_stats['total_verts'], total_faces=result_stats['total_faces'])
-                    self.report({'INFO'}, message)
-                    print(f"Import result: {message}")
-                    print(f"Collection name: {collection_name}")
-                    if result_stats.get('success', False):
-                        import_success += 1
-                
-            except Exception as e:
-                error_msg = pgettext("Import process error: {error}").format(error = str(e))
-                self.report({'ERROR'}, error_msg)
-
-        if import_success == len(gerber_fileinfo.items()) and context:
-            setattr(context.scene, 'gerber_import_issuccess', True)
-
-        if os.name == 'nt':
-            frequency = 1500
-            # Set Duration To 1000 ms == 1 second
-            duration = 1000
-            winsound.Beep(frequency, duration)
-
+        """Launch modal import operator"""
+        global gerber_fileinfo, _import_files_queue, _import_debug, _import_optimize
+        
+        if not gerber_fileinfo or len(gerber_fileinfo) == 0:
+            self.report({'ERROR'}, pgettext("No Gerber files to import"))
+            return {'CANCELLED'}
+        
+        # Reset success flag
+        setattr(context.scene, 'gerber_import_issuccess', False)
+        setattr(context.scene, 'gerber_importing_current_layer', '')
+        setattr(context.scene, 'gerber_importing_progress', 0.0)
+        
+        # Build import queue from gerber_fileinfo
+        _import_files_queue = list(gerber_fileinfo.items())
+        _import_debug = self.debug_mode
+        _import_optimize = self.optimize_performance
+        
+        # Launch modal import operator
+        bpy.ops.io_fritzing.import_gerber_modal('INVOKE_DEFAULT')
         return {'FINISHED'}
 
 
@@ -1569,19 +1496,31 @@ class VIEW3D_PT_gerber(Panel):
         current_file = getattr(scene, 'gerber_parsing_current_file', '')
         parsing_progress = getattr(scene, 'gerber_parsing_progress', 0.0)
         if current_file:
-            # Show progress bar and current file being parsed
             col = box.column(align=True)
             col.label(text=current_file, icon='SORTTIME')
-            # Use a row with a label to simulate progress bar with percentage
             row = col.row(align=True)
-            row.prop(scene, 'gerber_parsing_progress', text="Progress", slider=True)
-            row.enabled = False  # Read-only display
+            row.prop(scene, 'gerber_parsing_progress', text=pgettext("Parsing"), slider=True)
+            row.enabled = False
 
-        # File information
+        # Show current import progress
+        importing_layer = getattr(scene, 'gerber_importing_current_layer', '')
+        importing_progress = getattr(scene, 'gerber_importing_progress', 0.0)
+        is_importing = (importing_layer and
+                        importing_progress < 100.0 and
+                        importing_layer != pgettext("Import complete"))
+        if importing_layer and not current_file:
+            col = box.column(align=True)
+            col.label(text=importing_layer, icon='IMPORT')
+            col = col.box()
+            row = col.row(align=True)
+            row.prop(scene, 'gerber_importing_progress', text=pgettext("Importing"), slider=True)
+            row.enabled = False
+
+        # File information (only show when not actively parsing or importing)
         filepath = getattr(scene, "gerber_filepath")
         import_success = getattr(scene, 'gerber_import_issuccess', False)
         can_process = False
-        if filepath and os.path.exists(filepath) and len(gerber_fileinfo) > 0:
+        if filepath and os.path.exists(filepath) and len(gerber_fileinfo) > 0 and not is_importing:
             try:
                 col = box.column(align=True)
                 col.label(text=pgettext("{count} files found:").format(count=len(gerber_fileinfo)), icon='INFO')
@@ -1613,7 +1552,11 @@ class VIEW3D_PT_gerber(Panel):
         layout.separator()
         col = layout.column(align=True)
         
-        if import_success and can_process:
+        if is_importing:
+            # Show import in progress - no buttons
+            col.label(text=pgettext("⏳ Importing Gerber files..."), icon='SORTTIME')
+            col.label(text=pgettext("Please wait while files are imported"))
+        elif import_success and can_process:
             col.label(text=pgettext("✓ Parsing complete, ready to import"), icon='CHECKMARK')
             op = col.operator("io_fritzing.import_gerber_file", 
                              text="Import Gerber Files", 
@@ -1687,6 +1630,14 @@ _parse_current = 0
 _parse_time_start = 0
 _parse_all_success = True
 _parse_directory = ''
+
+# Module-level state for the import modal
+_import_files_queue = []     # list of (layer_name, file_info) to import
+_import_current = 0
+_import_total = 0
+_import_main_collection = None
+_import_debug = False
+_import_optimize = True
 
 
 class IMPORT_OT_browse_gerber_files(Operator, ImportHelper):
@@ -1785,7 +1736,7 @@ class IMPORT_OT_parse_gerber_files(Operator):
                 pgettext("Parsing {layer} ({file})...").format(
                     layer=layer_name, file=base_name))
         setattr(context.scene, 'gerber_parsing_progress',
-                float(_parse_current) / float(_parse_total))
+                float(_parse_current) / float(_parse_total) * 100.0)
         
         # Force panel redraw
         for area in context.screen.areas:
@@ -1816,7 +1767,7 @@ class IMPORT_OT_parse_gerber_files(Operator):
             
             if done:
                 # Final progress update
-                setattr(context.scene, 'gerber_parsing_progress', 1.0)
+                setattr(context.scene, 'gerber_parsing_progress', 100.0)
                 setattr(context.scene, 'gerber_parsing_current_file', '')
                 setattr(context.scene, 'fetch_gerber_prims_time_consumed',
                         time.time() - _parse_time_start)
@@ -1852,6 +1803,15 @@ class IMPORT_OT_parse_gerber_files(Operator):
         return {'PASS_THROUGH'}
     
     def invoke(self, context, event):
+        # Ensure Scene properties exist
+        if not hasattr(Scene, 'gerber_parsing_current_file'):
+            setattr(Scene, 'gerber_parsing_current_file', StringProperty(
+                name="Current Parsing File", default=""))
+        if not hasattr(Scene, 'gerber_parsing_progress'):
+            setattr(Scene, 'gerber_parsing_progress', FloatProperty(
+                name="Parsing Progress", default=0.0, min=0.0, max=100.0,
+                subtype='PERCENTAGE'))
+        
         # Start a timer that fires every 0.05 seconds
         wm = context.window_manager
         self._timer = wm.event_timer_add(0.05, window=context.window)
@@ -1871,6 +1831,188 @@ class IMPORT_OT_parse_gerber_files(Operator):
 # ============================================================================
 # Operators used by the menu import process
 # ============================================================================
+# ============================================================================
+# Modal Import Operator (async import with progress)
+# ============================================================================
+class IMPORT_OT_import_gerber_modal(Operator):
+    """Import Gerber files one by one with progress (modal)"""
+    bl_idname = "io_fritzing.import_gerber_modal"
+    bl_label = "Import Gerber Files (Modal)"
+    bl_options = {'REGISTER'}
+    
+    _timer = None
+    _ticks = 0
+    
+    def _import_one_file(self, context):
+        """Import the next file in the queue. Returns True if done."""
+        global _import_files_queue, _import_current, _import_total
+        global _import_main_collection, _import_debug
+        
+        if _import_current >= _import_total:
+            return True
+        
+        layer_name, file_info = _import_files_queue[_import_current]
+        filepath = file_info['filepath']
+        
+        # Update progress
+        setattr(context.scene, 'gerber_importing_current_layer',
+                pgettext("Importing {layer}...").format(layer=layer_name))
+        setattr(context.scene, 'gerber_importing_progress',
+                float(_import_current) / float(_import_total) * 100.0)
+        
+        # Force panel redraw
+        for area in context.screen.areas:
+            if area.type == 'VIEW_3D':
+                area.tag_redraw()
+        
+        if not filepath or not os.path.exists(filepath):
+            _import_current += 1
+            return False
+        
+        # Create main collection on first file
+        if _import_main_collection is None:
+            cut = filepath.rindex(os.path.sep[0])
+            directory = filepath[0:cut]
+            collection_name = os.path.basename(directory).replace('.', '_')
+            if collection_name.endswith('_'):
+                collection_name = collection_name[:-1]
+            collection_name = f"Gerber_{collection_name[:20]}"
+            
+            _import_main_collection = bpy.data.collections.new(collection_name)
+            bpy.context.scene.collection.children.link(_import_main_collection)
+            bpy.context.view_layer.active_layer_collection = \
+                bpy.context.view_layer.layer_collection.children[collection_name]
+        
+        try:
+            if layer_name == 'drill':
+                parser = DrillParser()
+                result = parser.parse_drill_file(filepath, debug=_import_debug)
+                
+                if not result.get('success', False):
+                    self.report({'ERROR'}, pgettext("Drill parse failed: ") +
+                               result.get('error', pgettext('Unknown error')))
+                    _import_current += 1
+                    return False
+                
+                generator = DrillGenerator()
+                primitives = result.get('primitives', [])
+                drill_file_info = result.get('file_info', {})
+                height = importdata.board_thickness + 0.0002
+                
+                create_result = generator.create_drill_geometry(
+                    layer_name, _import_main_collection,
+                    primitives, drill_file_info,
+                    height=height, debug=_import_debug)
+                
+                if not create_result.get('success', False):
+                    self.report({'ERROR'},
+                               pgettext("Drill geometry failed: {err}").format(
+                                   err=create_result.get('error', '')))
+                    _import_current += 1
+                    return False
+                
+                self.report({'INFO'},
+                           pgettext("Imported {n} drills").format(
+                               n=create_result.get('object_count', 0)))
+            else:
+                # Parse and create mesh for Gerber layer
+                parser = GerberParser()
+                result = parser.parse_gerber(filepath, debug=_import_debug)
+                
+                if not result.get('success', False):
+                    self.report({'ERROR'}, pgettext("Parse failed: ") +
+                               result.get('error', pgettext('Unknown error')))
+                    _import_current += 1
+                    return False
+                
+                result_stats = _create_gerber_mesh_filled(
+                    layer_name,
+                    result.get('primitives', []),
+                    _import_main_collection,
+                    result.get('unit_factor', 0.001))
+                
+                self.report({'INFO'},
+                           pgettext("Imported {layer}: {p} primitives").format(
+                               layer=layer_name,
+                               p=result_stats.get('total_prims', 0)))
+        except Exception as e:
+            self.report({'ERROR'},
+                       pgettext("Import error for {layer}: {err}").format(
+                           layer=layer_name, err=str(e)))
+        
+        _import_current += 1
+        return False
+    
+    def modal(self, context, event):
+        global _import_current, _import_total, _import_main_collection
+        
+        if event.type == 'TIMER':
+            self._ticks += 1
+            done = self._import_one_file(context)
+            
+            if done:
+                # Final progress update
+                setattr(context.scene, 'gerber_importing_progress', 100.0)
+                setattr(context.scene, 'gerber_importing_current_layer',
+                        pgettext("Import complete"))
+                setattr(context.scene, 'gerber_import_issuccess', True)
+                
+                # Force final panel redraw
+                for area in context.screen.areas:
+                    if area.type == 'VIEW_3D':
+                        area.tag_redraw()
+                
+                # Cleanup
+                if self._timer:
+                    context.window_manager.event_timer_remove(self._timer)
+                
+                self.report({'INFO'},
+                           pgettext("All {n} layers imported successfully").format(
+                               n=_import_total))
+                
+                if os.name == 'nt':
+                    winsound.Beep(1500, 1000)
+                
+                return {'FINISHED'}
+        
+        if self._ticks > 200:
+            if self._timer:
+                context.window_manager.event_timer_remove(self._timer)
+            return {'CANCELLED'}
+        
+        return {'PASS_THROUGH'}
+    
+    def invoke(self, context, event):
+        global _import_current, _import_total, _import_main_collection
+        
+        _import_total = len(_import_files_queue)
+        _import_current = 0
+        _import_main_collection = None
+        
+        # Ensure Scene properties exist
+        if not hasattr(Scene, 'gerber_importing_current_layer'):
+            setattr(Scene, 'gerber_importing_current_layer', StringProperty(
+                name="Current Importing Layer", default=""))
+        if not hasattr(Scene, 'gerber_importing_progress'):
+            setattr(Scene, 'gerber_importing_progress', FloatProperty(
+                name="Import Progress", default=0.0, min=0.0, max=100.0,
+                subtype='PERCENTAGE'))
+        
+        wm = context.window_manager
+        self._timer = wm.event_timer_add(0.05, window=context.window)
+        self._ticks = 0
+        wm.modal_handler_add(self)
+        
+        # Import first file immediately
+        self._import_one_file(context)
+        
+        return {'RUNNING_MODAL'}
+    
+    def cancel(self, context):
+        if self._timer:
+            context.window_manager.event_timer_remove(self._timer)
+
+
 class ImportSingleGerber(Operator):
     bl_idname = "fritzing.import_single_gerber"
     bl_label = "Import a single Fritzing Gerber file"
@@ -1991,6 +2133,7 @@ classes = [
     IMPORT_OT_gerber,
     IMPORT_OT_browse_gerber_files,
     IMPORT_OT_parse_gerber_files,
+    IMPORT_OT_import_gerber_modal,
     IMPORT_OT_clear_all_objects,
     VIEW3D_PT_gerber,
     ImportSingleGerber,
@@ -2050,11 +2193,26 @@ def register():
     
     setattr(Scene, 'gerber_parsing_progress', FloatProperty(
         name="Parsing Progress",
-        description="Progress of Gerber file parsing (0.0 to 1.0)",
+        description="Progress of Gerber file parsing (0 to 100)",
         default=0.0,
         min=0.0,
-        max=1.0,
-        subtype='FACTOR'
+        max=100.0,
+        subtype='PERCENTAGE'
+    ))
+    
+    setattr(Scene, 'gerber_importing_current_layer', StringProperty(
+        name="Current Importing Layer",
+        description="The layer currently being imported",
+        default=""
+    ))
+    
+    setattr(Scene, 'gerber_importing_progress', FloatProperty(
+        name="Import Progress",
+        description="Progress of Gerber file import (0 to 100)",
+        default=0.0,
+        min=0.0,
+        max=100.0,
+        subtype='PERCENTAGE'
     ))
     
     print("✅ Gerber import plugin registration complete")
@@ -2077,6 +2235,8 @@ def unregister():
     delattr(Scene, 'gerber_import_issuccess')
     delattr(Scene, 'gerber_parsing_current_file')
     delattr(Scene, 'gerber_parsing_progress')
+    delattr(Scene, 'gerber_importing_current_layer')
+    delattr(Scene, 'gerber_importing_progress')
 
 if __name__ == "__main__":
     register()

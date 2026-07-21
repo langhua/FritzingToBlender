@@ -87,6 +87,33 @@ ui_labels= {
     ('*', 'Failed to parse drill file: '): '解析钻孔文件失败：',
     ('*', 'Merging drill cylinders ...'): '正在合并钻孔圆柱 ...',
     ('Operator', 'Fritzing Gerber PCB Settings'): 'Fritzing Gerber线路板设置',
+    # Progress & modal strings
+    ('*', 'Parsing drill file...'): '正在解析钻孔文件...',
+    ('*', 'Creating drill geometry...'): '正在创建钻孔几何体...',
+    ('*', 'Import complete'): '导入完成',
+    ('*', 'Geometry creation failed: {err}'): '创建几何体失败：{err}',
+    ('*', 'Imported {n} drills'): '已导入{n}个钻孔',
+    ('*', '⏳ Importing drill file...'): '⏳ 正在导入钻孔文件...',
+    ('*', '⏳ Importing Gerber files...'): '⏳ 正在导入Gerber文件...',
+    ('*', 'Please wait while files are imported'): '请等待文件导入完成',
+    ('*', '✓ Parsing complete, ready to import'): '✓ 解析完成，可以导入',
+    ('*', 'No Gerber files found in the selected folder'): '所选文件夹中未找到Gerber文件',
+    ('*', 'Parsing {layer} ({file})...'): '正在解析{layer}（{file}）...',
+    ('*', 'Some files failed to parse'): '部分文件解析失败',
+    ('*', 'Importing {layer}...'): '正在导入{layer}...',
+    ('*', 'Drill parse failed: '): '钻孔解析失败：',
+    ('*', 'Drill geometry failed: {err}'): '钻孔几何体创建失败：{err}',
+    ('*', 'Imported {layer}: {p} primitives'): '已导入{layer}：{p}个图元',
+    ('*', 'Import error for {layer}: {err}'): '导入{layer}时出错：{err}',
+    ('*', 'All {n} layers imported successfully'): '已成功导入全部{n}个图层',
+    ('*', 'No Gerber files to import'): '没有可导入的Gerber文件',
+    ('*', 'Parsed {count} Gerber files successfully ({time:.2f}s)'): '成功解析{count}个Gerber文件（耗时{time:.2f}秒）',
+    ('*', '⚠ Some files failed to parse'): '⚠ 部分文件解析失败',
+    ('*', 'Please re-select the folder'): '请重新选择文件夹',
+    # Panel progress bar labels
+    ('*', 'Parsing'): '解析',
+    ('*', 'Importing'): '导入',
+    ('*', 'Progress'): '进度',
 }
 
 langs = {
