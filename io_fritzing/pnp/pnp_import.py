@@ -521,6 +521,14 @@ class IMPORT_OT_pnp_live_import(Operator):
                 import_state.origin_z * 0.001
             )
             
+            # Create a collection named after the PNP file
+            pnp_basename = os.path.splitext(os.path.basename(filepath))[0]
+            pnp_coll_name = f"PNP_{pnp_basename}"
+            self._pnp_collection = bpy.data.collections.get(pnp_coll_name)
+            if self._pnp_collection is None:
+                self._pnp_collection = bpy.data.collections.new(pnp_coll_name)
+                context.scene.collection.children.link(self._pnp_collection)
+            
             # 开始导入
             import_state.start_import(filepath, len(lines))
             
@@ -778,13 +786,15 @@ class IMPORT_OT_pnp_live_import(Operator):
                     import_state.add_failed(line_number, line, "No model method", line)
                     return None
 
-        # 调整元件位置
+        # 调整元件位置并放入PNP集合
         if component is not None:
             if isinstance(component, object):
                 self.post_parse(context, component=component, center_x=center_x, center_y=center_y, rotation=rotation, layer=layer, origin=origin)
+                self._link_to_pnp_collection(component)
             elif isinstance(component, Collection):
                 for obj in component.objects:
                     self.post_parse(context, component=obj, center_x=center_x, center_y=center_y, rotation=rotation, layer=layer, origin=origin)
+                    self._link_to_pnp_collection(obj)
 
         return None
     
@@ -817,6 +827,18 @@ class IMPORT_OT_pnp_live_import(Operator):
             component.location.y += origin[1]
         if origin[2] != 0.0:
             component.location.z += origin[2]
+    
+    def _link_to_pnp_collection(self, obj):
+        """Link object to the PNP-named collection, removing from any other."""
+        if not hasattr(self, '_pnp_collection') or self._pnp_collection is None:
+            return
+        # Remove from all current collections except the PNP one
+        for coll in list(obj.users_collection):
+            if coll != self._pnp_collection:
+                coll.objects.unlink(obj)
+        # Link to PNP collection if not already
+        if self._pnp_collection.name not in [c.name for c in obj.users_collection]:
+            self._pnp_collection.objects.link(obj)
 
     def _cancel_import(self):
         """取消导入"""
