@@ -3,7 +3,6 @@ import os
 import time
 import math
 import re
-import threading
 from mathutils import Matrix
 from bpy.types import Operator, Panel, Scene, Collection
 from bpy.props import (
@@ -395,40 +394,12 @@ class IMPORT_OT_pnp_live_import(Operator):
         default=""
     ) # type: ignore
     
-    # 导入设置
-    batch_size: IntProperty(
-        name="每批数量",
-        default=1,
-        min=1,
-        max=10
-    ) # type: ignore
-    
-    delay_time: FloatProperty(
-        name="延迟时间",
-        default=0.5,
-        min=0.1,
-        max=1.0
-    ) # type: ignore
-
-    # 以测试文件为例
-    line_delay_time = {
-        124: 1.5,    # 1.9英寸TFT显示屏
-        60: 0.5,     # PB86-A0按钮
-        99: 0.5,
-        126: 0.5,
-        142: 0.5,
-        153: 0.5,
-        158: 0.5,
-        93: 1.0,      # ESP-12F模块
-        72: 1.0,      # USB Type-C 16pin
-        21: 1.5,      # TS-D014开关
-        125: 0.5,     # 蜂鸣器
-        }
-
-    # 线程和模态变量
-    _import_thread = None
+    # 模态状态
     _timer = None
-    _stop_event = threading.Event()
+    _lines = []
+    _line_index = 0
+    _origin = (0, 0, 0)
+    _pnp_collection = None
     
     def invoke(self, context, event):
         """调用对话框"""
@@ -445,7 +416,6 @@ class IMPORT_OT_pnp_live_import(Operator):
             self.report({'ERROR'}, "请选择有效的PNP文件")
             return {'CANCELLED'}
         
-        # 检查是否已经在导入
         if import_state.is_importing:
             self.report({'WARNING'}, "已有导入任务在进行中")
             return {'CANCELLED'}
@@ -453,129 +423,145 @@ class IMPORT_OT_pnp_live_import(Operator):
         # 读取文件
         try:
             with open(self.filepath, 'r', encoding='utf-8') as f:
-                lines = [line.strip() for line in f.readlines()]
+                self._lines = [line.strip() for line in f.readlines()]
         except Exception as e:
             self.report({'ERROR'}, f"读取文件失败: {e}")
             return {'CANCELLED'}
         
-        if not lines:
+        if not self._lines:
             self.report({'WARNING'}, "PNP文件为空")
             return {'CANCELLED'}
         
-        # 重置停止事件
-        self._stop_event.clear()
-
-        # 启动导入线程
-        self._import_thread = threading.Thread(
-            target=self._import_thread_func,
-            args=(context, self.filepath, lines),
-            daemon=True
+        # Setup state for modal processing
+        self._line_index = 0
+        self._origin = (
+            import_state.origin_x * 0.001,
+            import_state.origin_y * 0.001,
+            import_state.origin_z * 0.001
         )
-        self._import_thread.start()
         
-        # 启动模态定时器用于监控线程
-        if context:
-            wm = context.window_manager
-            self._timer = wm.event_timer_add(0.1, window=context.window)
-            wm.modal_handler_add(self)
+        # Create PNP collection
+        pnp_basename = os.path.splitext(os.path.basename(self.filepath))[0]
+        pnp_coll_name = f"PNP_{pnp_basename}"
+        self._pnp_collection = bpy.data.collections.get(pnp_coll_name)
+        if self._pnp_collection is None:
+            self._pnp_collection = bpy.data.collections.new(pnp_coll_name)
+            context.scene.collection.children.link(self._pnp_collection)
         
-        print(f"🚀 开始导入 {len(lines)} 行数据")
+        # Start import state
+        import_state.start_import(self.filepath, len(self._lines))
+        import_state.original_lines = self._lines
+        
+        # Start modal timer
+        wm = context.window_manager
+        self._timer = wm.event_timer_add(0.02, window=context.window)
+        wm.modal_handler_add(self)
+        
+        # Auto-frame 3D viewport to show the PNP bounding area
+        self._frame_viewport(context, self._lines)
+        
+        print(f"🚀 开始导入 {len(self._lines)} 行数据")
         return {'RUNNING_MODAL'}
     
+    def _frame_viewport(self, context, lines):
+        """Adjust 3D viewport to frame the PNP component area."""
+        # Parse all coordinates to compute bounding box
+        min_x = min_y = float('inf')
+        max_x = max_y = float('-inf')
+        origin_xy = (self._origin[0], self._origin[1])
+        
+        for line in lines:
+            clean_line = line.replace('"', '')
+            parts = clean_line.strip().split(',')
+            if len(parts) != 8:
+                continue
+            try:
+                cx = float(parts[3]) * 0.0000254 + origin_xy[0]
+                cy = float(parts[4]) * 0.0000254 + origin_xy[1]
+                min_x = min(min_x, cx)
+                min_y = min(min_y, cy)
+                max_x = max(max_x, cx)
+                max_y = max(max_y, cy)
+            except ValueError:
+                continue
+        
+        if min_x == float('inf'):
+            return
+        
+        # Add margin (20%)
+        margin_x = (max_x - min_x) * 0.2
+        margin_y = (max_y - min_y) * 0.2
+        if margin_x < 0.001: margin_x = 0.01
+        if margin_y < 0.001: margin_y = 0.01
+        
+        center_x = (min_x + max_x) / 2
+        center_y = (min_y + max_y) / 2
+        size = max(max_x - min_x + 2 * margin_x, max_y - min_y + 2 * margin_y)
+        
+        # Adjust each 3D viewport
+        for area in context.screen.areas:
+            if area.type == 'VIEW_3D':
+                region_3d = area.spaces[0].region_3d
+                # Top-down view
+                region_3d.view_location = (center_x, center_y, 0)
+                region_3d.view_distance = size * 1.5
+                region_3d.view_perspective = 'ORTHO'
+                area.tag_redraw()
+        
+        center_mm_x = center_x * 1000
+        center_mm_y = center_y * 1000
+        size_mm = size * 1000
+        print(f"📐 视图已对准PNP区域: 中心({center_mm_x:.1f}, {center_mm_y:.1f})mm, 范围{size_mm:.1f}mm")
+    
     def modal(self, context, event):
-        """模态处理 - 监控导入线程"""
+        """模态处理 - 逐行导入，每帧处理一行，viewport 丝滑刷新"""
         if event.type == 'TIMER':
-            # 检查导入线程是否还在运行
-            if self._import_thread and self._import_thread.is_alive():
-                # 更新UI显示
-                update_ui_display()
-                return {'RUNNING_MODAL'}
+            if not import_state.is_paused and not import_state.should_cancel:
+                if self._line_index < len(self._lines):
+                    line = self._lines[self._line_index]
+                    line_num = self._line_index + 1
+                    raw_line = line
+                    
+                    import_state.update_progress(line_num, action="导入元件")
+                    
+                    result, designator = self._process_line(line, line_num, self._origin, context)
+                    
+                    if result == 'success':
+                        import_state.add_success(line_num, designator, f"行{line_num}导入成功", raw_line)
+                    elif result == 'failed':
+                        import_state.add_failed(line_num, designator, f"行{line_num}导入失败", raw_line)
+                    elif result == 'skipped':
+                        import_state.add_skipped(line_num, f"行{line_num}被跳过", raw_line)
+                    
+                    # Refresh viewport each tick for smooth visual
+                    for area in context.screen.areas:
+                        if area.type == 'VIEW_3D':
+                            area.tag_redraw()
+                    
+                    self._line_index += 1
+                    return {'RUNNING_MODAL'}
+                else:
+                    # All lines processed
+                    self._finish_import(context)
+                    return {'FINISHED'}
             else:
-                # 导入完成
-                self._finish_import(context)
-                return {'FINISHED'}
+                # Paused or cancelled
+                if import_state.should_cancel:
+                    self._cancel_import()
+                    return {'CANCELLED'}
+                return {'RUNNING_MODAL'}
         
         elif event.type in {'ESC'}:
-            # 用户取消
             self._cancel_import()
             return {'CANCELLED'}
         
         elif event.type == 'P' and event.value == 'PRESS':
-            # 暂停/继续快捷键
-            if import_state.is_importing:
-                if import_state.is_paused:
-                    import_state.resume()
-                else:
-                    import_state.pause()
+            if import_state.is_paused:
+                import_state.resume()
+            else:
+                import_state.pause()
         
         return {'PASS_THROUGH'}
-    
-    def _import_thread_func(self, context, filepath, lines):
-        """导入线程函数"""
-        try:
-            # 获取原点
-            scene = context.scene
-            origin = (
-                import_state.origin_x * 0.001,
-                import_state.origin_y * 0.001,
-                import_state.origin_z * 0.001
-            )
-            
-            # Create a collection named after the PNP file
-            pnp_basename = os.path.splitext(os.path.basename(filepath))[0]
-            pnp_coll_name = f"PNP_{pnp_basename}"
-            self._pnp_collection = bpy.data.collections.get(pnp_coll_name)
-            if self._pnp_collection is None:
-                self._pnp_collection = bpy.data.collections.new(pnp_coll_name)
-                context.scene.collection.children.link(self._pnp_collection)
-            
-            # 开始导入
-            import_state.start_import(filepath, len(lines))
-            
-            # 保存原始行
-            import_state.original_lines = lines
-            
-            # 处理每一行
-            for i, line in enumerate(lines):
-                # 检查是否应该停止
-                if self._stop_event.is_set() or import_state.should_cancel:
-                    break
-                
-                # 检查是否暂停
-                while import_state.is_paused and not self._stop_event.is_set():
-                    time.sleep(0.1)
-                
-                line_num = i + 1
-                raw_line = line
-                
-                # 更新进度
-                import_state.update_progress(line_num, action="解析行数据")
-                
-                # 处理单行
-                result, designator = self._process_line(line, line_num, origin, context)
-                
-                # 记录结果
-                if result == 'success':
-                    import_state.add_success(line_num, designator, f"行{line_num}导入成功", raw_line)
-                elif result == 'failed':
-                    import_state.add_failed(line_num, designator, f"行{line_num}导入失败", raw_line)
-                elif result == 'skipped':
-                    import_state.add_skipped(line_num, f"行{line_num}被跳过", raw_line)
-                
-                # 延迟
-                delay_time = self.line_delay_time.get(line_num, self.delay_time)
-                if delay_time:
-                    time.sleep(delay_time)
-                else:
-                    time.sleep(self.delay_time)
-            
-            # 完成导入
-            if not self._stop_event.is_set():
-                import_state.complete()
-            
-        except Exception as e:
-            print(f"导入线程错误: {e}")
-            import_state.add_failed(0, "", f"导入过程错误: {str(e)}", "")
 
     
     def _process_line(self, line, line_num, origin, context):
@@ -842,29 +828,24 @@ class IMPORT_OT_pnp_live_import(Operator):
 
     def _cancel_import(self):
         """取消导入"""
-        self._stop_event.set()
-        if self._import_thread and self._import_thread.is_alive():
-            self._import_thread.join(timeout=2.0)
-        
+        if self._timer:
+            bpy.context.window_manager.event_timer_remove(self._timer)
         import_state.cancel()
         print("❌ 导入已取消")
     
     def _finish_import(self, context):
         """完成导入"""
-        # 移除定时器
         if self._timer:
             context.window_manager.event_timer_remove(self._timer)
         
-        # 保存结果到场景
+        import_state.complete()
+        
         scene = context.scene
         scene['pnp_import_results'] = import_state.final_results
-        
-        # 记录导入时间
         scene.pnp_last_import_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         print(f"✅ 导入完成")
         
-        # 如果导入失败，自动弹出结果对话框
         if import_state.has_errors:
             getattr(getattr(bpy.ops, 'fritzing'), 'show_pnp_results_complete')('INVOKE_DEFAULT')
 
@@ -1283,14 +1264,6 @@ class VIEW3D_PT_pnp_settings(Panel):
         row = box.row(align=True)
         row.prop(scene, "pnp_pcb_thickness", text="厚度")
 
-        # 导入设置
-        layout.separator()
-        box = layout.box()
-        box.label(text="导入设置", icon='SETTINGS')
-        
-        box.prop(scene, "pnp_batch_size", text="每批数量")
-        box.prop(scene, "pnp_delay_time", text="延迟时间(秒)")
-        
         # 导入按钮
         layout.separator()
         col = layout.column(align=True)
@@ -1300,8 +1273,6 @@ class VIEW3D_PT_pnp_settings(Panel):
                              text="开始实时导入", 
                              icon='PLAY')
             setattr(op, 'filepath', pnp_file_path)
-            setattr(op, 'batch_size', getattr(scene, 'pnp_batch_size'))
-            setattr(op, 'delay_time', getattr(scene, 'pnp_delay_time'))
         else:
             col.label(text="请先选择PNP文件", icon='ERROR')
 
@@ -1968,22 +1939,6 @@ def register():
         name="PNP File",
         description="PNP文件路径",
         default=""
-    ))
-    
-    setattr(Scene, 'pnp_batch_size', IntProperty(
-        name="Batch Size",
-        description="每批导入的行数",
-        default=1,
-        min=1,
-        max=10
-    ))
-    
-    setattr(Scene, 'pnp_delay_time', FloatProperty(
-        name="Delay Time",
-        description="元件间的延迟时间",
-        default=0.05,
-        min=0.01,
-        max=1.0
     ))
     
     setattr(Scene, 'pnp_import_progress', FloatProperty(
