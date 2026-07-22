@@ -10,6 +10,25 @@ from .report import importdata
 # Flag: when True, GerberBoardSettings launches the panel import modal
 _launch_panel_modal = False
 
+def _drill_algorithm_items(self, context):
+    """Dynamic enum: only show algorithms for enabled addons."""
+    items = [
+        ('None','No Drill','',0),
+        ('BooleanModifier','Boolean Modifier','',1),
+    ]
+    addons = context.preferences.addons if context else {}
+    if 'bl_ext.user_default.bool_tool' in addons:
+        items.append(('AutoBoolean','Auto Boolean (Fast)','',2))
+    if 'bl_ext.blender_org.booltron' in addons:
+        items.append(('NonDestructiveDifference','Booltron Non-Destructive Difference','',3))
+    return items
+
+# Register at module level — callback makes it dynamic
+Scene.gerber_drill_algorithm_setting = EnumProperty(
+    items=_drill_algorithm_items,
+    default=0  # integer required when items is a function
+)
+
 ##
 # Dialog box to handle error messages
 class GerberBoardSettings(Operator):
@@ -21,6 +40,13 @@ class GerberBoardSettings(Operator):
     bl_context = "object"
 
     def draw(self, context):
+        # Self-register Scene properties
+        if not hasattr(context.scene, 'gerber_cylinder_filter_setting'):
+            setattr(Scene, 'gerber_cylinder_filter_setting', EnumProperty(
+                items=[('0.0015','>=1.5mm','',0),('0.0012','>=1.2mm','',1),
+                       ('0.0009','>=0.9mm','',2),('0.0005','>=0.5mm','',3),
+                       ('0.0','No Filter','',4)], default='0.0015'))
+        
         layout = self.layout
         # top margin
         row = layout.row()
@@ -208,22 +234,9 @@ def register():
 
         setattr(Scene, 'gerber_silk_color_setting', EnumProperty(
             items=silk_color_items,
-            default=Silk_White['name']  # Set the default value to white
+            default=Silk_White['name']
         ))
   
-    if len(drill_algorithm_items) == 0:
-        drill_algorithm_items.extend([
-            ('None', 'No Drill', '', 0),
-            ('BooleanModifier', 'Boolean Modifier', '', 1),
-            ('AutoBoolean', 'Auto Boolean (Fast)', '', 2),
-            ('NonDestructiveDifference', 'Booltron Non-Destructive Difference', '', 3),
-        ])
-
-        setattr(Scene, 'gerber_drill_algorithm_setting', EnumProperty(
-            items=drill_algorithm_items,
-            default='None'
-        ))
-
     if len(cylinder_filter_items) == 0:
         cylinder_filter_items.extend([
             ('0.0015', '>=1.5mm', '', 0),
@@ -235,7 +248,7 @@ def register():
 
         setattr(Scene, 'gerber_cylinder_filter_setting', EnumProperty(
             items=cylinder_filter_items,
-            default='0.0015'  # Set the default value to 1.5mm. Cylinders with a drill diameter >= 1.5mm will be drilled (boolean operation).
+            default='0.0015'
         ))
 
 def unregister():

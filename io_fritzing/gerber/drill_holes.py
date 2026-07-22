@@ -20,10 +20,6 @@ class GerberDrillHoles(Operator):
                 algorithm = 'BooleanModifier'
                 if context and hasattr(context.scene, 'gerber_drill_algorithm_setting'):
                     algorithm = str(getattr(context.scene, 'gerber_drill_algorithm_setting'))
-                if algorithm == 'AutoBoolean' and not hasattr(bpy.ops.object, 'boolean_auto_difference'):
-                    raise Exception('Auto Boolean requires the "Bool Tool" addon.')
-                if algorithm == 'NonDestructiveDifference' and not hasattr(bpy.ops.object, 'booltron_nondestructive_difference'):
-                    raise Exception('Non Destructive Difference requires the "Booltron" addon.')
                 if drill_layer and joined_layer:
                     self.drillHoles(context, joined_layer, drill_layer=drill_layer, algorithm=algorithm)
         except Exception as e:
@@ -156,12 +152,11 @@ class GerberDrillHoles(Operator):
                 getattr(bpy.ops.object, 'boolean_auto_difference')("INVOKE_DEFAULT")
                 self.refresh_3d(context)
     
-    # ── NonDestructiveDifference (unchanged) ──
+    # ── NonDestructiveDifference ──
     def _drill_nondestructive(self, context, layer, drill_layer, cyl_filter):
         bpy.ops.object.select_all(action='DESELECT')
         layer.select_set(True)
-        if bpy.context:
-            setattr(getattr(context.window_manager, 'booltron'), 'non_destructive.solver', 'EXACT')
+        setattr(getattr(context.window_manager, 'booltron'), 'non_destructive.solver', 'EXACT')
         for obj in drill_layer.objects:
             if obj.type == 'MESH' and self._pass_filter(obj, cyl_filter):
                 print(f'Drilling hole: {obj.name}')

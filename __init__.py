@@ -13,12 +13,18 @@
 
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
-from .io_fritzing import svg
-from .io_fritzing import pnp
-from .io_fritzing import assets
-from .io_fritzing import gerber
+try:
+    from .io_fritzing import svg
+    from .io_fritzing import pnp
+    from .io_fritzing import assets
+    from .io_fritzing import gerber
+except ImportError:
+    from io_fritzing import svg
+    from io_fritzing import pnp
+    from io_fritzing import assets
+    from io_fritzing import gerber
 
 
 def register():
