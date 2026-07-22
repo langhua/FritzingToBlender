@@ -3,6 +3,14 @@ from .report import importdata
 from bpy.types import Operator
 import time
 
+# ── KNOWN LIMITATIONS ──
+# 1. Boolean drill success rate is low on complex PCB meshes.
+#    Only large holes (≥1.5mm by default, adjustable via Cylinder Filter)
+#    are drilled; small vias and pads are filtered out.
+# 2. The BooleanModifier (batch boolean) algorithm is the most reliable;
+#    AutoBoolean and Booltron require third-party addons.
+# 3. Board mesh must be clean: merged layers, no non-manifold geometry.
+
 
 class GerberDrillHoles(Operator):
     bl_idname = "fritzing.gerber_drill_holes"
